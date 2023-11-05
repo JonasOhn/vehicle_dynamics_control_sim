@@ -2,19 +2,21 @@ import rclpy
 from rclpy.node import Node
 import matplotlib.pyplot as plt
 import matplotlib.patches as pat
-from geometry_msgs.msg import Pose
+from sim_backend.msg import VehicleState
 import numpy as np
 
 class PosePlotter(Node):
 
     def __init__(self):
         super().__init__('plotting_node')
-        self.subscription = self.create_subscription(
-            Pose,
-            'vehicle_pose',
-            self.plot_pose_callback,
+        self.state_subscription = self.create_subscription(
+            VehicleState,
+            'vehicle_state',
+            self.state_callback,
             10)
-        self.subscription  # prevent unused variable warning
+        self.state_subscription  # prevent unused variable warning
+
+        self.timer = self.create_timer(0.01, self.plot_callback)
         
         plt.ion()
 
@@ -22,31 +24,46 @@ class PosePlotter(Node):
         self.x_pos = 0.0
         self.y_pos = 0.0
         self.psi = 0.0
+        self.dx_pos = 0.0
+        self.dy_pos = 0.0
+        self.vx_scaled = 0.0
+        self.vy_scaled = 0.0
 
-    def plot_pose_callback(self, msg):
+        self.callback_count = 0
+        self.past_positions = np.zeros((1, 2))
+
+    def plot_callback(self):
         # Clear current axis
         plt.cla()
         # Get axis from fig
         ax = self.fig.axes[0]
 
-        # Get new car pose in 2D from msg
-        self.x_pos = msg.position.x
-        self.y_pos = msg.position.y
-        _, _, self.psi = euler_from_quat(msg.orientation)
-        dx = np.cos(self.psi) * 2
-        dy = np.sin(self.psi) * 24
+        dx = np.cos(self.psi)
+        dy = np.sin(self.psi)
+        if self.callback_count < 500:
+            self.past_positions = np.append(self.past_positions, np.array([[self.x_pos, self.y_pos]]), axis=0)
+        else:
+            self.past_positions[0:-1, :] = self.past_positions[1:, :]
+            self.past_positions[-1, 0] = self.x_pos
+            self.past_positions[-1, 1] = self.y_pos
 
-        ax.arrow(self.x_pos, self.y_pos, dx, dy, width=0.5, head_width=0.6)
+        plt.plot(self.past_positions[:, 0], self.past_positions[:, 1])
+        plt.plot(self.x_pos - dx, self.y_pos - dy, self.x_pos + dx, self.y_pos + dy, marker = 'o')
+        plt.plot(self.x_pos, self.y_pos, 'r*')
+        plt.arrow(self.x_pos, self.y_pos, self.vx_scaled, self.vy_scaled, width = 0.1, head_width=0.3)
 
-        ax.set_xlim(left=-50, right=50)
-        ax.set_ylim(bottom=-50, top=50)
-
-        print(self.psi*180.0/np.pi)
-    
+        ax.set_xlim(left=self.x_pos-10, right=self.x_pos+10)
+        ax.set_ylim(bottom=self.y_pos-10, top=self.y_pos+10)    
+        
         self.fig.canvas.draw_idle()
         self.fig.canvas.flush_events()
 
-        self.get_logger().info("Plotting")
+    def state_callback(self, msg):
+        self.vx_scaled = msg.dx_c * 0.1
+        self.vy_scaled = msg.dy_c * 0.1
+        self.x_pos = msg.x_c
+        self.y_pos = msg.y_c
+        self.psi = msg.psi
 
 def euler_from_quat(quaternion):
     """

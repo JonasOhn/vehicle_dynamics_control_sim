@@ -13,6 +13,7 @@
   <test_depend>python3-pytest</test_depend>
 
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>sim_backend</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-matplotlib</exec_depend>

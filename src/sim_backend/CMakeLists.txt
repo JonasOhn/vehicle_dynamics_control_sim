@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
 project(sim_backend)
 
-set (CMAKE_CXX_STANDARD 17)
+set (CMAKE_CXX_STANDARD 20)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -15,30 +15,49 @@ find_package(rclcpp REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
-
-set(msg_files
-  "msg/SysInput.msg"
-)
+find_package(builtin_interfaces REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  ${msg_files}
+  "msg/SysInput.msg"
+  "msg/VehicleState.msg"
 )
 
 ament_export_dependencies(rosidl_default_runtime)
 
-add_executable(dynamics_simulator src/dynamics_sim_node.cpp)
-ament_target_dependencies(
-  dynamics_simulator 
-  rclcpp 
+include_directories(include)
+
+add_executable(dynamics_simulator 
+  src/dynamics_sim_node.cpp
+  src/dynamic_system.cpp)
+
+add_executable(vehicle_frame_publisher
+  src/vehicle_frame_publisher.cpp)
+
+ament_target_dependencies(vehicle_frame_publisher
   geometry_msgs
-  tf2_geometry_msgs
+  rclcpp
   tf2
   tf2_ros)
+
+ament_target_dependencies(dynamics_simulator
+  rclcpp 
+  geometry_msgs
+  builtin_interfaces
+  tf2
+  tf2_ros
+  tf2_geometry_msgs)
 
 # install such that ros2 run can find exe
 install(TARGETS
   dynamics_simulator
   DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS
+  vehicle_frame_publisher
+  DESTINATION lib/${PROJECT_NAME})
+
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME})
 
 rosidl_get_typesupport_target(cpp_typesupport_target
   ${PROJECT_NAME} rosidl_typesupport_cpp)

@@ -1,0 +1,10 @@
+float64 x_c
+float64 y_c
+float64 psi
+float64 dx_c
+float64 dy_c
+float64 dpsi
+float64 fx_f_act
+float64 dfx_f_act
+float64 fx_r_act
+float64 dfx_r_act

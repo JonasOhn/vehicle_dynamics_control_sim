@@ -7,34 +7,42 @@
 
 #include <tf2/LinearMath/Quaternion.h>
 #include "rclcpp/rclcpp.hpp"
-#include "geometry_msgs/msg/pose.hpp"
-#include "geometry_msgs/msg/twist.hpp"
+#include "sim_backend/msg/vehicle_state.hpp"
 #include "sim_backend/msg/sys_input.hpp"
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include "dynamic_system.hpp"
 
 using namespace std::chrono_literals;
-using std::placeholders::_1;
 using namespace boost::numeric::odeint;
 
 
 class DynamicsSimulator : public rclcpp::Node
 {
-    typedef std::vector<double> state_type;
     public:
         DynamicsSimulator()
         : Node("dynamics_simulator")
         {
-            pose_publisher_ = this->create_publisher<geometry_msgs::msg::Pose>("vehicle_pose", 10);
-            twist_publisher_ = this->create_publisher<geometry_msgs::msg::Twist>("vehicle_twist", 10);
+            x_[0] = 0.0;
+            x_[1] = 0.0;
+            x_[2] = 0.0;
+            x_[3] = 0.0;
+            x_[4] = 0.0;
+            x_[5] = 0.0;
+            x_[6] = 0.0;
+            x_[7] = 0.0;
+            x_[8] = 0.0;
+            x_[9] = 0.0;
+            dt_seconds_ = dt_.count() / 1e3;
+            t_ = 0.0;
+            sys_ = DynamicSystem();
+            start_time_ns_ = (double)(this->now().nanoseconds());  // [ns]
+
+            state_publisher_ = this->create_publisher<sim_backend::msg::VehicleState>("vehicle_state", 10);
+
             input_subscription_ = this->create_subscription<sim_backend::msg::SysInput>(
-                "vehicle_input", 10, std::bind(&DynamicsSimulator::update_input, this, _1));
+                "vehicle_input", 10, std::bind(&DynamicsSimulator::update_input, this, std::placeholders::_1));
             solve_timer_ = this->create_wall_timer(
-                this->dt_, std::bind(&DynamicsSimulator::solve_step, this)
-            );
-            this->t_ = 0.0;
-            publish_timer_ = this->create_wall_timer(
-                this->publish_dt_, std::bind(&DynamicsSimulator::publish_state, this)
-            );
+                this->dt_, std::bind(&DynamicsSimulator::solve_step, this));
         }
 
     private:
@@ -43,121 +51,83 @@ class DynamicsSimulator : public rclcpp::Node
             RCLCPP_INFO_STREAM(this->get_logger(), 
                 "Received Input Fx_f: " << msg.fx_f << ""
                 << ", Fx_r: " << msg.fx_r << ", delta_s: " << msg.del_s);
-            this->Fx_f = msg.fx_f;
-            this->Fx_r = msg.fx_r;
-            this->delta_s = msg.del_s;
-        }
-
-        void publish_state()
-        {
-            auto pose_msg = geometry_msgs::msg::Pose();
-            tf2::Quaternion q;
-            q.setRPY(0, 0, this->x[2]);
-            pose_msg.position.x = this->x[0];
-            pose_msg.position.y = this->x[1];
-            geometry_msgs::msg::Quaternion msg_quat = tf2::toMsg(q);
-            pose_msg.orientation = msg_quat;
-
-            auto twist_msg = geometry_msgs::msg::Twist();
-            twist_msg.linear.x = this->x[3];
-            twist_msg.linear.y = this->x[4];
-            twist_msg.angular.z = this->x[5];
-
-            RCLCPP_INFO(this->get_logger(), "Publishing Pose and Twist");
-            pose_publisher_->publish(pose_msg);
-            twist_publisher_->publish(twist_msg);
+            this->sys_.update_inputs(msg.fx_f, msg.fx_r, msg.del_s);
         }
 
         void solve_step()
         {
-            this->rk4.do_step(
-                [this]
-                (const DynamicsSimulator::state_type & x , 
-                DynamicsSimulator::state_type & dxdt , 
-                const double t){
-                    /*
-                        Formulation of the vehicle dynamics
-                        - dynamic bicycle model 
-                        - lateral Pacejka
-                        - instant driving forces
-                        - formulated in vehicle body frame
+            /* Get start time of solve step */
+            double t0 = (double_t)(this->now().nanoseconds())/1e6;  // [ms]
 
-                        Inputs:
-                        - Steering angle
-                        - Force from motor torque on front axle
-                        - Force from motor torque on rear axle
+            RCLCPP_INFO_STREAM(this->get_logger(), "Step began at time t_ = " << t_ << " s.");
+            RCLCPP_INFO_STREAM(this->get_logger(), "Start relative clock time: " << (t0 - start_time_ns_/1e6)/1e3 << " s.");
+            
+            RCLCPP_INFO_STREAM(this->get_logger(), x_[0] );
 
-                        State:
-                        - [x, y, psi, v_x, v_y, psi_dot]
-                    */
+            double adaptive_dt = 1e-4;
+            size_t steps = integrate_adaptive(stepper_, sys_, x_, t_, t_ + dt_seconds_, adaptive_dt);
+            t_ = t_ + dt_seconds_;
+            RCLCPP_INFO_STREAM(this->get_logger(), "Solver produced a valid result integrating " << steps << " step(s) forward.");
 
-                    // params
-                    double l_f = 0.8; // m
-                    double l_r = 0.7; // m
-                    double l = l_f + l_r;
-                    double m = 220; // kg
-                    double Iz = 100; // kg m m
-                    double g = 9.81; // m s-2
-                    double D_tire = -5;
-                    double C_tire = 1.2;
-                    double B_tire = 9.5;
-                    double C_d = 0.5 * 1.225 * 1.85; // 0.5 * rho * CdA
-                    double C_r = 0.5; // -
+            auto state_msg = sim_backend::msg::VehicleState();
+            /* x = [xc_I, yc_I, psi, dxc_V, dyc_V, dpsi, fx_f, dfx_f, fx_r, dfx_r] */
+            state_msg.x_c = x_[0];
+            state_msg.y_c = x_[1];
+            state_msg.psi = x_[2];
+            state_msg.dx_c = x_[3] * cos(x_[2]) - x_[4] * sin(x_[2]);
+            state_msg.dy_c = x_[3] * sin(x_[2]) + x_[4] * cos(x_[2]);
+            state_msg.dpsi = x_[5];
+            state_msg.fx_f_act = x_[6];
+            state_msg.dfx_f_act = x_[7];
+            state_msg.fx_r_act = x_[8];
+            state_msg.dfx_r_act = x_[9];
 
-                    // inputs
-                    double F_drive_f = this->Fx_f;
-                    double F_drive_r = this->Fx_r;
-                    double delta_steer = this->delta_s;
-
-                    // sideslip angles
-                    double alpha_f = delta_steer - atan2((l_f * x[5] + x[4]), x[3]);
-                    double alpha_r = - atan2((-l_r * x[5] + x[4]), x[3]);
-
-                    // Resistance only in x-direction of vehicle frame
-                    double F_resist = tanh(x[3]/1e-6) * (C_d * pow(x[3], 2) + C_r * m * g);
-
-                    // Vertical tire loads
-                    double Fz_f = m * g * l_r/l;
-                    double Fz_r = m * g * l_f/l;
-
-                    // Lateral tire loads (Pacejka model)
-                    double Fy_f = Fz_f * D_tire * sin(C_tire * atan(B_tire * alpha_f));
-                    double Fy_r = Fz_r * D_tire * sin(C_tire * atan(B_tire * alpha_r));
-
-                    // Differential Equations
-                    dxdt[0] = x[3];
-                    dxdt[1] = x[4];
-                    dxdt[2] = x[5];
-                    dxdt[3] = (F_drive_f * cos(delta_steer)
-                        + F_drive_r
-                        - Fy_f * sin(delta_steer)
-                        - F_resist) / m
-                        + x[5] * x[4];
-                    dxdt[4] = (Fy_r 
-                        + Fy_f * cos(delta_steer)
-                        + F_drive_f * sin(delta_steer)) / m
-                        - x[5] * x[3];
-                    dxdt[5] = (F_drive_f * sin(delta_steer)
-                        - Fy_r * l_r
-                        + Fy_f * cos(delta_steer)) / Iz;
-                } , this->x , this->t_ , this->dt_f_ );
+            state_publisher_->publish(state_msg);
+            
+            /* Get end time of solve step */
+            double t1 = (double_t)(this->now().nanoseconds()) / 1e6;  // [ms]
+            RCLCPP_INFO_STREAM(this->get_logger(), "Time needed for step: " << t1-t0 << " ms");
+            if (t1 - t0 > 0.99 * dt_.count()){
+                RCLCPP_ERROR_STREAM(this->get_logger(), "Needed too long for solver step!");
+            }
+            RCLCPP_INFO_STREAM(this->get_logger(), "Step ended at time t_ = " << t_ << " s.");
+            RCLCPP_INFO_STREAM(this->get_logger(), "End relative clock time: " << (t1 - start_time_ns_/1e6)/1e3 << " s.");
         }
 
         rclcpp::TimerBase::SharedPtr solve_timer_;
-        rclcpp::TimerBase::SharedPtr publish_timer_;
-        rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr pose_publisher_;
-        rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr twist_publisher_;
+        rclcpp::Publisher<sim_backend::msg::VehicleState>::SharedPtr state_publisher_;
         rclcpp::Subscription<sim_backend::msg::SysInput>::SharedPtr input_subscription_;
-        std::chrono::microseconds dt_{std::chrono::microseconds(10)};
-        std::chrono::milliseconds publish_dt_{std::chrono::milliseconds(10)};
-        const double dt_f_ = dt_.count() / 1e6;
-        DynamicsSimulator::state_type x{DynamicsSimulator::state_type(6)};
-        double t_ = 0.0;
-        double Fx_f = 0.0;
-        double Fx_r = 0.0;
-        double delta_s = 0.0;
 
-        runge_kutta4< DynamicsSimulator::state_type > rk4;
+        /* Cycle time of Simulation node */
+        std::chrono::milliseconds dt_{std::chrono::milliseconds(5)};
+        double dt_seconds_;
+
+        double t_;
+        double start_time_ns_;
+        state_type x_{state_type(10)};
+
+        DynamicSystem sys_;
+
+        double max_dt_ = 1e-3;
+
+        runge_kutta_dopri5< state_type > stepper_uncontrolled_ = runge_kutta_dopri5< state_type >();
+        default_error_checker<double, 
+            range_algebra, 
+            default_operations
+            > error_checker = default_error_checker<double, range_algebra, default_operations>(1e-2, 1e-2);
+        default_step_adjuster<double, double> step_adjuster = default_step_adjuster<double, double>(static_cast<double>(max_dt_));
+
+        controlled_runge_kutta<
+            runge_kutta_dopri5< state_type >, 
+            default_error_checker<double, range_algebra, default_operations>,
+            default_step_adjuster<double, double>,
+            initially_resizer
+            > stepper_ = controlled_runge_kutta<runge_kutta_dopri5< state_type >, 
+                                                default_error_checker<double, range_algebra, default_operations>,
+                                                default_step_adjuster<double, double>,
+                                                initially_resizer>(error_checker,
+                                                                   step_adjuster,
+                                                                   stepper_uncontrolled_);
 };
 
 int main(int argc, char * argv[])
