@@ -10,7 +10,7 @@
 #include "sim_backend/msg/vehicle_state.hpp"
 #include "sim_backend/msg/sys_input.hpp"
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
-#include "dynamic_system.hpp"
+#include "sim_backend/dynamic_system.hpp"
 
 using namespace std::chrono_literals;
 using namespace boost::numeric::odeint;
