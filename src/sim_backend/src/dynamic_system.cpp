@@ -7,22 +7,26 @@ using namespace boost::numeric::odeint;
 
 DynamicSystem::DynamicSystem(){
     // Constructor for some standard parameter system
-    params_.l_f = 0.8; // m
-    params_.l_r = 0.7; // m
-    l_ = params_.l_f + params_.l_r;
-    params_.m = 220; // kg
-    params_.Iz = 100; // kg m m
-    params_.g = 9.81; // m s-2
-    params_.D_tire = -5;
-    params_.C_tire = 1.2;
-    params_.B_tire = 9.5;
-    params_.C_d = 0.5 * 1.225 * 1.85; // 0.5 * rho * CdA
-    params_.C_r = 0.5; // -
-    params_.T_mot = 0.1;
-    params_.D_mot = 1.0;
     Fx_f_ = 0.0;
     Fx_r_ = 0.0;
     delta_s_ = 0.0;
+    l_ = 0.0;
+}
+
+void DynamicSystem::update_parameters(parameters param_struct){
+    params_.l_f = param_struct.l_f; // m
+    params_.l_r = param_struct.l_r; // m
+    l_ = param_struct.l_f + param_struct.l_r;
+    params_.m = param_struct.m; // kg
+    params_.Iz = param_struct.Iz; // kg m m
+    params_.g = param_struct.g; // m s-2
+    params_.D_tire = param_struct.D_tire;
+    params_.C_tire = param_struct.C_tire;
+    params_.B_tire = param_struct.B_tire;
+    params_.C_d = param_struct.C_d; // 0.5 * rho * CdA
+    params_.C_r = param_struct.C_r; // -
+    params_.T_mot = param_struct.T_mot;
+    params_.D_mot = param_struct.D_mot;
 }
 
 void DynamicSystem::update_inputs(double fx_f, double fx_r, double delta_steer){

@@ -36,6 +36,8 @@ class PosePlotter(Node):
         self.past_positions = np.zeros((1, 2))
 
     def plot_callback(self):
+        self.callback_count += 1
+
         # Clear current axis
         plt.cla()
         # Get axis from fig

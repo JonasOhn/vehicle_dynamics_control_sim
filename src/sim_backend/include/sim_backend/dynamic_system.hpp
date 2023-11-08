@@ -41,6 +41,8 @@ class DynamicSystem {
         DynamicSystem();
 
         void update_inputs(double fx_f, double fx_r, double delta_steer);
+        
+        void update_parameters(parameters param_struct);
 
         void operator() ( const state_type &x , state_type &dxdt , const double /* t */ );
 };

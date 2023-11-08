@@ -27,40 +27,41 @@ class PPController : public rclcpp::Node
 {
   public:
     PPController()
-    : Node("pp_controller")
+    : Node("pp_controller",
+            rclcpp::NodeOptions()
+                .allow_undeclared_parameters(true)
+                .automatically_declare_parameters_from_overrides(true))
     {
         if (!(this->get_csv_ref_track())){
             RCLCPP_ERROR_STREAM(this->get_logger(), "Something went wrong reading CSV ref points file!");
         }
         print_refpoints();
 
-        L_wb_ = 1.5;
-
         current_pose_.x = 0.0;
         current_pose_.y = 0.0;
         current_pose_.psi = 0.0;
-        l_d_ = 3.0;
         v_act_ = 0.0;
-        v_ref_ = 8.0;
         e_v_ = 0.0;
         e_v_integral_ = 0.0;
         dt_seconds_ = dt_.count() / 1e3;
-
-        K_I_v_ = 50;
-        K_P_v_ = 400;
-        K_D_v_ = 150;
 
         state_subscriber_ = this->create_subscription<sim_backend::msg::VehicleState>(
             "vehicle_state", 1, std::bind(&PPController::state_update, this, std::placeholders::_1));
         control_cmd_publisher_ = this->create_publisher<sim_backend::msg::SysInput>("vehicle_input", 10);
         control_cmd_timer_ = this->create_wall_timer(this->dt_, std::bind(&PPController::control_callback, this));
-        
     }
 
   private:
 
     void control_callback()
     {
+        L_wb_ = this->get_parameter("L_wb").as_double();
+        l_d_ = this->get_parameter("l_d").as_double();
+        K_I_v_ = this->get_parameter("k_i_v").as_double();
+        K_P_v_ = this->get_parameter("k_p_v").as_double();
+        K_D_v_ = this->get_parameter("k_d_v").as_double();
+        v_ref_ = this->get_parameter("v_ref").as_double();
+
         auto veh_input_msg = sim_backend::msg::SysInput();
 
         double fx = 0.0;

@@ -20,7 +20,10 @@ class DynamicsSimulator : public rclcpp::Node
 {
     public:
         DynamicsSimulator()
-        : Node("dynamics_simulator")
+        : Node("dynamics_simulator",
+                rclcpp::NodeOptions()
+                    .allow_undeclared_parameters(true)
+                    .automatically_declare_parameters_from_overrides(true))
         {
             x_[0] = 0.0;
             x_[1] = 0.0;
@@ -32,9 +35,25 @@ class DynamicsSimulator : public rclcpp::Node
             x_[7] = 0.0;
             x_[8] = 0.0;
             x_[9] = 0.0;
+
+            sys_ = DynamicSystem();
+            parameters param_struct;
+            param_struct.l_f = this->get_parameter("l_f").as_double();
+            param_struct.l_r = this->get_parameter("l_r").as_double();
+            param_struct.m = this->get_parameter("m").as_double();
+            param_struct.Iz = this->get_parameter("Iz").as_double();
+            param_struct.g = this->get_parameter("g").as_double();
+            param_struct.D_tire = this->get_parameter("D_tire").as_double();
+            param_struct.C_tire = this->get_parameter("C_tire").as_double();
+            param_struct.B_tire = this->get_parameter("B_tire").as_double();
+            param_struct.C_d = this->get_parameter("C_d").as_double();
+            param_struct.C_r = this->get_parameter("C_r").as_double();
+            param_struct.T_mot = this->get_parameter("T_mot").as_double();
+            param_struct.D_mot = this->get_parameter("D_mot").as_double();
+            sys_.update_parameters(param_struct);
+
             dt_seconds_ = dt_.count() / 1e3;
             t_ = 0.0;
-            sys_ = DynamicSystem();
             start_time_ns_ = (double)(this->now().nanoseconds());  // [ns]
 
             state_publisher_ = this->create_publisher<sim_backend::msg::VehicleState>("vehicle_state", 10);

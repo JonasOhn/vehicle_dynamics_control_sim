@@ -1,0 +1,8 @@
+/pp_controller:
+  ros__parameters:
+    k_i_v: 50.0 # integral gain for PID
+    k_p_v: 300.0 # proportional gain for PID
+    k_d_v: 100.0 # derivative gain for PID
+    l_d: 7.0  # lookahead distance [m]
+    L_wb: 1.5 # Wheelbase length
+    v_ref: 7.5 # reference velocity [m/s]
