@@ -59,22 +59,20 @@ class DynamicsSimulator : public rclcpp::Node
             /* Get start time of solve step */
             double t0 = (double_t)(this->now().nanoseconds())/1e6;  // [ms]
 
-            RCLCPP_INFO_STREAM(this->get_logger(), "Step began at time t_ = " << t_ << " s.");
-            RCLCPP_INFO_STREAM(this->get_logger(), "Start relative clock time: " << (t0 - start_time_ns_/1e6)/1e3 << " s.");
+            //RCLCPP_INFO_STREAM(this->get_logger(), "Step began at time t_ = " << t_ << " s.");
+            //RCLCPP_INFO_STREAM(this->get_logger(), "Start relative clock time: " << (t0 - start_time_ns_/1e6)/1e3 << " s.");
             
-            RCLCPP_INFO_STREAM(this->get_logger(), x_[0] );
-
             double adaptive_dt = 1e-4;
             size_t steps = integrate_adaptive(stepper_, sys_, x_, t_, t_ + dt_seconds_, adaptive_dt);
             t_ = t_ + dt_seconds_;
-            RCLCPP_INFO_STREAM(this->get_logger(), "Solver produced a valid result integrating " << steps << " step(s) forward.");
+            //RCLCPP_INFO_STREAM(this->get_logger(), "Solver produced a valid result integrating " << steps << " step(s) forward.");
 
             auto state_msg = sim_backend::msg::VehicleState();
             /* x = [xc_I, yc_I, psi, dxc_V, dyc_V, dpsi, fx_f, dfx_f, fx_r, dfx_r] */
             state_msg.x_c = x_[0];
             state_msg.y_c = x_[1];
             state_msg.psi = x_[2];
-            state_msg.dx_c = x_[3] * cos(x_[2]) - x_[4] * sin(x_[2]);
+            state_msg.dx_c = x_[3] * cos(x_[2]) - x_[4] * sin(x_[2]); // rotated into global frame
             state_msg.dy_c = x_[3] * sin(x_[2]) + x_[4] * cos(x_[2]);
             state_msg.dpsi = x_[5];
             state_msg.fx_f_act = x_[6];
@@ -86,12 +84,13 @@ class DynamicsSimulator : public rclcpp::Node
             
             /* Get end time of solve step */
             double t1 = (double_t)(this->now().nanoseconds()) / 1e6;  // [ms]
-            RCLCPP_INFO_STREAM(this->get_logger(), "Time needed for step: " << t1-t0 << " ms");
+            RCLCPP_INFO_STREAM(this->get_logger(), "Time needed for step: " << t1-t0 << " ms. \nSolver did " << steps << " step(s).");
+
             if (t1 - t0 > 0.99 * dt_.count()){
                 RCLCPP_ERROR_STREAM(this->get_logger(), "Needed too long for solver step!");
             }
-            RCLCPP_INFO_STREAM(this->get_logger(), "Step ended at time t_ = " << t_ << " s.");
-            RCLCPP_INFO_STREAM(this->get_logger(), "End relative clock time: " << (t1 - start_time_ns_/1e6)/1e3 << " s.");
+            // RCLCPP_INFO_STREAM(this->get_logger(), "Step ended at time t_ = " << t_ << " s.");
+            // RCLCPP_INFO_STREAM(this->get_logger(), "End relative clock time: " << (t1 - start_time_ns_/1e6)/1e3 << " s.");
         }
 
         rclcpp::TimerBase::SharedPtr solve_timer_;

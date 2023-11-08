@@ -23,13 +23,13 @@ right_yellow_cones_positions = np.array(right_yellow_cones_positions)
 orange_cones_positions = np.array(orange_cones_positions)
 
 plt.scatter(left_blue_cones_positions[:, 0], left_blue_cones_positions[:, 1], s=3.5, c='b', marker="^")
-plt.scatter(left_blue_cones_positions[0, 0], left_blue_cones_positions[0, 1], s=3.5, c='r', marker="^")
+plt.scatter(left_blue_cones_positions[0, 0], left_blue_cones_positions[0, 1], s=10, c='r', marker="^")
 plt.scatter(right_yellow_cones_positions[:, 0], right_yellow_cones_positions[:, 1], s=3.5, c='y', marker="^")
-plt.scatter(right_yellow_cones_positions[0, 0], right_yellow_cones_positions[0, 1], s=3.5, c='r', marker="^")
+plt.scatter(right_yellow_cones_positions[0, 0], right_yellow_cones_positions[0, 1], s=10, c='r', marker="^")
 plt.scatter(orange_cones_positions[:, 0], orange_cones_positions[:, 1], s=5, c='orange', marker="^")
 plt.gca().axis('equal')
 
-n_spline_evals = 100
+n_spline_evals = 200
 
 """ BLUE """
 x_blue = left_blue_cones_positions[:, 0]
@@ -64,13 +64,20 @@ for i in range(count):
 tck_mid, u_mid = interpolate.splprep([x_midline, y_midline], s=0, k=3)
 xs_midline, ys_midline = interpolate.splev(np.linspace(0, 1, n_spline_evals), tck_mid)
 
-print(u_mid)
-
 lc = mc.LineCollection(lines, colors='k', linewidths=0.5)
 plt.gca().add_collection(lc)
 
 plt.scatter(xs_blue, ys_blue, s=6, c='b', marker="o")
 plt.scatter(xs_yellow, ys_yellow, s=6, c='y', marker="o")
 plt.scatter(x_midline, y_midline, s=6, c='k', marker="o")
-plt.plot(xs_midline, ys_midline, s=6, marker="o")
+plt.plot(xs_midline, ys_midline, linewidth=0.5,  marker="o", markersize=0.1)
+plt.scatter(x_midline[0], y_midline[0], s=10, c='r', marker="o")
+plt.scatter(x_midline[-1], y_midline[-1], s=10, c='r', marker="o")
+plt.grid()
 plt.show()
+
+
+with open('src/sim_backend/tracks/FSG_middle_path.csv', 'w', newline='') as csv_file:
+    csv_writer = csv.writer(csv_file, delimiter=',')
+    for i in range(len(x_midline)):
+        csv_writer.writerow([x_midline[i], y_midline[i]])

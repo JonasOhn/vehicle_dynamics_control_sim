@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as pat
 from sim_backend.msg import VehicleState
 import numpy as np
+import csv
 
 class PosePlotter(Node):
 
@@ -15,6 +16,8 @@ class PosePlotter(Node):
             self.state_callback,
             10)
         self.state_subscription  # prevent unused variable warning
+
+        self.load_track()
 
         self.timer = self.create_timer(0.01, self.plot_callback)
         
@@ -52,11 +55,41 @@ class PosePlotter(Node):
         plt.plot(self.x_pos, self.y_pos, 'r*')
         plt.arrow(self.x_pos, self.y_pos, self.vx_scaled, self.vy_scaled, width = 0.1, head_width=0.3)
 
-        ax.set_xlim(left=self.x_pos-10, right=self.x_pos+10)
-        ax.set_ylim(bottom=self.y_pos-10, top=self.y_pos+10)    
+        plt.plot(self.midline_positions[:, 0], self.midline_positions[:, 1])
+        plt.scatter(self.blue_cones_positions[:, 0], self.blue_cones_positions[:, 1], s=3.5, c='b', marker="^")
+        plt.scatter(self.yellow_cones_positions[:, 0], self.yellow_cones_positions[:, 1], s=3.5, c='y', marker="^")
+        plt.scatter(self.orange_cones_positions[:, 0], self.orange_cones_positions[:, 1], s=5, c='orange', marker="^")
+
+        ax.set_xlim(left=self.x_pos-30, right=self.x_pos+30)
+        ax.set_ylim(bottom=self.y_pos-30, top=self.y_pos+30)    
         
         self.fig.canvas.draw_idle()
         self.fig.canvas.flush_events()
+
+    def load_track(self):
+        left_blue_cones_positions = []
+        right_yellow_cones_positions = []
+        orange_cones_positions = []
+        with open('src/sim_backend/tracks/FSG.csv') as csv_file:
+            csv_reader = csv.DictReader(csv_file, delimiter=',')
+            for row in csv_reader:
+                if row['tag'] == 'blue':
+                    left_blue_cones_positions.append([float(row['x']), float(row['y'])])
+                elif row['tag'] == 'yellow':
+                    right_yellow_cones_positions.append([float(row['x']), float(row['y'])])
+                else:
+                    orange_cones_positions.append([float(row['x']), float(row['y'])])
+        self.blue_cones_positions = np.array(left_blue_cones_positions)
+        self.yellow_cones_positions = np.array(right_yellow_cones_positions)
+        self.orange_cones_positions = np.array(orange_cones_positions)
+
+        midline_positions = []
+        with open('src/sim_backend/tracks/FSG_middle_path.csv') as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            for row in csv_reader:
+                midline_positions.append([float(row[0]), float(row[1])])
+        self.midline_positions = np.array(midline_positions)
+        
 
     def state_callback(self, msg):
         self.vx_scaled = msg.dx_c * 0.1
