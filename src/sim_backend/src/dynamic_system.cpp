@@ -1,8 +1,6 @@
-#include <iostream>
 #include <boost/numeric/odeint.hpp>
 #include "sim_backend/dynamic_system.hpp"
 
-using namespace std;
 using namespace boost::numeric::odeint;
 
 DynamicSystem::DynamicSystem(){

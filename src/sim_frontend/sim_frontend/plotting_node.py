@@ -45,7 +45,7 @@ class PosePlotter(Node):
 
         dx = np.cos(self.psi)
         dy = np.sin(self.psi)
-        if self.callback_count < 500:
+        if self.callback_count < 100:
             self.past_positions = np.append(self.past_positions, np.array([[self.x_pos, self.y_pos]]), axis=0)
         else:
             self.past_positions[0:-1, :] = self.past_positions[1:, :]

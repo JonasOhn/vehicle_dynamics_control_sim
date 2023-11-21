@@ -50,11 +50,13 @@ ament_target_dependencies(dynamics_simulator
 # install such that ros2 run can find exe
 install(TARGETS
   dynamics_simulator
-  DESTINATION lib/${PROJECT_NAME})
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 install(TARGETS
   vehicle_frame_publisher
-  DESTINATION lib/${PROJECT_NAME})
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 install(DIRECTORY
   launch

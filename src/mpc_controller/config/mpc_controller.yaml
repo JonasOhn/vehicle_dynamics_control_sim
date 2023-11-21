@@ -1,0 +1,12 @@
+/mpc_controller:
+  ros__parameters:
+    l_f: 0.8 # m
+    l_r: 0.7 # m
+    m: 220.0 # kg
+    Iz: 100.0 # kg m m
+    g: 9.81 # m s-2
+    D_tire: -1.0
+    C_tire: 1.7
+    B_tire: 9.5
+    C_d: 1.133 # 0.5 * rho * CdA
+    C_r: 0.5 # -

@@ -34,3 +34,5 @@
 /build
 /install
 /log
+c_generated_solver/
+__pycache__/
