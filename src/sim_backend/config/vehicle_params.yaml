@@ -12,3 +12,5 @@
     C_r: 0.5 # -
     T_mot:  0.1 # s
     D_mot:  0.9 # -
+    gamma: 1.5 # rad
+    r_perception: 30.0 # m

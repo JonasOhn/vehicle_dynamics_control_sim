@@ -6,7 +6,7 @@
 
 using namespace std;
 using namespace boost::numeric::odeint;
-
+    
 typedef struct{
     double l_f; // m
     double l_r; // m

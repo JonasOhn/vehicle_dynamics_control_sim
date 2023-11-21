@@ -20,6 +20,8 @@ find_package(builtin_interfaces REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SysInput.msg"
   "msg/VehicleState.msg"
+  "msg/RefPath.msg"
+  "msg/Point2D.msg"
 )
 
 ament_export_dependencies(rosidl_default_runtime)
@@ -72,6 +74,13 @@ rosidl_get_typesupport_target(cpp_typesupport_target
   ${PROJECT_NAME} rosidl_typesupport_cpp)
 
 target_link_libraries(dynamics_simulator "${cpp_typesupport_target}")
+
+install(
+  DIRECTORY include/
+  DESTINATION include
+)
+
+ament_export_include_directories(include)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

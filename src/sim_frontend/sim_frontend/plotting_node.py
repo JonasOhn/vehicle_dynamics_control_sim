@@ -3,6 +3,7 @@ from rclpy.node import Node
 import matplotlib.pyplot as plt
 import matplotlib.patches as pat
 from sim_backend.msg import VehicleState
+from sim_backend.msg import RefPath
 import numpy as np
 import csv
 
@@ -15,7 +16,14 @@ class PosePlotter(Node):
             'vehicle_state',
             self.state_callback,
             10)
-        self.state_subscription  # prevent unused variable warning
+        self.path_subscription = self.create_subscription(
+            RefPath,
+            'reference_path',
+            self.ref_path_callback,
+            10)
+        # prevent unused variable warning
+        self.state_subscription
+        self.path_subscription
 
         self.load_track()
 
@@ -34,6 +42,7 @@ class PosePlotter(Node):
 
         self.callback_count = 0
         self.past_positions = np.zeros((1, 2))
+        self.ref_path_perception = np.zeros((1, 2))
 
     def plot_callback(self):
         self.callback_count += 1
@@ -53,6 +62,7 @@ class PosePlotter(Node):
             self.past_positions[-1, 1] = self.y_pos
 
         plt.plot(self.past_positions[:, 0], self.past_positions[:, 1])
+        plt.scatter(self.ref_path_perception[:, 0], self.ref_path_perception[:, 1], s=10, c='g', marker="o")
         plt.plot(self.x_pos - dx, self.y_pos - dy, self.x_pos + dx, self.y_pos + dy, marker = 'o')
         plt.plot(self.x_pos, self.y_pos, 'r*')
         plt.arrow(self.x_pos, self.y_pos, self.vx_scaled, self.vy_scaled, width = 0.1, head_width=0.3)
@@ -99,6 +109,14 @@ class PosePlotter(Node):
         self.x_pos = msg.x_c
         self.y_pos = msg.y_c
         self.psi = msg.psi
+    
+    def ref_path_callback(self, msg):
+        self.ref_path_perception = []
+        for point in msg.ref_path:
+            self.ref_path_perception.append(point.point_2d)
+
+        self.ref_path_perception = np.array(self.ref_path_perception)
+        print(self.ref_path_perception.shape)
 
 def euler_from_quat(quaternion):
     """

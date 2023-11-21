@@ -6,7 +6,7 @@ import numpy as np
 def main():
     # create ocp object to formulate the OCP
     ocp = AcadosOcp()
-    ocp.code_export_directory='c_generated_solver'
+    ocp.code_export_directory='c_generated_solver_mpc'
 
     # set model
     model = export_vehicle_ode_model()
