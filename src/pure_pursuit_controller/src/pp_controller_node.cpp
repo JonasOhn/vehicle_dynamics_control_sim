@@ -22,6 +22,13 @@ class PPController : public rclcpp::Node
                 .allow_undeclared_parameters(true)
                 .automatically_declare_parameters_from_overrides(true))
     {
+        this->L_wb_ = this->get_parameter("L_wb").as_double();
+        this->l_d_ = this->get_parameter("l_d").as_double();
+        this->K_I_v_ = this->get_parameter("k_i_v").as_double();
+        this->K_P_v_ = this->get_parameter("k_p_v").as_double();
+        this->K_D_v_ = this->get_parameter("k_d_v").as_double();
+        this->v_ref_ = this->get_parameter("v_ref").as_double();
+
         // Init pose to zero
         current_pose_.x = 0.0;
         current_pose_.y = 0.0;
@@ -50,6 +57,8 @@ class PPController : public rclcpp::Node
         // Init Control Command Publisher and corresponding Timer with respecitve callback
         control_cmd_publisher_ = this->create_publisher<sim_backend::msg::SysInput>("vehicle_input", 10);
         control_cmd_timer_ = this->create_wall_timer(this->dt_, std::bind(&PPController::control_callback, this));
+
+        RCLCPP_INFO_STREAM(this->get_logger(), "Node " << this->get_name() << " initialized.");
     }
 
   private:

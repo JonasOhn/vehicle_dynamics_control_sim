@@ -44,6 +44,8 @@ class PosePlotter(Node):
         self.past_positions = np.zeros((1, 2))
         self.ref_path_perception = np.zeros((1, 2))
 
+        self.get_logger().info(f'Node {self.get_name()} initialized.', once=True)
+
     def plot_callback(self):
         self.callback_count += 1
 

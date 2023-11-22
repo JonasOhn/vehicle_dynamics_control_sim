@@ -45,6 +45,9 @@ class DynamicsSimulator : public rclcpp::Node
             x_[8] = 0.0;
             x_[9] = 0.0;
 
+            this->gamma_ = this->get_parameter("gamma").as_double();
+            this->r_perception_ = this->get_parameter("r_perception").as_double();
+
             initial_idx_refloop_ = 0;
 
             sys_ = DynamicSystem();
@@ -77,6 +80,8 @@ class DynamicsSimulator : public rclcpp::Node
 
             input_subscription_ = this->create_subscription<sim_backend::msg::SysInput>(
                 "vehicle_input", 10, std::bind(&DynamicsSimulator::update_input, this, std::placeholders::_1));
+
+            RCLCPP_INFO_STREAM(this->get_logger(), "Node " << this->get_name() << " initialized.");
         }
 
     private:
