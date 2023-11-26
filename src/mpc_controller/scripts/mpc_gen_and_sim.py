@@ -13,11 +13,11 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
     # Paths
     ACADOS_PATH = join(dirname(abspath(__file__)), "../../../acados")
     if simulate_ocp:
-        codegen_export_dir = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/acados_solvers_library/scripts/c_generated_solver_mpc_sim'
-        ocp_solver_json_path = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/acados_solvers_library/scripts/acados_ocp_sim.json'
+        codegen_export_dir = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/mpc_controller/scripts/c_generated_solver_mpc_sim'
+        ocp_solver_json_path = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/mpc_controller/scripts/acados_ocp_sim.json'
     else:
-        codegen_export_dir = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/acados_solvers_library/scripts/c_generated_solver_mpc'
-        ocp_solver_json_path = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/acados_solvers_library/scripts/acados_ocp.json'
+        codegen_export_dir = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/mpc_controller/scripts/c_generated_solver_mpc'
+        ocp_solver_json_path = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/mpc_controller/scripts/acados_ocp.json'
 
     # Set up optimal control problem
     ocp = AcadosOcp()

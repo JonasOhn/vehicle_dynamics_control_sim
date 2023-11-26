@@ -15,7 +15,7 @@ find_package(sim_backend REQUIRED)
 # c-compiler flags for debugging
 set(CMAKE_C_FLAGS_DEBUG "-O0 -ggdb")
 
-set(CMAKE_C_FLAGS "-fPIC -Wno-unused-variable -Wno-unused-parameter -Wno-pedantic -Wno-vla")
+set(CMAKE_C_FLAGS "-fPIC -Wno-unused-parameter -Wno-pedantic -Wno-vla  ")
 #-fno-diagnostics-show-line-numbers -g
 
 # Set paths
@@ -64,8 +64,8 @@ set(SIM_SRC
 add_library(${SIM_OBJ} OBJECT ${SIM_SRC})
 
 # for target example
-set(LIB_SRC src/acados_solver_library.cpp)
-set(LIB acados_solvers_library)
+# set(LIB_SRC src/acados_solver_library.cpp)
+# set(LIB acados_solvers_library)
 
 #
 include_directories(
@@ -85,36 +85,36 @@ link_libraries(acados hpipm blasfeo m )
 
 #--------------
 
-add_library(${LIB} ${LIB_SRC}
-  $<TARGET_OBJECTS:${MODEL_OBJ}>
-  $<TARGET_OBJECTS:${OCP_OBJ}>
-  $<TARGET_OBJECTS:${SIM_OBJ}>
-)
+# add_library(${LIB} ${LIB_SRC}
+#   $<TARGET_OBJECTS:${MODEL_OBJ}>
+#   $<TARGET_OBJECTS:${OCP_OBJ}>
+#   $<TARGET_OBJECTS:${SIM_OBJ}>
+# )
 
-install(
-  DIRECTORY include/
-  DESTINATION include
-)
+# install(
+#   DIRECTORY include/
+#   DESTINATION include
+# )
 
-install(
-  TARGETS ${LIB}
-  LIBRARY DESTINATION lib
-  ARCHIVE DESTINATION lib
-  RUNTIME DESTINATION bin
-)
+# install(
+#   TARGETS ${LIB}
+#   LIBRARY DESTINATION lib
+#   ARCHIVE DESTINATION lib
+#   RUNTIME DESTINATION bin
+# )
 
 #------------------
 
-ament_export_libraries(${LIB})
-ament_export_include_directories(
-  include
-	${full_model_build}
-	${acados_include}
-	${acados_include}/blasfeo/include
-	${acados_include}/hpipm/include
-	${acados_include}/acados
-	${acados_include}/qpOASES_e
-)
+# ament_export_libraries(${LIB})
+# ament_export_include_directories(
+#   include
+# 	${full_model_build}
+# 	${acados_include}
+# 	${acados_include}/blasfeo/include
+# 	${acados_include}/hpipm/include
+# 	${acados_include}/acados
+# 	${acados_include}/qpOASES_e
+# )
 
 #-------------------
 add_executable(mpc_controller
@@ -128,13 +128,18 @@ ament_target_dependencies(mpc_controller
   rclcpp
   sim_backend
 )
-target_link_libraries(mpc_controller ${LIB})
+# target_link_libraries(mpc_controller ${LIB})
 
 install(TARGETS 
   mpc_controller
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}/
 )
 
 install(DIRECTORY
