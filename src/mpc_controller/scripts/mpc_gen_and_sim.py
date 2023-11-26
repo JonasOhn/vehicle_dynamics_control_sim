@@ -1,25 +1,31 @@
-import time
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
 from acados_template.acados_ocp_solver import ocp_get_default_cmake_builder
 from dynamics_model import export_vehicle_ode_model
 import numpy as np
 from MPC_parameters import *
-import scipy.linalg
-from casadi import vertcat
-import casadi as ca
 from plot_dynamics_sim import plot_dynamics
+from os.path import dirname, join, abspath
 
-def setup_ocp_and_sim(x0, RTI=False):
+def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
 
     """ ========== OCP Setup ============ """
+
     # Paths
-    codegen_export_dir = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/acados_solvers/acados/c_generated_solver_mpc'
-    ocp_solver_json_path = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/acados_solvers/acados/acados_ocp.json'
+    ACADOS_PATH = join(dirname(abspath(__file__)), "../../../acados")
+    if simulate_ocp:
+        codegen_export_dir = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/acados_solvers_library/scripts/c_generated_solver_mpc_sim'
+        ocp_solver_json_path = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/acados_solvers_library/scripts/acados_ocp_sim.json'
+    else:
+        codegen_export_dir = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/acados_solvers_library/scripts/c_generated_solver_mpc'
+        ocp_solver_json_path = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/acados_solvers_library/scripts/acados_ocp.json'
 
     # Set up optimal control problem
     ocp = AcadosOcp()
     # Set code export directory
     ocp.code_export_directory = codegen_export_dir
+    # set header paths
+    ocp.acados_include_path  = f'{ACADOS_PATH}/include'
+    ocp.acados_lib_path      = f'{ACADOS_PATH}/lib'
 
     """ ========== MODEL ============ """
     # Get AcadosModel form other python file
@@ -214,7 +220,8 @@ def setup_ocp_and_sim(x0, RTI=False):
     ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM' # FULL_CONDENSING_QPOASES
     ocp.solver_options.hessian_approx = 'EXACT' #'GAUSS_NEWTON'
     ocp.solver_options.integrator_type = 'IRK'
-    ocp.solver_options.sim_method_newton_iter = 20
+    if simulate_ocp:
+        ocp.solver_options.sim_method_newton_iter = 20
     ocp.solver_options.nlp_solver_max_iter = 100
     ocp.solver_options.qp_solver_iter_max = 50
     ocp.solver_options.tol = 1e-2
@@ -240,7 +247,8 @@ def setup_ocp_and_sim(x0, RTI=False):
     C_d = 1.133 # effective drag coefficient
     C_r = 0.5 # const. rolling resistance
     blending_factor = 0.0 # blending between kinematic and dynamic model
-    kappa_ref = 0.01 * np.ones(mpc_param_n_s) # reference curvature along s
+    kappa_ref = 0.0 * np.ones(mpc_param_n_s) # reference curvature along s
+    kappa_ref[15:] = 0.1
 
     paramvec = np.array((m, g, l_f, l_r, Iz, 
                          B_tire, C_tire, D_tire, C_d, C_r, blending_factor))
@@ -249,143 +257,150 @@ def setup_ocp_and_sim(x0, RTI=False):
 
     """ ====== CREATE OCP AND SIM SOLVERS =========== """
 
-    acados_ocp_solver = AcadosOcpSolver(ocp, json_file = ocp_solver_json_path)
+    cmake_builder = ocp_get_default_cmake_builder()
+    # cmake_builder = None
+    acados_ocp_solver = AcadosOcpSolver(ocp, json_file = ocp_solver_json_path,
+                                        cmake_builder=cmake_builder)
 
     # create an integrator with the same settings as used in the OCP solver.
-    acados_integrator = AcadosSimSolver(ocp, json_file = ocp_solver_json_path)
+    if simulate_ocp:
+        acados_integrator = AcadosSimSolver(ocp, json_file = ocp_solver_json_path)
+    else:
+        acados_integrator = None
 
     return acados_ocp_solver, acados_integrator
 
 
-def main(use_RTI=False):
+def main(use_RTI:bool=False, simulate_ocp:bool=True):
     """ =========== INITIAL STATE FOR SIMULATION ============ """
     # x =         [s,   n,   mu,  vx,  vy,  dpsi, Fx_m, del_s]
     x0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
     """ =========== GET SOLVER AND INTEGRATOR ============ """
-    ocp_solver, integrator = setup_ocp_and_sim(x0, use_RTI)
+    ocp_solver, integrator = setup_ocp_and_sim(x0, use_RTI, simulate_ocp=simulate_ocp)
 
-    """ =========== GET DIMS ============ """
-    nx = ocp_solver.acados_ocp.dims.nx
-    nu = ocp_solver.acados_ocp.dims.nu
+    if simulate_ocp:
+        """ =========== GET DIMS ============ """
+        nx = ocp_solver.acados_ocp.dims.nx
+        nu = ocp_solver.acados_ocp.dims.nu
 
-    """ =========== GET PARAMS ============ """
-    param_vec = ocp_solver.acados_ocp.parameter_values
+        """ =========== GET PARAMS ============ """
+        param_vec = ocp_solver.acados_ocp.parameter_values
 
-    """ =========== SET SIMULATION PARAMS ============ """
-    Nsim = 500
-    simX = np.ndarray((Nsim+1, nx))
-    simU = np.ndarray((Nsim, nu))
+        """ =========== SET SIMULATION PARAMS ============ """
+        Nsim = 500
+        simX = np.ndarray((Nsim+1, nx))
+        simU = np.ndarray((Nsim, nu))
 
-    simX[0,:] = x0
+        simX[0,:] = x0
 
-    if use_RTI:
-        t_preparation = np.zeros((Nsim))
-        t_feedback = np.zeros((Nsim))
-
-    else:
-        t = np.zeros((Nsim))
-
-    # do some initial iterations to start with a good initial guess
-    num_iter_initial = 30
-    for _ in range(num_iter_initial):
-        ocp_solver.solve_for_x0(x0_bar = x0)
-
-    # closed loop
-    for i in range(Nsim):
         if use_RTI:
-
-            # preparation phase
-            ocp_solver.options_set('rti_phase', 1)
-            status = ocp_solver.solve()
-            t_preparation[i] = ocp_solver.get_stats('time_tot')
-
-            # Set initial State
-            ocp_solver.set(0, "lbx", simX[i, :])
-            ocp_solver.set(0, "ubx", simX[i, :])
-
-            # feedback phase
-            ocp_solver.options_set('rti_phase', 2)
-            status = ocp_solver.solve()
-            t_feedback[i] = ocp_solver.get_stats('time_tot')
-
-            simU[i, :] = ocp_solver.get(0, "u")
+            t_preparation = np.zeros((Nsim))
+            t_feedback = np.zeros((Nsim))
 
         else:
-            # solve ocp and get next control input
-            simU[i,:] = ocp_solver.solve_for_x0(x0_bar = simX[i, :])
+            t = np.zeros((Nsim))
 
-            t[i] = ocp_solver.get_stats('time_tot')
+        # do some initial iterations to start with a good initial guess
+        num_iter_initial = 30
+        for _ in range(num_iter_initial):
+            ocp_solver.solve_for_x0(x0_bar = x0)
 
-        # simulate system
-        simX[i+1, :] = integrator.simulate(x=simX[i, :], u=simU[i,:])
+        # closed loop
+        for i in range(Nsim):
+            if use_RTI:
 
-        # States
-        vx = simX[i+1, 3]
-        vy = simX[i+1, 4]
-        dpsi = simX[i+1, 5]
+                # preparation phase
+                ocp_solver.options_set('rti_phase', 1)
+                status = ocp_solver.solve()
+                t_preparation[i] = ocp_solver.get_stats('time_tot')
 
-        # Inputs
-        Fx_f = simU[i, 0]
-        del_s = simU[i, 1]
+                # Set initial State
+                ocp_solver.set(0, "lbx", simX[i, :])
+                ocp_solver.set(0, "ubx", simX[i, :])
 
-        # Parameters
-        m = param_vec[0]
-        g = param_vec[1]
-        l_f = param_vec[2]
-        l_r = param_vec[3]
-        B_tire = param_vec[5]
-        C_tire = param_vec[6]
-        D_tire = param_vec[7]
+                # feedback phase
+                ocp_solver.options_set('rti_phase', 2)
+                status = ocp_solver.solve()
+                t_feedback[i] = ocp_solver.get_stats('time_tot')
 
-        # Slip Angles
-        alpha_f = - del_s + np.arctan2((vy + dpsi * l_f), vx)
-        alpha_r = np.arctan2((vy - dpsi * l_r), vx)
+                simU[i, :] = ocp_solver.get(0, "u")
 
-        # Lateral forces
-        Fz_f = m * g * l_r / (l_r + l_f)
-        Fz_r = m * g * l_f / (l_r + l_f)
-        Fy_f = Fz_f * D_tire * np.sin(C_tire * np.arctan(B_tire * alpha_f))
-        Fy_r = Fz_r * D_tire * np.sin(C_tire * np.arctan(B_tire * alpha_r))
+            else:
+                # solve ocp and get next control input
+                simU[i,:] = ocp_solver.solve_for_x0(x0_bar = simX[i, :])
 
-        ay = 1/m * (Fy_r + Fx_f * np.sin(del_s) + Fy_f * np.cos(del_s)) - vx * dpsi
+                t[i] = ocp_solver.get_stats('time_tot')
 
-        slope_ay_blend = 100.0
-        ay_kin2dyn = 4.0
+            # simulate system
+            simX[i+1, :] = integrator.simulate(x=simX[i, :], u=simU[i,:])
 
-        blending_factor = 1 / (1 + np.exp(- slope_ay_blend * (np.abs(ay) - ay_kin2dyn)))
+            # States
+            vx = simX[i+1, 3]
+            vy = simX[i+1, 4]
+            dpsi = simX[i+1, 5]
 
-        param_vec[10] = blending_factor
+            # Inputs
+            Fx_f = simU[i, 0]
+            del_s = simU[i, 1]
 
-        for j in range(mpc_param_N_horizon):
-            ocp_solver.set(j, 'p', param_vec)
+            # Parameters
+            m = param_vec[0]
+            g = param_vec[1]
+            l_f = param_vec[2]
+            l_r = param_vec[3]
+            B_tire = param_vec[5]
+            C_tire = param_vec[6]
+            D_tire = param_vec[7]
 
-    # evaluate timings
-    if use_RTI:
-        # scale to milliseconds
-        t_preparation *= 1000
-        t_feedback *= 1000
-        print(f'Computation time in preparation phase in ms: \
-                min {np.min(t_preparation):.3f} median {np.median(t_preparation):.3f} max {np.max(t_preparation):.3f}')
-        print(f'Computation time in feedback phase in ms:    \
-                min {np.min(t_feedback):.3f} median {np.median(t_feedback):.3f} max {np.max(t_feedback):.3f}')
-    else:
-        # scale to milliseconds
-        t *= 1000
-        print(f'Computation time in ms: min {np.min(t):.3f} median {np.median(t):.3f} max {np.max(t):.3f}')
+            # Slip Angles
+            alpha_f = - del_s + np.arctan2((vy + dpsi * l_f), vx)
+            alpha_r = np.arctan2((vy - dpsi * l_r), vx)
 
-    # plot results
-    idx_b_x = ocp_solver.acados_ocp.constraints.idxbx
-    lb_x = ocp_solver.acados_ocp.constraints.lbx
-    ub_x = ocp_solver.acados_ocp.constraints.ubx
-    idx_b_u = ocp_solver.acados_ocp.constraints.idxbu
-    lb_u = ocp_solver.acados_ocp.constraints.lbu
-    ub_u = ocp_solver.acados_ocp.constraints.ubu
-    plot_dynamics(np.linspace(0, (mpc_param_T_final/mpc_param_N_horizon)*Nsim, Nsim+1),
-                  idx_b_x, lb_x, ub_x,
-                  idx_b_u, lb_u, ub_u, 
-                  simU, simX,
-                  plot_constraints=True)
+            # Lateral forces
+            Fz_f = m * g * l_r / (l_r + l_f)
+            Fz_r = m * g * l_f / (l_r + l_f)
+            Fy_f = Fz_f * D_tire * np.sin(C_tire * np.arctan(B_tire * alpha_f))
+            Fy_r = Fz_r * D_tire * np.sin(C_tire * np.arctan(B_tire * alpha_r))
+
+            ay = 1/m * (Fy_r + Fx_f * np.sin(del_s) + Fy_f * np.cos(del_s)) - vx * dpsi
+
+            slope_ay_blend = 100.0
+            ay_kin2dyn = 2.0
+
+            blending_factor = 1 / (1 + np.exp(- slope_ay_blend * (np.abs(ay) - ay_kin2dyn)))
+
+            param_vec[10] = blending_factor
+
+            for j in range(mpc_param_N_horizon):
+                ocp_solver.set(j, 'p', param_vec)
+
+        # evaluate timings
+        if use_RTI:
+            # scale to milliseconds
+            t_preparation *= 1000
+            t_feedback *= 1000
+            print(f'Computation time in preparation phase in ms: \
+                    min {np.min(t_preparation):.3f} median {np.median(t_preparation):.3f} max {np.max(t_preparation):.3f}')
+            print(f'Computation time in feedback phase in ms:    \
+                    min {np.min(t_feedback):.3f} median {np.median(t_feedback):.3f} max {np.max(t_feedback):.3f}')
+        else:
+            # scale to milliseconds
+            t *= 1000
+            print(f'Computation time in ms: min {np.min(t):.3f} median {np.median(t):.3f} max {np.max(t):.3f}')
+
+        # plot results
+        idx_b_x = ocp_solver.acados_ocp.constraints.idxbx
+        lb_x = ocp_solver.acados_ocp.constraints.lbx
+        ub_x = ocp_solver.acados_ocp.constraints.ubx
+        idx_b_u = ocp_solver.acados_ocp.constraints.idxbu
+        lb_u = ocp_solver.acados_ocp.constraints.lbu
+        ub_u = ocp_solver.acados_ocp.constraints.ubu
+        plot_dynamics(np.linspace(0, (mpc_param_T_final/mpc_param_N_horizon)*Nsim, Nsim+1),
+                    idx_b_x, lb_x, ub_x,
+                    idx_b_u, lb_u, ub_u, 
+                    simU, simX,
+                    plot_constraints=True)
 
     ocp_solver = None
 
@@ -410,4 +425,4 @@ HPIPM Solver Status:
 
 
 if __name__ == '__main__':
-    main(use_RTI=True)
+    main(use_RTI=True, simulate_ocp=False)

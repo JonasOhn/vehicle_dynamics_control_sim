@@ -7,6 +7,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sim_backend/msg/sys_input.hpp"
 #include "sim_backend/msg/vehicle_state.hpp"
+#include "acados_solvers_library/acados_solver_library.hpp"
 #include <fstream>
 
 using namespace std::chrono_literals;
@@ -106,6 +107,8 @@ class MPCController : public rclcpp::Node
     std::chrono::milliseconds dt_{std::chrono::milliseconds(50)};
     double dt_seconds_;
     double x_[6] = {0.0};
+
+    AcadosSolver acados_solver_;
 
     double l_f_;
     double l_r_;
