@@ -49,7 +49,7 @@ def plot_dynamics(shooting_nodes, idx_b_x, lb_x, ub_x, idx_b_u, lb_u, ub_u, U, X
                 plt.ylim([1.2*lb_u[idx_u], 1.2*ub_u[idx_u]])
                 idx_u += 1
         plt.xlim(t[0], t[-1])
-        plt.grid()
+        plt.grid('both')
 
         plotting_idx += 1
 
@@ -67,7 +67,7 @@ def plot_dynamics(shooting_nodes, idx_b_x, lb_x, ub_x, idx_b_u, lb_u, ub_u, U, X
                 plt.hlines(lb_x[idx_x], t[0], t[-1], linestyles='dashed', alpha=0.7)
                 plt.ylim([-1.2*np.abs(lb_x[idx_x]), 1.2*ub_x[idx_x]])
                 idx_x += 1
-        plt.grid()
+        plt.grid('both')
         plt.legend(loc=1)
         plt.xlim(t[0], t[-1])
 

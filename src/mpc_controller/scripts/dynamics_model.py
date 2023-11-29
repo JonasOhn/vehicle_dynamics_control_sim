@@ -56,6 +56,7 @@ def export_vehicle_ode_model(testing : bool = False) -> AcadosModel:
 
     # Symbolic Spline Interpolation for kappa(s)
     ref_path_s = np.linspace(0, mpc_param_s_max, mpc_param_n_s)
+    print(ref_path_s)
     interpolant_s2k = ca.interpolant("interpol_spline_kappa", "bspline", [ref_path_s])
     interp_exp = interpolant_s2k(s, kappa_ref)
     interp_fun = ca.Function('interp_fun', [s, kappa_ref], [interp_exp])
@@ -133,7 +134,7 @@ def export_vehicle_ode_model(testing : bool = False) -> AcadosModel:
     cost_n = q_n * n**2
 
     # Steering angle cost
-    q_del = 1.0
+    q_del = 0.9
     cost_dels = q_del * del_s**2
 
     # Progress Rate Cost

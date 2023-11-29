@@ -79,31 +79,24 @@ class PPController : public rclcpp::Node
         
         if (ref_points_.size() >= 2){
             this->e_v_ = this->v_ref_ - this->v_act_;
-            this->e_v_integral_ += this->e_v_ * this->dt_seconds_;
-
-            // PID velocity control
-            fx = this->K_P_v_ * this->e_v_ + 
-                 this->K_I_v_ * this->e_v_integral_ + 
-                 this->K_D_v_ * (this->e_v_ - e_v_prev) / this->dt_seconds_;
-
-            // Split force in half for front and rear tire
-            veh_input_msg.fx_r = fx / 2.0;
-            veh_input_msg.fx_f = fx / 2.0;
-
             // Calculate Steering 
             veh_input_msg.del_s = get_target_steering();
         } else {
             this->e_v_ = 0.0 - this->v_act_;
-            this->e_v_integral_ += this->e_v_ * this->dt_seconds_;
-
-            // PID velocity control
-            fx = this->K_P_v_ * this->e_v_ + 
-                 this->K_I_v_ * this->e_v_integral_ + 
-                 this->K_D_v_ * (this->e_v_ - e_v_prev) / this->dt_seconds_;
-            veh_input_msg.fx_r = fx / 2.0;
-            veh_input_msg.fx_f = fx / 2.0;
+            // No Steering 
             veh_input_msg.del_s = 0.0;
         }
+
+        this->e_v_integral_ += this->e_v_ * this->dt_seconds_;
+
+        // PID velocity control
+        fx = this->K_P_v_ * this->e_v_ + 
+             this->K_I_v_ * this->e_v_integral_ + 
+             this->K_D_v_ * (this->e_v_ - e_v_prev) / this->dt_seconds_;
+
+        // Split force in half for front and rear tire
+        veh_input_msg.fx_r = fx / 2.0;
+        veh_input_msg.fx_f = fx / 2.0;
         
         // Publish Control Command message
         control_cmd_publisher_->publish(veh_input_msg);
@@ -234,6 +227,8 @@ class PPController : public rclcpp::Node
     
     // Subscriber to state message published at faster frequency
     rclcpp::Subscription<sim_backend::msg::VehicleState>::SharedPtr state_subscriber_;
+    
+    // Subscriber to ref path provided by "perception"
     rclcpp::Subscription<sim_backend::msg::RefPath>::SharedPtr ref_path_subscriber_;
 
     // Timer for control command publishing

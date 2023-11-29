@@ -20,7 +20,8 @@ add_executable(pp_controller src/pp_controller_node.cpp)
 
 ament_target_dependencies(pp_controller
   rclcpp
-  sim_backend)
+  sim_backend
+)
 
 install(TARGETS
   pp_controller

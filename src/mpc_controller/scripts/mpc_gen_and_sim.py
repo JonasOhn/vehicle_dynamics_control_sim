@@ -247,8 +247,7 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
     C_d = 1.133 # effective drag coefficient
     C_r = 0.5 # const. rolling resistance
     blending_factor = 0.0 # blending between kinematic and dynamic model
-    kappa_ref = 0.0 * np.ones(mpc_param_n_s) # reference curvature along s
-    kappa_ref[15:] = 0.1
+    kappa_ref = 0.1 * np.ones(mpc_param_n_s) # reference curvature along s
 
     paramvec = np.array((m, g, l_f, l_r, Iz, 
                          B_tire, C_tire, D_tire, C_d, C_r, blending_factor))
@@ -425,4 +424,4 @@ HPIPM Solver Status:
 
 
 if __name__ == '__main__':
-    main(use_RTI=True, simulate_ocp=False)
+    main(use_RTI=True, simulate_ocp=True)
