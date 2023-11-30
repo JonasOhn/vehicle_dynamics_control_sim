@@ -3,10 +3,12 @@ from casadi import MX, vertcat, sin, cos, atan, tanh, atan2
 import numpy as np
 import casadi as ca
 import matplotlib.pyplot as plt
-from MPC_parameters import *
 
 
-def export_vehicle_ode_model(testing : bool = False) -> AcadosModel:
+def export_vehicle_ode_model(testing : bool = False,
+                             mpc_horizon_parameters : dict = {},
+                             model_cost_parameters : dict = {},
+                             model_constraint_parameters : dict = {}) -> AcadosModel:
 
     # model name
     model_name = 'veh_dynamics_ode'
@@ -24,7 +26,7 @@ def export_vehicle_ode_model(testing : bool = False) -> AcadosModel:
     C_d = MX.sym("C_d")
     C_r = MX.sym("C_r")
     blending_factor = MX.sym("blending_factor")
-    kappa_ref = MX.sym("kappa_ref", mpc_param_n_s, 1)
+    kappa_ref = MX.sym("kappa_ref", mpc_horizon_parameters['n_s'], 1)
     p = vertcat(m, g, l_f, l_r, Iz, B_tire, C_tire, D_tire, C_d, C_r, blending_factor, kappa_ref)
 
     # Symbolic States
@@ -55,7 +57,7 @@ def export_vehicle_ode_model(testing : bool = False) -> AcadosModel:
     xdot = vertcat(s_dot, n_dot, mu_dot, vx_dot, vy_dot, dpsi_dot, Fx_m_dot, del_s_dot)
 
     # Symbolic Spline Interpolation for kappa(s)
-    ref_path_s = np.linspace(0, mpc_param_s_max, mpc_param_n_s)
+    ref_path_s = np.linspace(0, mpc_horizon_parameters['s_max'], mpc_horizon_parameters['n_s'])
     print(ref_path_s)
     interpolant_s2k = ca.interpolant("interpol_spline_kappa", "bspline", [ref_path_s])
     interp_exp = interpolant_s2k(s, kappa_ref)
@@ -66,7 +68,7 @@ def export_vehicle_ode_model(testing : bool = False) -> AcadosModel:
     if testing:
         kappa_fit = kappa_test_gt(ref_path_s)
         plt.plot(ref_path_s, kappa_fit)
-        s_test = np.linspace(0.1, mpc_param_s_max - 0.1, 10)
+        s_test = np.linspace(0.1, mpc_horizon_parameters['s_max'] - 0.1, 10)
         kappa_test = np.zeros_like(s_test)
         for i in range(s_test.shape[0]):
              kappa_test[i] = interp_fun(s_test[i], kappa_fit)
@@ -130,81 +132,62 @@ def export_vehicle_ode_model(testing : bool = False) -> AcadosModel:
 
     """ STAGE Cost (model-based, slack is defined on the solver) """
     # Lateral deviation from path cost
-    q_n = 5.0
-    cost_n = q_n * n**2
+    cost_n = model_cost_parameters['q_n'] * n**2
 
     # Steering angle cost
-    q_del = 0.9
-    cost_dels = q_del * del_s**2
+    cost_dels = model_cost_parameters['q_del'] * del_s**2
 
     # Progress Rate Cost
-    q_sd = 1.0
-    cost_sd = - q_sd * s_dot_expl
-
-    # Input Cost
-    r_dFx = 1e-6
-    r_del_s = 10.0
-    R_mat = np.diag([r_dFx, r_del_s])
-    cost_u = ca.transpose(u) @ R_mat @ u
+    cost_sd = - model_cost_parameters['q_sd'] * s_dot_expl
 
     # Body Slip angle Regularization
-    q_beta = 300.0
     beta_kin = ca.atan(ca.tan(del_s) * l_r / (l_r + l_f))
     beta_dyn = ca.atan(vy / ca.fmax(vx, eps))
-    cost_bsa = q_beta * (beta_dyn - beta_kin)**2
+    cost_bsa = model_cost_parameters['q_beta'] * (beta_dyn - beta_kin)**2
+
+    # Input Cost
+    R_mat = np.diag([model_cost_parameters['r_dFx'],
+                     model_cost_parameters['r_del_s']])
+    cost_u = ca.transpose(u) @ R_mat @ u
 
     # Stage Cost
     stage_cost = cost_sd + cost_n + cost_dels + cost_u + cost_bsa
 
     """ TERMINAL Cost (model-based, slack is defined on the solver) """
     # Lateral deviation from path cost
-    q_n_e = 100.0
-    cost_n_e = q_n_e * n**2
+    cost_n_e = model_cost_parameters['q_n_e'] * n**2
 
     # Heading Difference cost
-    q_mu_e = 1.0
-    cost_mu_e = q_mu_e * mu**2
+    cost_mu_e = model_cost_parameters['q_mu_e'] * mu**2
 
     # yaw rate cost
-    q_r_e = 1000.0
-    cost_r_e = q_r_e * dpsi**2
+    cost_r_e = model_cost_parameters['q_r_e'] * dpsi**2
 
     # Stage Cost
     terminal_cost = cost_n_e + cost_mu_e + cost_r_e
 
     """" STAGE Constraints """
-    e_x_front = 1.1
-    e_x_rear = 1.1
-    e_y_front = 1.1
-    e_y_rear = 1.1
-    n_max = 10.0
-    n_min = -10.0
-    L_F = 1.2 * l_f
-    L_R = 1.2 * l_r
-    W = 2.0
-    vx_max = 10.0
-    e_max_front = D_tire * e_y_front
-    e_max_rear = D_tire * e_y_rear
+    e_max_front = D_tire * model_constraint_parameters['e_y_front']
+    e_max_rear = D_tire * model_constraint_parameters['e_y_rear']
 
-    bounds_front = L_F  * sin(mu)
-    bounds_rear = - L_R * sin(mu)
-    bounds_left = W / 2.0 * cos(mu)
-    bounds_right = W / 2.0 * cos(mu)
+    bounds_front = model_constraint_parameters['L_F']  * sin(mu)
+    bounds_rear = model_constraint_parameters['L_R'] * sin(mu)
+    bounds_width = model_constraint_parameters['W'] / 2.0 * cos(mu)
 
-    tire_ellipse_con_f = (Fx_m / 2.0 * e_x_front / (Fz_f * e_max_front))**2 +\
+    tire_ellipse_con_f = (Fx_m / 2.0 * model_constraint_parameters['e_x_front'] / (Fz_f * e_max_front))**2 +\
                          (Fy_f / (Fz_f * e_max_front))**2 - 1.0
     
-    tire_ellipse_con_r = (Fx_m / 2.0 * e_x_rear / (Fz_r * e_max_rear))**2 +\
+    tire_ellipse_con_r = (Fx_m / 2.0 * model_constraint_parameters['e_x_rear'] / (Fz_r * e_max_rear))**2 +\
                          (Fy_r / (Fz_r * e_max_rear))**2 - 1.0
     
-    track_con_fl = n + bounds_front + bounds_left - n_max
-    track_con_rl = n + bounds_rear + bounds_left - n_max
-    track_con_fr = - (n + bounds_front + bounds_right - n_min)
-    track_con_rr = - (n + bounds_rear + bounds_right - n_min)
+    track_con_fl = n + bounds_front + bounds_width - model_constraint_parameters['n_max']
+    track_con_rl = n - bounds_rear + bounds_width - model_constraint_parameters['n_max']
+    track_con_fr = - n - bounds_front + bounds_width + model_constraint_parameters['n_min']
+    track_con_rr = - n + bounds_rear + bounds_width + model_constraint_parameters['n_min']
 
     kappa_n_con = kappa_bspline * n - 1
 
-    vx_con = vx - vx_max
+    vx_con = vx - model_constraint_parameters['vx_max']
 
     stage_constraint_nonlinear = vertcat(tire_ellipse_con_f,
                                          tire_ellipse_con_r,
@@ -216,7 +199,6 @@ def export_vehicle_ode_model(testing : bool = False) -> AcadosModel:
                                          vx_con)
 
     """" TERMINAL Constraints """
-    vx_max_e = 5.0
     tire_ellipse_con_f_e = tire_ellipse_con_f
     tire_ellipse_con_r_e = tire_ellipse_con_r
     track_con_fl_e = track_con_fl
@@ -224,7 +206,7 @@ def export_vehicle_ode_model(testing : bool = False) -> AcadosModel:
     track_con_fr_e = track_con_fr
     track_con_rr_e = track_con_rr
     kappa_n_con_e = kappa_n_con
-    vx_con_e = vx - vx_max_e
+    vx_con_e = vx - model_constraint_parameters['vx_max_e']
 
     terminal_constraint_nonlinear = vertcat(tire_ellipse_con_f_e,
                                             tire_ellipse_con_r_e,
