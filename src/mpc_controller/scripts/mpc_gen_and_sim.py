@@ -48,14 +48,14 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
 
     """ ========= INTERNAL STAGE CONSTRAINTS ======== """
     # Nonlinear Constraints: lower bounds
-    lh = [-1e4,
-          -1e4,
-          -1e4,
-          -1e4,
-          -1e4,
-          -1e4,
-          -1e4,
-          -1e4,]
+    lh = [-1e10,
+          -1e10,
+          -1e10,
+          -1e10,
+          -1e10,
+          -1e10,
+          -1e10,
+          -1e10,]
     # Nonlinear Constraints: upper bounds (same length as lower bounds)
     uh = [0,
           0,
@@ -118,14 +118,14 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
 
     """ ========= INTERNAL TERMINAL CONSTRAINTS ======== """
     # Terminal Nonlinear Constraints: lower bounds
-    lh_e = [-1e4,
-            -1e4,
-            -1e4,
-            -1e4,
-            -1e4,
-            -1e4,
-            -1e4,
-            -1e4,]
+    lh_e = [-1e10,
+            -1e10,
+            -1e10,
+            -1e10,
+            -1e10,
+            -1e10,
+            -1e10,
+            -1e10,]
     # Terminal Nonlinear Constraints: upper bounds (same length as lower bounds)
     uh_e = [0,
             0,
@@ -172,17 +172,13 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
                             S_vx_lin])
     ocp.cost.zl = np.zeros(7)
 
-    ocp.cost.Zu_0 = np.copy(ocp.cost.Zu)
-    ocp.cost.Zl_0 = np.copy(ocp.cost.Zl)
-    ocp.cost.zu_0 = np.copy(ocp.cost.zu)
-    ocp.cost.zl_0 = np.copy(ocp.cost.zl)
+    # ocp.cost.Zu_0 = np.copy(ocp.cost.Zu)
+    # ocp.cost.Zl_0 = np.copy(ocp.cost.Zl)
+    # ocp.cost.zu_0 = np.copy(ocp.cost.zu)
+    # ocp.cost.zl_0 = np.copy(ocp.cost.zl)
 
-    ocp.constraints.lsh = np.zeros(7)
-    ocp.constraints.ush = np.array([1.0, 1.0, 100.0, 100.0, 100.0, 100.0, 0.1])
     ocp.constraints.idxsh = np.array([0, 1, 2, 3, 4, 5, 7])
 
-    ocp.constraints.lsh_0 = np.copy(ocp.constraints.lsh)
-    ocp.constraints.ush_0 = np.copy(ocp.constraints.ush)
     ocp.constraints.idxsh_0 = np.copy(ocp.constraints.idxsh)
 
     """ ======== TERMINAL SLACK COST ========== """
@@ -212,8 +208,6 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
                             S_vx_lin_e])
     ocp.cost.zl_e = np.zeros(7)
 
-    ocp.constraints.lsh_e = np.zeros(7)
-    ocp.constraints.ush_e = np.array([1.0, 1.0, 100.0, 100.0, 100.0, 100.0, 0.1])
     ocp.constraints.idxsh_e = np.array([0, 1, 2, 3, 4, 5, 7])
 
     """ ============ SOLVER OPTIONS ================== """
@@ -247,7 +241,7 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
     C_d = 1.133 # effective drag coefficient
     C_r = 0.5 # const. rolling resistance
     blending_factor = 0.0 # blending between kinematic and dynamic model
-    kappa_ref = 0.1 * np.ones(mpc_param_n_s) # reference curvature along s
+    kappa_ref = 0.05 * np.ones(mpc_param_n_s) # reference curvature along s
 
     paramvec = np.array((m, g, l_f, l_r, Iz, 
                          B_tire, C_tire, D_tire, C_d, C_r, blending_factor))
