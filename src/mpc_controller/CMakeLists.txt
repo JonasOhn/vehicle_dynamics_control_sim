@@ -11,6 +11,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sim_backend REQUIRED)
+find_package (Eigen3 3.3 REQUIRED)
 
 # c-compiler flags for debugging
 set(CMAKE_C_FLAGS_DEBUG "-O0 -ggdb")
@@ -83,8 +84,9 @@ add_executable(mpc_controller
   src/mpc_controller_node.cpp
   $<TARGET_OBJECTS:${MODEL_OBJ}> 
   $<TARGET_OBJECTS:${OCP_OBJ}>
-  $<TARGET_OBJECTS:${SIM_OBJ}>
+  # $<TARGET_OBJECTS:${SIM_OBJ}>
 )
+target_link_libraries (mpc_controller Eigen3::Eigen)
 
 ament_target_dependencies(mpc_controller
   rclcpp

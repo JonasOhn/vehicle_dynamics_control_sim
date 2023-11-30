@@ -21,7 +21,7 @@ def generate_launch_description():
             parameters=[os.path.join(
                 get_package_share_directory('sim_backend'),
                 'config', 'vehicle_params.yaml')],
-            output='screen',
+            output='log',
         ),
         Node(
             package='pure_pursuit_controller',

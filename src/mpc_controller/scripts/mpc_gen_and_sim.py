@@ -4,23 +4,39 @@ from dynamics_model import export_vehicle_ode_model
 import numpy as np
 from plot_dynamics_sim import plot_dynamics
 from os.path import dirname, join, abspath
+import yaml
+import pprint
 
-MPC_T_FINAL = 1.0
-MPC_N_HORIZON = 40
+def load_mpc_yaml_params():
+    yaml_path = join(dirname(abspath(__file__)), "../config/mpc_controller.yaml")
+    with open(yaml_path, 'r') as file:
+        yaml_params = yaml.safe_load(file)
+    yaml_params = yaml_params['/mpc_controller']['ros__parameters']
+    model_params = yaml_params['model']
+    horizon_params = yaml_params['horizon']
+    cost_params = yaml_params['cost']
+    constraints_params = yaml_params['constraints']
+    solver_options_params = yaml_params['solver_options']
+    return model_params, horizon_params, cost_params, constraints_params, solver_options_params
 
-
-def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
+def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
+    
+    """ Load .yaml file parameters """
+    model_params, horizon_params, cost_params, constraints_params, solver_options_params = load_mpc_yaml_params()
+    pprint.pprint(model_params)
+    pprint.pprint(horizon_params)
+    pprint.pprint(cost_params)
+    pprint.pprint(constraints_params)
+    pprint.pprint(solver_options_params)
 
     """ ========== OCP Setup ============ """
 
     # Paths
     ACADOS_PATH = join(dirname(abspath(__file__)), "../../../acados")
-    if simulate_ocp:
-        codegen_export_dir = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/mpc_controller/scripts/c_generated_solver_mpc_sim'
-        ocp_solver_json_path = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/mpc_controller/scripts/acados_ocp_sim.json'
-    else:
-        codegen_export_dir = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/mpc_controller/scripts/c_generated_solver_mpc'
-        ocp_solver_json_path = '/home/jonas/AMZ/vehicle_dynamics_control_sim/src/mpc_controller/scripts/acados_ocp.json'
+    codegen_export_dir = join(dirname(abspath(__file__)), "c_generated_solver_mpc")
+    print("Codegen directory: ", codegen_export_dir)
+    ocp_solver_json_path = join(dirname(abspath(__file__)), "acados_ocp.json")
+    print("Solver .json directory: ", ocp_solver_json_path)
 
     # Set up optimal control problem
     ocp = AcadosOcp()
@@ -33,61 +49,57 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
     """ ========== MODEL ============ """
     mpc_horizon_parameters = {}
     # final time for prediction horizon
-    mpc_horizon_parameters['T_final'] = MPC_T_FINAL
+    mpc_horizon_parameters['T_final'] = horizon_params['T_final']
     # number of steps along horizon
-    mpc_horizon_parameters['N_horizon'] = MPC_N_HORIZON
+    mpc_horizon_parameters['N_horizon'] = horizon_params['N_horizon']
     # number of samples along reference path
-    mpc_horizon_parameters['n_s'] = 40
+    mpc_horizon_parameters['n_s'] = horizon_params['n_s']
     # maximum distance along reference path
-    mpc_horizon_parameters['s_max'] = 20
+    mpc_horizon_parameters['s_max'] = horizon_params['s_max']
 
     # external cost is defined inside the model
     model_cost_parameters = {}
     # cost weight input: dFx
-    model_cost_parameters['r_dFx'] = 1e-6
+    model_cost_parameters['r_dFx'] = cost_params['r_dFx']
     # cost weight input: ddel_s
-    model_cost_parameters['r_del_s'] = 10.0
+    model_cost_parameters['r_del_s'] = cost_params['r_del_s']
 
     # cost weight: beta deviaiton from kinematic
-    model_cost_parameters['q_beta'] = 300.0
+    model_cost_parameters['q_beta'] = cost_params['q_beta']
     # cost weight: progress rate
-    model_cost_parameters['q_sd'] = 1.0
+    model_cost_parameters['q_sd'] = cost_params['q_sd']
     # cost weight: steering angle
-    model_cost_parameters['q_del'] = 5.0
+    model_cost_parameters['q_del'] = cost_params['q_del']
     # cost weight: deviation from ref path lateral
-    model_cost_parameters['q_n'] = 5.0
+    model_cost_parameters['q_n'] = cost_params['q_n']
 
     # terminal cost weight: yaw rate
-    model_cost_parameters['q_r_e'] = 1000.0
+    model_cost_parameters['q_r_e'] = cost_params['q_r_e']
     # terminal cost weight: heading difference
-    model_cost_parameters['q_mu_e'] = 1.0
+    model_cost_parameters['q_mu_e'] = cost_params['q_mu_e']
     # terminal cost weight: deviation from ref path lateral
-    model_cost_parameters['q_n_e'] = 100.0
+    model_cost_parameters['q_n_e'] = cost_params['q_n_e']
 
     # nonlinear constraints also defined inside the model
     model_constraint_parameters = {}
     # tire ellipse mult. factor for Fx
-    model_constraint_parameters['e_x_front'] = 1.2
-    model_constraint_parameters['e_x_rear'] = 1.2
+    model_constraint_parameters['e_x_front'] = constraints_params['soft']['e_x_front']
+    model_constraint_parameters['e_x_rear'] = constraints_params['soft']['e_x_rear']
     # tire ellipse: e_y together with D_tire defines max. e
-    model_constraint_parameters['e_y_front'] = 1.2
-    model_constraint_parameters['e_y_rear'] = 1.2
+    model_constraint_parameters['e_y_front'] = constraints_params['soft']['e_y_front']
+    model_constraint_parameters['e_y_rear'] = constraints_params['soft']['e_y_rear']
     # track boundary: max. lateral deviation from ref. path
     #TODO: make this parameter for online track boundaries
-    model_constraint_parameters['n_max'] = 3.0
-    model_constraint_parameters['n_min'] = -3.0
-    # slacked track boundary constraint: vehicle geometry (padded rectangle)
-    
-    l_f = 0.8 # length cog to front axle
-    l_r = 0.7 # length cog to rear axle
-    
-    model_constraint_parameters['L_F'] = 1.2 * l_f
-    model_constraint_parameters['L_R'] = 1.2 * l_r
-    model_constraint_parameters['W'] = 2.0
+    model_constraint_parameters['n_max'] = constraints_params['soft']['n_max']
+    model_constraint_parameters['n_min'] = constraints_params['soft']['n_min']
+    # slacked track boundary constraint: vehicle geometry (padded rectangle)    
+    model_constraint_parameters['L_F'] = constraints_params['soft']['L_F']
+    model_constraint_parameters['L_R'] = constraints_params['soft']['L_R']
+    model_constraint_parameters['W'] = constraints_params['soft']['W']
     # stages: slacked velocity constraint
-    model_constraint_parameters['vx_max'] = 10.0
+    model_constraint_parameters['vx_max'] = constraints_params['soft']['vx_max']
     # stages: slacked velocity constraint
-    model_constraint_parameters['vx_max_e'] = 6.0
+    model_constraint_parameters['vx_max_e'] = constraints_params['soft']['vx_max_e']
 
 
     # Get AcadosModel form other python file
@@ -104,41 +116,37 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
     # y: optimization variable vector for cost terminal (output)
     # N: prediction horizon number of stages
 
-    nx = model.x.size()[0]
-    nu = model.u.size()[0]
-    ny = nx + nu
-    ny_e = nx
     ocp.dims.N = mpc_horizon_parameters['N_horizon']
 
     """ ========= INTERNAL STAGE CONSTRAINTS ======== """
     # Terminal Nonlinear Constraints: lower bounds are -Inf but acados doesn't seem to support it
-    ocp.constraints.lh = -1e15 * np.ones(8)
+    ocp.constraints.lh = constraints_params['hard']['lb_h'] * np.ones(8)
     # Terminal Nonlinear Constraints: upper bounds
-    ocp.constraints.uh = np.zeros(8)
+    ocp.constraints.uh = constraints_params['hard']['ub_h'] * np.ones(8)
 
     # Terminal Nonlinear Constraints: lower bounds are -Inf but acados doesn't seem to support it
-    ocp.constraints.lh_0 = -1e15 * np.ones(8)
+    ocp.constraints.lh_0 = constraints_params['hard']['lb_h'] * np.ones(8)
     # Terminal Nonlinear Constraints: upper bounds
-    ocp.constraints.uh_0 = np.zeros(8)
+    ocp.constraints.uh_0 = constraints_params['hard']['ub_h'] * np.ones(8)
 
     # ---
     # State: [s, n, mu, vx, vy, dpsi, Fx, del_s]
     # State Constraints: lower bounds
-    lb_x = [-100.0,
-            -2.0,
-            -0.1,
-            -5.0,
-            -5.0,
-            -3000.0,
-            -1.0]
+    lb_x = [constraints_params['hard']['lb_x_n'],
+            constraints_params['hard']['lb_x_mu'],
+            constraints_params['hard']['lb_x_vx'],
+            constraints_params['hard']['lb_x_vy'],
+            constraints_params['hard']['lb_x_dpsi'],
+            constraints_params['hard']['lb_x_Fx'],
+            constraints_params['hard']['lb_x_dels']]
     # State Constraints: upper bounds
-    ub_x = [100.0,
-            3.0,
-            100.0,
-            5.0,
-            5.0,
-            3000.0,
-            1.0]
+    ub_x = [constraints_params['hard']['ub_x_n'],
+            constraints_params['hard']['ub_x_mu'],
+            constraints_params['hard']['ub_x_vx'],
+            constraints_params['hard']['ub_x_vy'],
+            constraints_params['hard']['ub_x_dpsi'],
+            constraints_params['hard']['ub_x_Fx'],
+            constraints_params['hard']['ub_x_dels']]
     # State Constraints: indices of lb and ub in State vector
     idx_b_x = [1, 2, 3, 4, 5, 6, 7]
 
@@ -150,11 +158,11 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
 
     # Input: [dFx, ddel_s]
     # Input Constraints: lower bounds
-    lb_u = [-1e3,
-            -2.0]
+    lb_u = [constraints_params['hard']['lb_u_dFx'],
+            constraints_params['hard']['lb_u_ddels']]
     # Input Constraints: upper bounds
-    ub_u = [+1e3,
-            +2.0]
+    ub_u = [constraints_params['hard']['ub_u_dFx'],
+            constraints_params['hard']['ub_u_ddels']]
     # Input Constraints: indices of lb and ub in input vector
     idx_b_u = [0, 1]
 
@@ -164,9 +172,9 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
 
     """ ========= INTERNAL TERMINAL CONSTRAINTS ======== """
     # Terminal Nonlinear Constraints: lower bounds are -Inf but acados doesn't seem to support it
-    ocp.constraints.lh_e = -1e15 * np.ones(8)
+    ocp.constraints.lh_e = constraints_params['hard']['lb_h'] * np.ones(8)
     # Terminal Nonlinear Constraints: upper bounds
-    ocp.constraints.uh_e = np.zeros(8)
+    ocp.constraints.uh_e = constraints_params['hard']['ub_h'] * np.ones(8)
 
     """ ========= INITIAL STATE CONSTRAINT =========== """
     ocp.constraints.x0 = x0
@@ -176,12 +184,12 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
     ocp.cost.cost_type = 'EXTERNAL'
 
     # Slack Weights
-    S_n_lin = 100.0
-    S_n_quad = 300.0
-    S_vx_lin = 0.1
-    S_vx_quad = 0.1
-    S_te_lin = 5000.0
-    S_te_quad = 2000.0
+    S_n_lin = cost_params['slack_penalties']['linear']['S_n_lin']
+    S_n_quad = cost_params['slack_penalties']['quadratic']['S_n_quad']
+    S_vx_lin = cost_params['slack_penalties']['linear']['S_vx_lin']
+    S_vx_quad = cost_params['slack_penalties']['quadratic']['S_vx_quad']
+    S_te_lin = cost_params['slack_penalties']['linear']['S_te_lin']
+    S_te_quad = cost_params['slack_penalties']['quadratic']['S_te_quad']
     # Quadratic Slack Cost weights
     ocp.cost.Zu = np.diag(np.array([S_te_quad,
                                     S_te_quad,
@@ -210,12 +218,12 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
 
     """ ======== TERMINAL SLACK COST ========== """
     # Slack Weights
-    S_n_lin_e = 100.0
-    S_n_quad_e = 300.0
-    S_vx_lin_e = 500.0
-    S_vx_quad_e = 1.0
-    S_te_lin_e = 5000.0
-    S_te_quad_e = 2000.0
+    S_n_lin_e = cost_params['slack_penalties']['linear']['S_n_lin_e']
+    S_n_quad_e = cost_params['slack_penalties']['quadratic']['S_n_quad_e']
+    S_vx_lin_e = cost_params['slack_penalties']['linear']['S_vx_lin_e']
+    S_vx_quad_e = cost_params['slack_penalties']['quadratic']['S_vx_quad_e']
+    S_te_lin_e = cost_params['slack_penalties']['linear']['S_te_lin_e']
+    S_te_quad_e = cost_params['slack_penalties']['quadratic']['S_te_quad_e']
     # Quadratic Slack Cost weights
     ocp.cost.Zu_e = np.diag(np.array([S_te_quad_e,
                                     S_te_quad_e,
@@ -239,15 +247,14 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
     ocp.constraints.idxsh_e = np.array([0, 1, 2, 3, 4, 5, 7])
 
     """ ============ SOLVER OPTIONS ================== """
-    ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM' # FULL_CONDENSING_QPOASES
-    ocp.solver_options.hessian_approx = 'EXACT' #'GAUSS_NEWTON'
-    ocp.solver_options.integrator_type = 'IRK'
-    if simulate_ocp:
-        ocp.solver_options.sim_method_newton_iter = 20
-    ocp.solver_options.nlp_solver_max_iter = 100
-    ocp.solver_options.qp_solver_iter_max = 50
-    ocp.solver_options.tol = 1e-2
-    ocp.solver_options.qp_tol = 1e-3
+    ocp.solver_options.qp_solver = solver_options_params['qp_solver']
+    ocp.solver_options.hessian_approx = solver_options_params['hessian_approx']
+    ocp.solver_options.integrator_type = solver_options_params['integrator_type']
+    ocp.solver_options.sim_method_newton_iter = solver_options_params['sim_method_newton_iter']
+    ocp.solver_options.nlp_solver_max_iter = solver_options_params['nlp_solver_max_iter']
+    ocp.solver_options.qp_solver_iter_max = solver_options_params['qp_solver_iter_max']
+    ocp.solver_options.tol = solver_options_params['tol']
+    ocp.solver_options.qp_tol = solver_options_params['qp_tol']
 
     if RTI:
         ocp.solver_options.nlp_solver_type = 'SQP_RTI'
@@ -255,19 +262,21 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
         ocp.solver_options.nlp_solver_type = 'SQP'
 
     # Set prediction horizon
-    ocp.solver_options.tf = MPC_T_FINAL
+    ocp.solver_options.tf = horizon_params['T_final']
 
     """ ============ INITIAL PARAMETER VALUES ================== """
-    m = 220 # mass
-    g = 9.81 # gravity
-    Iz = 100 # yaw moment of inertia
-    B_tire = 9.5 # pacejka
-    C_tire = 1.4 # pacejka
-    D_tire = -1.0 # pacejka
-    C_d = 1.133 # effective drag coefficient
-    C_r = 0.5 # const. rolling resistance
-    blending_factor = 0.0 # blending between kinematic and dynamic model
-    kappa_ref = 0.1 * np.ones(mpc_horizon_parameters['n_s']) # reference curvature along s
+    m = model_params['m'] # mass
+    g = model_params['g'] # gravity
+    l_f = model_params['l_f']
+    l_r = model_params['l_r']
+    Iz = model_params['Iz'] # yaw moment of inertia
+    B_tire = model_params['B_tire'] # pacejka
+    C_tire = model_params['C_tire'] # pacejka
+    D_tire = model_params['D_tire'] # pacejka
+    C_d = model_params['C_d'] # effective drag coefficient
+    C_r = model_params['C_r'] # const. rolling resistance
+    blending_factor = model_params['blending_factor'] # blending between kinematic and dynamic model
+    kappa_ref = model_params['kappa_ref'] * np.ones(horizon_params['n_s']) # reference curvature along s
 
     paramvec = np.array((m, g, l_f, l_r, Iz, 
                          B_tire, C_tire, D_tire, C_d, C_r, blending_factor))
@@ -275,15 +284,17 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
     ocp.parameter_values = paramvec
 
     """ ====== CREATE OCP AND SIM SOLVERS =========== """
-
-    cmake_builder = ocp_get_default_cmake_builder()
-    # cmake_builder = None
+    if not simulate_ocp:
+        cmake_builder = ocp_get_default_cmake_builder()
+    else:
+        cmake_builder = None
     acados_ocp_solver = AcadosOcpSolver(ocp, json_file = ocp_solver_json_path,
                                         cmake_builder=cmake_builder)
 
     # create an integrator with the same settings as used in the OCP solver.
     if simulate_ocp:
-        acados_integrator = AcadosSimSolver(ocp, json_file = ocp_solver_json_path)
+        acados_integrator = AcadosSimSolver(ocp, json_file = ocp_solver_json_path,
+                                            cmake_builder=cmake_builder)
     else:
         acados_integrator = None
 
@@ -291,6 +302,8 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
 
 
 def main(use_RTI:bool=False, simulate_ocp:bool=True):
+    _, horizon_params, _, _, _ = load_mpc_yaml_params()
+
     """ =========== INITIAL STATE FOR SIMULATION ============ """
     # x =         [s,   n,   mu,  vx,  vy,  dpsi, Fx_m, del_s]
     x0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
@@ -310,6 +323,7 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
         Nsim = 500
         simX = np.ndarray((Nsim+1, nx))
         simU = np.ndarray((Nsim, nu))
+        s_values = np.ndarray((Nsim+1, 1))
         simBlendingFactor = np.ndarray((Nsim, 1))
 
         simX[0,:] = x0
@@ -329,7 +343,6 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
         # closed loop
         for i in range(Nsim):
             if use_RTI:
-
                 # preparation phase
                 ocp_solver.options_set('rti_phase', 1)
                 status = ocp_solver.solve()
@@ -347,6 +360,9 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
                 t_feedback[i] = ocp_solver.get_stats('time_tot')
 
                 simU[i, :] = ocp_solver.get(0, "u")
+                # print(ocp_solver.get(0, 'x'))
+                # print(ocp_solver.get(horizon_params['N_horizon'], 'x'))
+                # print(ocp_solver.get_cost(), (horizon_params['T_final']/horizon_params['N_horizon'])*i)
 
             else:
                 # solve ocp and get next control input
@@ -358,42 +374,12 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
 
             # simulate system
             simX[i+1, :] = integrator.simulate(x=simX[i, :], u=simU[i,:])
+            s_values[i+1] = s_values[i] + simX[i+1, 0]
+            simX[i+1, 0] = 0.0
 
             # States
             vx = simX[i+1, 3]
-            # vy = simX[i+1, 4]
-            # dpsi = simX[i+1, 5]
-
-            # # Inputs
-            # Fx_f = simU[i, 0]
-            # del_s = simU[i, 1]
-
-            # # Parameters
-            # m = param_vec[0]
-            # g = param_vec[1]
-            # l_f = param_vec[2]
-            # l_r = param_vec[3]
-            # B_tire = param_vec[5]
-            # C_tire = param_vec[6]
-            # D_tire = param_vec[7]
-
-            # # Slip Angles
-            # alpha_f = - del_s + np.arctan2((vy + dpsi * l_f), vx)
-            # alpha_r = np.arctan2((vy - dpsi * l_r), vx)
-
-            # # Lateral forces
-            # Fz_f = m * g * l_r / (l_r + l_f)
-            # Fz_r = m * g * l_f / (l_r + l_f)
-            # Fy_f = Fz_f * D_tire * np.sin(C_tire * np.arctan(B_tire * alpha_f))
-            # Fy_r = Fz_r * D_tire * np.sin(C_tire * np.arctan(B_tire * alpha_r))
-
-            # ay = 1/m * (Fy_r + Fx_f * np.sin(del_s) + Fy_f * np.cos(del_s)) - vx * dpsi
-
-            # slope_ay_blend = 5.0
-            # ay_kin2dyn = 1.0
-
-            # # Sigmoid for blending between kinematic and dynamic model
-            # blending_factor = 1 / (1 + np.exp(- slope_ay_blend * (np.abs(ay) - ay_kin2dyn)))
+            
             if vx > 0.5:
                 blending_factor = 1.0
             else:
@@ -402,7 +388,7 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
 
             param_vec[10] = blending_factor
 
-            for j in range(MPC_N_HORIZON):
+            for j in range(horizon_params['N_horizon']):
                 ocp_solver.set(j, 'p', param_vec)
 
         # evaluate timings
@@ -426,7 +412,8 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
         idx_b_u = ocp_solver.acados_ocp.constraints.idxbu
         lb_u = ocp_solver.acados_ocp.constraints.lbu
         ub_u = ocp_solver.acados_ocp.constraints.ubu
-        plot_dynamics(np.linspace(0, (MPC_T_FINAL/MPC_N_HORIZON)*Nsim, Nsim+1),
+        simX[:, 0] = np.squeeze(s_values)
+        plot_dynamics(np.linspace(0, (horizon_params['T_final']/horizon_params['N_horizon'])*Nsim, Nsim+1),
                     idx_b_x, lb_x, ub_x,
                     idx_b_u, lb_u, ub_u, 
                     simU, simX,
@@ -456,5 +443,4 @@ HPIPM Solver Status:
 
 
 if __name__ == '__main__':
-    main(use_RTI=True, simulate_ocp=True)
     main(use_RTI=True, simulate_ocp=False)

@@ -57,11 +57,12 @@ def export_vehicle_ode_model(testing : bool = False,
     xdot = vertcat(s_dot, n_dot, mu_dot, vx_dot, vy_dot, dpsi_dot, Fx_m_dot, del_s_dot)
 
     # Symbolic Spline Interpolation for kappa(s)
+    s_sym_lut = MX.sym('s_sym_lut')
     ref_path_s = np.linspace(0, mpc_horizon_parameters['s_max'], mpc_horizon_parameters['n_s'])
     print(ref_path_s)
     interpolant_s2k = ca.interpolant("interpol_spline_kappa", "bspline", [ref_path_s])
-    interp_exp = interpolant_s2k(s, kappa_ref)
-    interp_fun = ca.Function('interp_fun', [s, kappa_ref], [interp_exp])
+    interp_exp = interpolant_s2k(s_sym_lut, kappa_ref)
+    interp_fun = ca.Function('interp_fun', [s_sym_lut, kappa_ref], [interp_exp])
     kappa_bspline = interp_fun(s, kappa_ref)
 
     # ====== If the spline fit should be tested =====
