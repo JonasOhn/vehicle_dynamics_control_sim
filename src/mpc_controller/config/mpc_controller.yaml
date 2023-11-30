@@ -1,12 +1,77 @@
 /mpc_controller:
   ros__parameters:
-    l_f: 0.8 # m
-    l_r: 0.7 # m
-    m: 220.0 # kg
-    Iz: 100.0 # kg m m
-    g: 9.81 # m s-2
-    D_tire: -1.0
-    C_tire: 1.7
-    B_tire: 9.5
-    C_d: 1.133 # 0.5 * rho * CdA
-    C_r: 0.5 # -
+    model:
+      l_f: 0.8 # m
+      l_r: 0.7 # m
+      m: 220.0 # kg
+      Iz: 100.0 # kg m m
+      g: 9.81 # m s-2
+      D_tire: -1.0
+      C_tire: 1.4
+      B_tire: 9.5
+      C_d: 1.133 # 0.5 * rho * CdA
+      C_r: 0.5 # -
+    horizon:
+      T_final: 1.0
+      N_horizon: 40
+      n_s: 40
+      s_max: 20.0
+    cost:
+      r_dFx:
+      r_del_s:
+      q_beta:
+      q_sd:
+      q_del:
+      q_n:
+      q_r_e:
+      q_mu_e:
+      q_n_e:
+      slack_penalties:
+        linear:
+          S_n_lin:
+          S_vx_lin:
+          S_te_lin:
+          S_n_lin_e:
+          S_vx_lin_e:
+          S_te_lin_e:
+        quadratic:
+          S_n_quad:
+          S_vx_quad:
+          S_te_quad:
+          S_n_quad_e:
+          S_vx_quad_e:
+          S_te_quad_e:
+    constraints:
+      soft:
+        e_x_front:
+        e_x_rear:
+        e_y_front:
+        e_y_rear:
+        n_max:
+        n_min:
+        L_F:
+        L_R:
+        W:
+        vx_max:
+        vx_max_e:
+      hard:
+        lb_h: -1000000000000000.0
+        ub_h: 0.0
+        lb_u_dFx: -1000.0
+        ub_u_dFx: 1000.0
+        lb_u_ddels: -2.0
+        ub_u_ddels: 2.0
+        lb_x_n: -100.0
+        ub_x_n: 100.0
+        lb_x_mu: -100.0
+        ub_x_mu: 100.0
+        lb_x_vx: -100.0
+        ub_x_vx: 100.0
+        lb_x_vy: -100.0
+        ub_x_vy: 100.0
+        lb_x_dpsi: -100.0
+        ub_x_dpsi: 100.0
+        lb_x_Fx: -100.0
+        ub_x_Fx: 100.0
+        lb_x_dels: -100.0
+        ub_x_dels: 100.0

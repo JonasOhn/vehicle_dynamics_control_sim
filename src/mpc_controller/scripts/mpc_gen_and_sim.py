@@ -46,7 +46,7 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
     # cost weight input: dFx
     model_cost_parameters['r_dFx'] = 1e-6
     # cost weight input: ddel_s
-    model_cost_parameters['r_del_s'] = 1.0
+    model_cost_parameters['r_del_s'] = 10.0
 
     # cost weight: beta deviaiton from kinematic
     model_cost_parameters['q_beta'] = 300.0
@@ -74,8 +74,8 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
     model_constraint_parameters['e_y_rear'] = 1.2
     # track boundary: max. lateral deviation from ref. path
     #TODO: make this parameter for online track boundaries
-    model_constraint_parameters['n_max'] = 10.0
-    model_constraint_parameters['n_min'] = -10.0
+    model_constraint_parameters['n_max'] = 3.0
+    model_constraint_parameters['n_min'] = -3.0
     # slacked track boundary constraint: vehicle geometry (padded rectangle)
     
     l_f = 0.8 # length cog to front axle
@@ -111,30 +111,15 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
     ocp.dims.N = mpc_horizon_parameters['N_horizon']
 
     """ ========= INTERNAL STAGE CONSTRAINTS ======== """
-    # Nonlinear Constraints: lower bounds are -Inf
-    lh = [-1e15,
-          -1e15,
-          -1e15,
-          -1e15,
-          -1e15,
-          -1e15,
-          -1e15,
-          -1e15,]
-    # Nonlinear Constraints: upper bounds (same length as lower bounds)
-    uh = [0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,]
+    # Terminal Nonlinear Constraints: lower bounds are -Inf but acados doesn't seem to support it
+    ocp.constraints.lh = -1e15 * np.ones(8)
+    # Terminal Nonlinear Constraints: upper bounds
+    ocp.constraints.uh = np.zeros(8)
 
-    ocp.constraints.lh = np.array(lh)
-    ocp.constraints.uh = np.array(uh)
-
-    ocp.constraints.lh_0 = np.copy(ocp.constraints.lh)
-    ocp.constraints.uh_0 = np.copy(ocp.constraints.uh)
+    # Terminal Nonlinear Constraints: lower bounds are -Inf but acados doesn't seem to support it
+    ocp.constraints.lh_0 = -1e15 * np.ones(8)
+    # Terminal Nonlinear Constraints: upper bounds
+    ocp.constraints.uh_0 = np.zeros(8)
 
     # ---
     # State: [s, n, mu, vx, vy, dpsi, Fx, del_s]
@@ -146,8 +131,7 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
             -5.0,
             -3000.0,
             -1.0]
-    # lb_x = []
-    # State Constraints: upper bounds (same length as lower bounds)
+    # State Constraints: upper bounds
     ub_x = [100.0,
             3.0,
             100.0,
@@ -155,10 +139,8 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
             5.0,
             3000.0,
             1.0]
-    # ub_x = []
     # State Constraints: indices of lb and ub in State vector
     idx_b_x = [1, 2, 3, 4, 5, 6, 7]
-    # idx_b_x = []
 
     ocp.constraints.lbx = np.array(lb_x)
     ocp.constraints.ubx = np.array(ub_x)
@@ -170,7 +152,7 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
     # Input Constraints: lower bounds
     lb_u = [-1e3,
             -2.0]
-    # Input Constraints: upper bounds (same length as lower bounds)
+    # Input Constraints: upper bounds
     ub_u = [+1e3,
             +2.0]
     # Input Constraints: indices of lb and ub in input vector
@@ -182,26 +164,9 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=True):
 
     """ ========= INTERNAL TERMINAL CONSTRAINTS ======== """
     # Terminal Nonlinear Constraints: lower bounds are -Inf but acados doesn't seem to support it
-    lh_e = [-1e15,
-            -1e15,
-            -1e15,
-            -1e15,
-            -1e15,
-            -1e15,
-            -1e15,
-            -1e15,]
-    # Terminal Nonlinear Constraints: upper bounds (same length as lower bounds)
-    uh_e = [0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,]
-
-    ocp.constraints.lh_e = np.array(lh_e)
-    ocp.constraints.uh_e = np.array(uh_e)
+    ocp.constraints.lh_e = -1e15 * np.ones(8)
+    # Terminal Nonlinear Constraints: upper bounds
+    ocp.constraints.uh_e = np.zeros(8)
 
     """ ========= INITIAL STATE CONSTRAINT =========== """
     ocp.constraints.x0 = x0
@@ -342,7 +307,7 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
         param_vec = ocp_solver.acados_ocp.parameter_values
 
         """ =========== SET SIMULATION PARAMS ============ """
-        Nsim = 250
+        Nsim = 500
         simX = np.ndarray((Nsim+1, nx))
         simU = np.ndarray((Nsim, nu))
         simBlendingFactor = np.ndarray((Nsim, 1))
@@ -425,10 +390,14 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
             ay = 1/m * (Fy_r + Fx_f * np.sin(del_s) + Fy_f * np.cos(del_s)) - vx * dpsi
 
             slope_ay_blend = 5.0
-            ay_kin2dyn = 4.0
+            ay_kin2dyn = 1.0
 
             # Sigmoid for blending between kinematic and dynamic model
             blending_factor = 1 / (1 + np.exp(- slope_ay_blend * (np.abs(ay) - ay_kin2dyn)))
+            if vx > 0.5:
+                blending_factor = 1.0
+            else:
+                blending_factor = 0.0
             simBlendingFactor[i] = blending_factor
 
             param_vec[10] = blending_factor
