@@ -361,39 +361,39 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
 
             # States
             vx = simX[i+1, 3]
-            vy = simX[i+1, 4]
-            dpsi = simX[i+1, 5]
+            # vy = simX[i+1, 4]
+            # dpsi = simX[i+1, 5]
 
-            # Inputs
-            Fx_f = simU[i, 0]
-            del_s = simU[i, 1]
+            # # Inputs
+            # Fx_f = simU[i, 0]
+            # del_s = simU[i, 1]
 
-            # Parameters
-            m = param_vec[0]
-            g = param_vec[1]
-            l_f = param_vec[2]
-            l_r = param_vec[3]
-            B_tire = param_vec[5]
-            C_tire = param_vec[6]
-            D_tire = param_vec[7]
+            # # Parameters
+            # m = param_vec[0]
+            # g = param_vec[1]
+            # l_f = param_vec[2]
+            # l_r = param_vec[3]
+            # B_tire = param_vec[5]
+            # C_tire = param_vec[6]
+            # D_tire = param_vec[7]
 
-            # Slip Angles
-            alpha_f = - del_s + np.arctan2((vy + dpsi * l_f), vx)
-            alpha_r = np.arctan2((vy - dpsi * l_r), vx)
+            # # Slip Angles
+            # alpha_f = - del_s + np.arctan2((vy + dpsi * l_f), vx)
+            # alpha_r = np.arctan2((vy - dpsi * l_r), vx)
 
-            # Lateral forces
-            Fz_f = m * g * l_r / (l_r + l_f)
-            Fz_r = m * g * l_f / (l_r + l_f)
-            Fy_f = Fz_f * D_tire * np.sin(C_tire * np.arctan(B_tire * alpha_f))
-            Fy_r = Fz_r * D_tire * np.sin(C_tire * np.arctan(B_tire * alpha_r))
+            # # Lateral forces
+            # Fz_f = m * g * l_r / (l_r + l_f)
+            # Fz_r = m * g * l_f / (l_r + l_f)
+            # Fy_f = Fz_f * D_tire * np.sin(C_tire * np.arctan(B_tire * alpha_f))
+            # Fy_r = Fz_r * D_tire * np.sin(C_tire * np.arctan(B_tire * alpha_r))
 
-            ay = 1/m * (Fy_r + Fx_f * np.sin(del_s) + Fy_f * np.cos(del_s)) - vx * dpsi
+            # ay = 1/m * (Fy_r + Fx_f * np.sin(del_s) + Fy_f * np.cos(del_s)) - vx * dpsi
 
-            slope_ay_blend = 5.0
-            ay_kin2dyn = 1.0
+            # slope_ay_blend = 5.0
+            # ay_kin2dyn = 1.0
 
-            # Sigmoid for blending between kinematic and dynamic model
-            blending_factor = 1 / (1 + np.exp(- slope_ay_blend * (np.abs(ay) - ay_kin2dyn)))
+            # # Sigmoid for blending between kinematic and dynamic model
+            # blending_factor = 1 / (1 + np.exp(- slope_ay_blend * (np.abs(ay) - ay_kin2dyn)))
             if vx > 0.5:
                 blending_factor = 1.0
             else:
