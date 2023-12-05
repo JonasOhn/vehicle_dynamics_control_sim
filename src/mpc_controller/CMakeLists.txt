@@ -12,6 +12,18 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sim_backend REQUIRED)
 find_package (Eigen3 3.3 REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(builtin_interfaces REQUIRED)
+find_package(rcl_interfaces REQUIRED)
+find_package(rcutils REQUIRED)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/MpcStateTrajectory.msg"
+  "msg/MpcInputTrajectory.msg"
+  "msg/MpcSolverState.msg"
+)
+
+ament_export_dependencies(rosidl_default_runtime)
 
 # c-compiler flags for debugging
 set(CMAKE_C_FLAGS_DEBUG "-O0 -ggdb")
@@ -29,42 +41,6 @@ set(MODEL_OBJ model_veh_dynamics_ode)
 set(OCP_OBJ ocp_veh_dynamics_ode)
 set(SIM_OBJ sim_veh_dynamics_ode)
 
-# model
-set(MODEL_SRC
-  ${full_model_build}/veh_dynamics_ode_model/veh_dynamics_ode_impl_dae_fun.c
-  ${full_model_build}/veh_dynamics_ode_model/veh_dynamics_ode_impl_dae_fun_jac_x_xdot_z.c
-  ${full_model_build}/veh_dynamics_ode_model/veh_dynamics_ode_impl_dae_jac_x_xdot_u_z.c
-  ${full_model_build}/veh_dynamics_ode_model/veh_dynamics_ode_impl_dae_hess.c
-)
-add_library(${MODEL_OBJ} OBJECT ${MODEL_SRC} )
-
-# optimal control problem - mostly CasADi exports
-set(OCP_SRC
-  ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_fun_jac_uxt_zt.c
-  ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_fun.c
-  ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_fun_jac_uxt_zt_hess.c
-  ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_0_fun_jac_uxt_zt.c
-  ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_0_fun.c
-  ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_0_fun_jac_uxt_zt_hess.c
-  ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_e_fun_jac_uxt_zt.c
-  ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_e_fun.c
-  ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_e_fun_jac_uxt_zt_hess.c
-  ${full_model_build}/veh_dynamics_ode_cost/veh_dynamics_ode_cost_ext_cost_0_fun.c
-  ${full_model_build}/veh_dynamics_ode_cost/veh_dynamics_ode_cost_ext_cost_0_fun_jac.c
-  ${full_model_build}/veh_dynamics_ode_cost/veh_dynamics_ode_cost_ext_cost_0_fun_jac_hess.c
-  ${full_model_build}/veh_dynamics_ode_cost/veh_dynamics_ode_cost_ext_cost_fun.c
-  ${full_model_build}/veh_dynamics_ode_cost/veh_dynamics_ode_cost_ext_cost_fun_jac.c
-  ${full_model_build}/veh_dynamics_ode_cost/veh_dynamics_ode_cost_ext_cost_fun_jac_hess.c
-  ${full_model_build}/acados_solver_veh_dynamics_ode.c)
-add_library(${OCP_OBJ} OBJECT ${OCP_SRC})
-
-# for sim solver
-set(SIM_SRC 
-  ${full_model_build}/acados_sim_solver_veh_dynamics_ode.c
-)
-add_library(${SIM_OBJ} OBJECT ${SIM_SRC})
-
-#
 include_directories(
 	include
 	${full_model_build}
@@ -75,37 +51,93 @@ include_directories(
 	${acados_include}/qpOASES_e
 )
 
+# model
+file(GLOB MODEL_SRC_FILES ${full_model_build}/veh_dynamics_ode_model/*.c)
+# set(MODEL_SRC
+#   ${full_model_build}/veh_dynamics_ode_model/veh_dynamics_ode_impl_dae_fun.c
+#   ${full_model_build}/veh_dynamics_ode_model/veh_dynamics_ode_impl_dae_fun_jac_x_xdot_z.c
+#   ${full_model_build}/veh_dynamics_ode_model/veh_dynamics_ode_impl_dae_jac_x_xdot_u_z.c
+#   ${full_model_build}/veh_dynamics_ode_model/veh_dynamics_ode_impl_dae_hess.c
+# )
+set(MODEL_SRC
+  ${MODEL_SRC_FILES}
+)
+add_library(${MODEL_OBJ} OBJECT ${MODEL_SRC} )
+
+# optimal control problem - mostly CasADi exports
+file(GLOB OCP_COST_SRC_FILES ${full_model_build}/veh_dynamics_ode_cost/*.c)
+file(GLOB OCP_CONSTRAINTS_SRC_FILES ${full_model_build}/veh_dynamics_ode_constraints/*.c)
+# set(OCP_SRC
+#   ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_fun_jac_uxt_zt.c
+#   ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_fun.c
+#   ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_fun_jac_uxt_zt_hess.c
+#   ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_0_fun_jac_uxt_zt.c
+#   ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_0_fun.c
+#   ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_0_fun_jac_uxt_zt_hess.c
+#   ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_e_fun_jac_uxt_zt.c
+#   ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_e_fun.c
+#   ${full_model_build}/veh_dynamics_ode_constraints/veh_dynamics_ode_constr_h_e_fun_jac_uxt_zt_hess.c
+#   ${full_model_build}/veh_dynamics_ode_cost/veh_dynamics_ode_cost_ext_cost_0_fun.c
+#   ${full_model_build}/veh_dynamics_ode_cost/veh_dynamics_ode_cost_ext_cost_0_fun_jac.c
+#   ${full_model_build}/veh_dynamics_ode_cost/veh_dynamics_ode_cost_ext_cost_0_fun_jac_hess.c
+#   ${full_model_build}/veh_dynamics_ode_cost/veh_dynamics_ode_cost_ext_cost_fun.c
+#   ${full_model_build}/veh_dynamics_ode_cost/veh_dynamics_ode_cost_ext_cost_fun_jac.c
+#   ${full_model_build}/veh_dynamics_ode_cost/veh_dynamics_ode_cost_ext_cost_fun_jac_hess.c
+#   ${full_model_build}/acados_solver_veh_dynamics_ode.c)
+set(OCP_SRC
+  ${OCP_COST_SRC_FILES}
+  ${OCP_CONSTRAINTS_SRC_FILES}
+  ${full_model_build}/acados_solver_veh_dynamics_ode.c
+)
+add_library(${OCP_OBJ} OBJECT ${OCP_SRC})
+
+# for sim solver
+set(SIM_SRC 
+  ${full_model_build}/acados_sim_solver_veh_dynamics_ode.c
+)
+add_library(${SIM_OBJ} OBJECT ${SIM_SRC})
+
 link_directories(${acados_lib} ${acados_include} ${full_model_build})
 
 link_libraries(acados hpipm blasfeo m )
 
 #-------------------
-add_executable(mpc_controller
+add_executable(mpc_controller_node
   src/mpc_controller_node.cpp
   $<TARGET_OBJECTS:${MODEL_OBJ}> 
   $<TARGET_OBJECTS:${OCP_OBJ}>
   # $<TARGET_OBJECTS:${SIM_OBJ}>
 )
-target_link_libraries (mpc_controller Eigen3::Eigen)
 
-ament_target_dependencies(mpc_controller
+ament_target_dependencies(mpc_controller_node
   rclcpp
   sim_backend
+  builtin_interfaces
+  rcl_interfaces
+  rcutils
 )
 
 install(TARGETS 
-  mpc_controller
+  mpc_controller_node
   DESTINATION lib/${PROJECT_NAME}
-)
-
-install(DIRECTORY
-  launch
-  DESTINATION share/${PROJECT_NAME}/
 )
 
 install(DIRECTORY
   config
   DESTINATION share/${PROJECT_NAME}
+)
+
+rosidl_get_typesupport_target(cpp_typesupport_target
+  ${PROJECT_NAME} rosidl_typesupport_cpp)
+
+target_link_libraries(mpc_controller_node 
+  Eigen3::Eigen
+  "${cpp_typesupport_target}"
+)
+
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}/
 )
 
 #-------------------

@@ -41,6 +41,8 @@ class DynamicSystem {
         DynamicSystem();
 
         void update_inputs(double fx_f, double fx_r, double delta_steer);
+
+        void get_inputs(double* fx_f, double* fx_r, double* delta_steer);
         
         void update_parameters(parameters param_struct);
 

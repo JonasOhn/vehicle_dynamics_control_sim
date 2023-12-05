@@ -33,6 +33,12 @@ void DynamicSystem::update_inputs(double fx_f, double fx_r, double delta_steer){
     delta_s_ = delta_steer;
 }
 
+void DynamicSystem::get_inputs(double* fx_f, double* fx_r, double* delta_steer){
+    *fx_f = Fx_f_;
+    *fx_r = Fx_r_;
+    *delta_steer = delta_s_;
+}
+
 void DynamicSystem::operator() ( const state_type &x , state_type &dxdt , const double /* t */ )
 {
     // Differential Equations for x = [X_C, Y_C, psi, dX_cdt, dY_cdt, dpsidt]
@@ -60,31 +66,27 @@ void DynamicSystem::operator() ( const state_type &x , state_type &dxdt , const 
 
     // Differential Equations Vehcile Dynamics
 
-    // x[0]: X_C in INERTIAL FRAME
+    // dxdt[0]: dX_C/dt in INERTIAL FRAME
     dxdt[0] = x[3] * cos(x[2]) - x[4] * sin(x[2]);
-    // x[1]: Y_C in INERTIAL FRAME
+    // dxdt[1]: dY_C/dt in INERTIAL FRAME
     dxdt[1] = x[3] * sin(x[2]) + x[4] * cos(x[2]);
-    // x[2]: psi
+    // dxdt[2]: dpsi/dt
     dxdt[2] = x[5];
 
-    // x[3]: dX_C / dt in VEHICLE FRAME
+    // dxdt[3]: dX_C / dt in VEHICLE FRAME
     dxdt[3] = (x[6] * cos(delta_s_)
         + x[8]
         - Fy_f * sin(delta_s_)
         - F_resist
         ) / params_.m
-        + x[4] * (x[6] * params_.l_f * sin(delta_s_)
-        - Fy_r * params_.l_r
-        + Fy_f * params_.l_f * cos(delta_s_)) / params_.Iz;
-    // x[4]: dY_C / dt in VEHICLE FRAME
+        + x[4] * x[5];
+    // dxdt[4]: d ( dY_C / dt ) /dt in VEHICLE FRAME
     dxdt[4] = (Fy_r
         + Fy_f * cos(delta_s_)
         + x[6] * sin(delta_s_)
         ) / params_.m
-        - x[3] * (x[6] * params_.l_f * sin(delta_s_)
-        - Fy_r * params_.l_r
-        + Fy_f * params_.l_f * cos(delta_s_)) / params_.Iz;
-    // x[5]: dpsi / dt
+        - x[3] * x[5];
+    // dxdt[5]: d( dpsi / dt ) / dt
     dxdt[5] = (x[6] * params_.l_f * sin(delta_s_)
         - Fy_r * params_.l_r
         + Fy_f * params_.l_f * cos(delta_s_)) / params_.Iz;

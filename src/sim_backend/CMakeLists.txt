@@ -9,13 +9,20 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system)
+find_package(pcl_conversions REQUIRED)
+find_package(PCL COMPONENTS REQUIRED)
+find_package(rcl_interfaces REQUIRED)
+find_package(rcutils REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SysInput.msg"
@@ -26,7 +33,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
 ament_export_dependencies(rosidl_default_runtime)
 
-include_directories(include)
+include_directories(include ${PCL_INCLUDE_DIRS})
 
 add_executable(dynamics_simulator 
   src/dynamics_sim_node.cpp
@@ -36,15 +43,21 @@ add_executable(vehicle_frame_publisher
   src/vehicle_frame_publisher.cpp)
 
 ament_target_dependencies(vehicle_frame_publisher
-  geometry_msgs
   rclcpp
+  geometry_msgs
+  builtin_interfaces
   tf2
   tf2_ros)
 
 ament_target_dependencies(dynamics_simulator
-  rclcpp 
+  rclcpp
   geometry_msgs
   builtin_interfaces
+  pcl_conversions
+  rcl_interfaces
+  sensor_msgs
+  visualization_msgs
+  rcutils
   tf2
   tf2_ros
   tf2_geometry_msgs)
@@ -73,7 +86,8 @@ install(DIRECTORY
 rosidl_get_typesupport_target(cpp_typesupport_target
   ${PROJECT_NAME} rosidl_typesupport_cpp)
 
-target_link_libraries(dynamics_simulator "${cpp_typesupport_target}")
+target_link_libraries(dynamics_simulator "${cpp_typesupport_target}" "${Boost_SYSTEM_LIBRARY}")
+target_link_libraries(vehicle_frame_publisher "${cpp_typesupport_target}")
 
 install(
   DIRECTORY include/

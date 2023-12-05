@@ -1,0 +1,4 @@
+float64 kkt_norm_inf
+float64 total_solve_time
+int32 sqp_iter
+int32 solver_status

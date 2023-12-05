@@ -1,4 +1,4 @@
-/mpc_controller:
+/mpc_controller_node:
   ros__parameters:
     model:
       l_f: 0.8 # m
@@ -12,15 +12,15 @@
       C_d: 1.133 # 0.5 * rho * CdA
       C_r: 0.5 # -
       blending_factor: 0.0
-      kappa_ref: 0.05
+      kappa_ref: 0.0
     horizon:
       T_final: 1.0
       N_horizon: 40
       n_s: 40
       s_max: 20.0
     cost:
-      r_dFx: 0.000001
-      r_del_s: 10.0
+      r_dFx: 0.0000005
+      r_del_s: 5.0
       q_beta: 300.0
       q_sd: 1.0
       q_del: 5.0
@@ -45,12 +45,12 @@
           S_te_quad_e: 2000.0
     constraints:
       soft:
-        e_x_front: 1.2
-        e_x_rear: 1.2
-        e_y_front: 1.2
-        e_y_rear: 1.2
-        n_max: 3.0
-        n_min: -3.0
+        e_x_front: 1.25
+        e_x_rear: 1.25
+        e_y_front: 1.25
+        e_y_rear: 1.25
+        n_max: 5.0
+        n_min: -5.0
         L_F: 0.97
         L_R: 0.85
         W: 2.0
@@ -61,10 +61,10 @@
         ub_h: 0.0
         lb_u_dFx: -1000.0
         ub_u_dFx: 1000.0
-        lb_u_ddels: -2.0
-        ub_u_ddels: 2.0
-        lb_x_n: -100.0
-        ub_x_n: 100.0
+        lb_u_ddels: -1.0
+        ub_u_ddels: 1.0
+        lb_x_n: -10.0
+        ub_x_n: 10.0
         lb_x_mu: -2.0
         ub_x_mu: 2.0
         lb_x_vx: -0.1
@@ -78,11 +78,11 @@
         lb_x_dels: -1.5
         ub_x_dels: 1.5
     solver_options:
-      qp_solver: 'PARTIAL_CONDENSING_HPIPM' # FULL_CONDENSING_QPOASES
-      hessian_approx: 'EXACT' #'GAUSS_NEWTON'
+      qp_solver: 'FULL_CONDENSING_HPIPM' #'FULL_CONDENSING_QPOASES' #'PARTIAL_CONDENSING_HPIPM'
+      hessian_approx: 'GAUSS_NEWTON' #'EXACT' #
       integrator_type: 'IRK'
       sim_method_newton_iter: 20
       nlp_solver_max_iter: 100
       qp_solver_iter_max: 50
-      tol: 0.01
-      qp_tol: 0.001
+      tol: 0.0001
+      qp_tol: 0.0001

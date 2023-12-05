@@ -10,11 +10,11 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='mpc_controller',
-            executable='mpc_controller',
-            name='mpc_controller',
+            executable='mpc_controller_node',
+            name='mpc_controller_node',
             parameters=[os.path.join(
                 get_package_share_directory('mpc_controller'),
                 'config', 'mpc_controller.yaml')],
-            output='screen',
+            output='log',
         ),
     ])

@@ -244,7 +244,7 @@ class PPController : public rclcpp::Node
     std::vector<std::vector<double>> ref_points_;
 
     // Step Time for controller publisher
-    std::chrono::milliseconds dt_{std::chrono::milliseconds(5)};
+    std::chrono::milliseconds dt_{std::chrono::milliseconds(10)};
     double dt_seconds_;
     
     // reference velocity (const. for now)

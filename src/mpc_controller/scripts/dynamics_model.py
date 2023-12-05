@@ -45,6 +45,10 @@ def export_vehicle_ode_model(testing : bool = False,
     del_s_dot_u = MX.sym('del_s_dot_u')
     u = vertcat(Fx_m_dot_u, del_s_dot_u)
 
+    # Algebraic states
+    kappa_ref_z = MX.sym('kappa_ref_z')
+    z = kappa_ref_z
+
     # Symbolic State Derivative f(x,u)
     s_dot       = MX.sym('s_dot')
     n_dot      = MX.sym('n_dot')
@@ -126,10 +130,11 @@ def export_vehicle_ode_model(testing : bool = False,
                           vy_dot_expl,
                           dpsi_dot_expl,
                           Fx_m_dot_expl,
-                          del_s_dot_expl)
+                          del_s_dot_expl,
+                          kappa_bspline)
 
     # Implicit expression
-    f_impl_time = xdot - f_expl_time
+    f_impl_time = vertcat(xdot, z) - f_expl_time
 
     """ STAGE Cost (model-based, slack is defined on the solver) """
     # Lateral deviation from path cost
@@ -225,6 +230,7 @@ def export_vehicle_ode_model(testing : bool = False,
     model.f_impl_expr = f_impl_time
     model.f_expl_expr = f_expl_time
     model.x = x
+    model.z = z
     model.xdot = xdot
     model.u = u
     model.p = p

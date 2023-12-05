@@ -4,17 +4,22 @@
 #include <memory>
 #include <string>
 #include <cmath>
-
+#include <fstream>
 #include <tf2/LinearMath/Quaternion.h>
+
 #include "rclcpp/rclcpp.hpp"
+#include "sensor_msgs/msg/point_cloud2.hpp"
+#include "sensor_msgs/point_cloud2_iterator.hpp"
+#include "visualization_msgs/msg/marker.hpp"
 #include "sim_backend/msg/vehicle_state.hpp"
 #include "sim_backend/msg/sys_input.hpp"
 #include "sim_backend/msg/ref_path.hpp"
 #include "sim_backend/msg/point2_d.hpp"
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include "tf2/LinearMath/Quaternion.h"
 #include "sim_backend/dynamic_system.hpp"
 #include "sim_backend/sim_geometry.hpp"
-#include <fstream>
+#include <pcl_conversions/pcl_conversions.h>
 
 using namespace std::chrono_literals;
 using namespace boost::numeric::odeint;
@@ -46,7 +51,8 @@ class DynamicsSimulator : public rclcpp::Node
             x_[9] = 0.0;
 
             this->gamma_ = this->get_parameter("gamma").as_double();
-            this->r_perception_ = this->get_parameter("r_perception").as_double();
+            this->r_perception_max_ = this->get_parameter("r_perception_max").as_double();
+            this->r_perception_min_ = this->get_parameter("r_perception_min").as_double();
 
             initial_idx_refloop_ = 0;
 
@@ -72,11 +78,18 @@ class DynamicsSimulator : public rclcpp::Node
 
             state_publisher_ = this->create_publisher<sim_backend::msg::VehicleState>("vehicle_state", 10);
             ref_path_publisher_ = this->create_publisher<sim_backend::msg::RefPath>("reference_path", 10);
+            track_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("track_pcl2d", 10);
+            trackbounds_left_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("trackbounds_left_pcl2d", 10);
+            trackbounds_right_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("trackbounds_right_pcl2d", 10);
+            velocity_vector_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("car_cog_velocity_vector", 10);
+            ref_path_publisher_pcl_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("reference_path_pcl", 10);
 
             solve_timer_ = this->create_wall_timer(
                 this->dt_, std::bind(&DynamicsSimulator::solve_step, this));
             ref_path_timer_ = this->create_wall_timer(
                 this->dt_, std::bind(&DynamicsSimulator::ref_path_callback, this));
+            track_timer_ = this->create_wall_timer(
+                this->dt_trackpub_, std::bind(&DynamicsSimulator::track_callback, this));
 
             input_subscription_ = this->create_subscription<sim_backend::msg::SysInput>(
                 "vehicle_input", 10, std::bind(&DynamicsSimulator::update_input, this, std::placeholders::_1));
@@ -94,9 +107,9 @@ class DynamicsSimulator : public rclcpp::Node
         }
 
         int get_csv_ref_track(){
-            std::ifstream  data("src/sim_backend/tracks/FSG_middle_path.csv");
+            std::ifstream  data_middle("src/sim_backend/tracks/FSG_middle_path.csv");
             std::string line;
-            while(std::getline(data, line))
+            while(std::getline(data_middle, line))
             {
                 std::stringstream lineStream(line);
                 std::string cell;
@@ -106,6 +119,34 @@ class DynamicsSimulator : public rclcpp::Node
                     parsedRow.push_back(std::stod(cell));
                 }
                 ref_points_global_.push_back(parsedRow);
+            }
+
+            // left cones are blue
+            std::ifstream data_blue("src/sim_backend/tracks/FSG_blue_cones.csv");
+            while(std::getline(data_blue, line))
+            {
+                std::stringstream lineStream(line);
+                std::string cell;
+                std::vector<double> parsedRow;
+                while(std::getline(lineStream, cell, ','))
+                {
+                    parsedRow.push_back(std::stod(cell));
+                }
+                trackbounds_left_.push_back(parsedRow);
+            }
+
+            // right cones are yellow
+            std::ifstream data_yellow("src/sim_backend/tracks/FSG_yellow_cones.csv");
+            while(std::getline(data_yellow, line))
+            {
+                std::stringstream lineStream(line);
+                std::string cell;
+                std::vector<double> parsedRow;
+                while(std::getline(lineStream, cell, ','))
+                {
+                    parsedRow.push_back(std::stod(cell));
+                }
+                trackbounds_right_.push_back(parsedRow);
             }
             return 1;
         }
@@ -122,6 +163,7 @@ class DynamicsSimulator : public rclcpp::Node
 
         void solve_step()
         {
+            RCLCPP_INFO_STREAM(this->get_logger(), "Solve step started.");
             /* Get start time of solve step */
             double t0 = (double_t)(this->now().nanoseconds())/1e6;  // [ms]
 
@@ -139,12 +181,24 @@ class DynamicsSimulator : public rclcpp::Node
             state_msg.y_c = x_[1];
             state_msg.psi = x_[2];
             state_msg.dx_c = x_[3] * cos(x_[2]) - x_[4] * sin(x_[2]); // rotated into global frame
-            state_msg.dy_c = x_[3] * sin(x_[2]) + x_[4] * cos(x_[2]);   
+            state_msg.dy_c = x_[3] * sin(x_[2]) + x_[4] * cos(x_[2]);
+            state_msg.dx_c_v = x_[3];
+            state_msg.dy_c_v = x_[4];  
             state_msg.dpsi = x_[5];
             state_msg.fx_f_act = x_[6];
             state_msg.dfx_f_act = x_[7];
             state_msg.fx_r_act = x_[8];
             state_msg.dfx_r_act = x_[9];
+
+            double fx_f = 0.0;
+            double fx_r = 0.0;
+            double del_s = 0.0;
+
+            this->sys_.get_inputs(&fx_f, &fx_r, &del_s);
+
+            state_msg.del_s_ref = del_s;
+            state_msg.fx_f_ref = fx_f;
+            state_msg.fx_r_ref = fx_r;
 
             state_publisher_->publish(state_msg);
             
@@ -157,12 +211,104 @@ class DynamicsSimulator : public rclcpp::Node
             }
             // RCLCPP_INFO_STREAM(this->get_logger(), "Step ended at time t_ = " << t_ << " s.");
             // RCLCPP_INFO_STREAM(this->get_logger(), "End relative clock time: " << (t1 - start_time_ns_/1e6)/1e3 << " s.");
+
+            auto velvec_msg = visualization_msgs::msg::Marker();
+            velvec_msg.header.frame_id = "vehicle_frame";
+            velvec_msg.header.stamp = now();
+            // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
+            velvec_msg.type = 0;
+            velvec_msg.id = 0;
+
+            // Set the scale of the marker
+            velvec_msg.scale.x = sqrt(pow(x_[3], 2.0) + pow(x_[4], 2.0));
+            velvec_msg.scale.y = 1.0;
+            velvec_msg.scale.z = 1.0;
+
+            // Set the color
+            velvec_msg.color.r = 0.0;
+            velvec_msg.color.g = 1.0;
+            velvec_msg.color.b = 0.0;
+            velvec_msg.color.a = 1.0;
+
+            // Set the pose of the marker
+            tf2::Quaternion q;
+            q.setRPY(0, 0, atan2(x_[4], x_[3]));
+            velvec_msg.pose.position.x = 0;
+            velvec_msg.pose.position.y = 0;
+            velvec_msg.pose.position.z = 0;
+            velvec_msg.pose.orientation.x = q.x();
+            velvec_msg.pose.orientation.y = q.y();
+            velvec_msg.pose.orientation.z = q.z();
+            velvec_msg.pose.orientation.w = q.w();
+            velocity_vector_publisher_->publish(velvec_msg);
+
+            RCLCPP_INFO_STREAM(this->get_logger(), "Solve step end.");
+        }
+
+        void track_callback()
+        {
+            RCLCPP_INFO_STREAM(this->get_logger(), "Track callback started.");
+            // ======= Track publisher ==========
+            pcl::PointCloud<pcl::PointXYZRGB> cloud_;
+            uint8_t r_val_point = 0;
+            uint8_t g_val_point = 0;
+            uint8_t b_val_point = 0;
+            for (size_t i=0; i<ref_points_global_.size(); i++) {
+                pcl::PointXYZRGB pt;
+                pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
+                pt.x = ref_points_global_[i][0];
+                pt.y = ref_points_global_[i][1];
+                pt.z = 0.0;
+                cloud_.points.push_back(pt);
+            }
+            auto pc2_msg = sensor_msgs::msg::PointCloud2();
+            pcl::toROSMsg(cloud_, pc2_msg);
+            pc2_msg.header.frame_id = "world";
+            pc2_msg.header.stamp = now();
+            track_publisher_->publish(pc2_msg);
+
+            // ======= Left/Blue Boundary publisher ==========
+            r_val_point = 0;
+            g_val_point = 0;
+            b_val_point = 255;
+            for (size_t i=0; i<trackbounds_left_.size(); i++) {
+                pcl::PointXYZRGB pt;
+                pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
+                pt.x = trackbounds_left_[i][0];
+                pt.y = trackbounds_left_[i][1];
+                pt.z = 0.0;
+                cloud_.points.push_back(pt);
+            }
+            pcl::toROSMsg(cloud_, pc2_msg);
+            pc2_msg.header.frame_id = "world";
+            pc2_msg.header.stamp = now();
+            trackbounds_left_publisher_->publish(pc2_msg);
+
+            // ======= Right/Yellow Boundary publisher ==========
+            r_val_point = 255;
+            g_val_point = 255;
+            b_val_point = 0;
+            for (size_t i=0; i<trackbounds_right_.size(); i++) {
+                pcl::PointXYZRGB pt;
+                pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
+                pt.x = trackbounds_right_[i][0];
+                pt.y = trackbounds_right_[i][1];
+                pt.z = 0.0;
+                cloud_.points.push_back(pt);
+            }
+            pcl::toROSMsg(cloud_, pc2_msg);
+            pc2_msg.header.frame_id = "world";
+            pc2_msg.header.stamp = now();
+            trackbounds_right_publisher_->publish(pc2_msg);
+            RCLCPP_INFO_STREAM(this->get_logger(), "Track callback ended.");
         }
 
         void ref_path_callback()
         {
+            RCLCPP_INFO_STREAM(this->get_logger(), "Ref path callback started.");
             this->gamma_ = this->get_parameter("gamma").as_double();
-            this->r_perception_ = this->get_parameter("r_perception").as_double();
+            this->r_perception_max_ = this->get_parameter("r_perception_max").as_double();
+            this->r_perception_min_ = this->get_parameter("r_perception_min").as_double();
 
             double x_c = x_[0];
             double y_c = x_[1];
@@ -178,6 +324,13 @@ class DynamicsSimulator : public rclcpp::Node
 
             auto ref_path_message = sim_backend::msg::RefPath();
             auto path_pos = sim_backend::msg::Point2D();
+
+            pcl::PointCloud<pcl::PointXYZRGB> cloud_;
+            uint8_t r_val_point = 255;
+            uint8_t g_val_point = 0;
+            uint8_t b_val_point = 0;
+            auto pc2_msg = sensor_msgs::msg::PointCloud2();
+            pcl::PointXYZRGB pt;
 
             path_pos.point_2d[0] = x_c;
             path_pos.point_2d[1] = y_c;
@@ -197,31 +350,54 @@ class DynamicsSimulator : public rclcpp::Node
                 // And if global point lies inside a "perception circle"
                 if((a_1_neg * path_pos.point_2d[0] + a_2_neg * path_pos.point_2d[1] >= b_neg) && 
                     (a_1_pos * path_pos.point_2d[0] + a_2_pos * path_pos.point_2d[1] >= b_pos) &&
-                    (sqrt(pow(path_pos.point_2d[0] - x_c, 2) + pow(path_pos.point_2d[1] - y_c, 2)) <= this->r_perception_)){
+                    (sqrt(pow(path_pos.point_2d[0] - x_c, 2) + pow(path_pos.point_2d[1] - y_c, 2)) <= this->r_perception_max_) &&
+                    (sqrt(pow(path_pos.point_2d[0] - x_c, 2) + pow(path_pos.point_2d[1] - y_c, 2)) >= this->r_perception_min_)){
+                    
                     ref_path_message.ref_path.push_back(path_pos);
+                    
+                    pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
+                    pt.x = ref_points_global_[idx][0];
+                    pt.y = ref_points_global_[idx][1];
+                    pt.z = 0.0;
+                    cloud_.points.push_back(pt);
+                    
                     if (!first_visited){
                         first_visited = true;
                         initial_idx_refloop_ = idx;
                     }
-                    // RCLCPP_INFO_STREAM(this->get_logger(), "Adding point to local ref path, x: " << path_pos.point_2d[0] << ", y: " << path_pos.point_2d[1]);
                 }
             }
             ref_path_publisher_->publish(ref_path_message);
+
+            pcl::toROSMsg(cloud_, pc2_msg);
+            pc2_msg.header.frame_id = "world";
+            pc2_msg.header.stamp = now();
+            ref_path_publisher_pcl_->publish(pc2_msg);
+
         }
 
         // Timer for solving the ODE
         rclcpp::TimerBase::SharedPtr solve_timer_;
         rclcpp::TimerBase::SharedPtr ref_path_timer_;
+        rclcpp::TimerBase::SharedPtr track_timer_;
 
         // Publisher for vehicle state
         rclcpp::Publisher<sim_backend::msg::VehicleState>::SharedPtr state_publisher_;
+        rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr velocity_vector_publisher_;
         rclcpp::Publisher<sim_backend::msg::RefPath>::SharedPtr ref_path_publisher_;
+        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr ref_path_publisher_pcl_;
+
+        // Publisher for track
+        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr track_publisher_;
+        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr trackbounds_left_publisher_;
+        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr trackbounds_right_publisher_;
 
         // Subscriber to update input signals
         rclcpp::Subscription<sim_backend::msg::SysInput>::SharedPtr input_subscription_;
 
         // Cycle time of Simulation node
         std::chrono::milliseconds dt_{std::chrono::milliseconds(5)};
+        std::chrono::milliseconds dt_trackpub_{std::chrono::milliseconds(200)};
         double dt_seconds_;
 
         // Maximum step time for ODE solver
@@ -233,7 +409,8 @@ class DynamicsSimulator : public rclcpp::Node
 
         // "Perception Cone angle"
         double gamma_;
-        double r_perception_;
+        double r_perception_max_;
+        double r_perception_min_;
         size_t initial_idx_refloop_;
 
         // State vector of dynamic system
@@ -247,6 +424,10 @@ class DynamicsSimulator : public rclcpp::Node
         // Local reference path
         std::vector<std::vector<double>> ref_points_local_;
 
+        // Track bounds
+        std::vector<std::vector<double>> trackbounds_left_;
+        std::vector<std::vector<double>> trackbounds_right_;
+    
         // Create uncontrolled ODE stepper
         runge_kutta_dopri5< state_type > stepper_uncontrolled_ = runge_kutta_dopri5< state_type >();
         // Create Default Error checker

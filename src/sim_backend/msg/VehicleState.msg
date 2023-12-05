@@ -8,3 +8,8 @@ float64 fx_f_act
 float64 dfx_f_act
 float64 fx_r_act
 float64 dfx_r_act
+float64 del_s_ref
+float64 fx_f_ref
+float64 fx_r_ref
+float64 dx_c_v
+float64 dy_c_v

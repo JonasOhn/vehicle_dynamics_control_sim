@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<robot name="AMZcar">
+  <link name="vehicle_frame">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="/home/jonas/AMZ/vehicle_dynamics_control_sim/src/sim_backend/meshes/whole_car.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </visual>
+  </link>
+</robot>

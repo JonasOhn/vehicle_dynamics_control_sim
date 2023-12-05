@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
 from acados_template.acados_ocp_solver import ocp_get_default_cmake_builder
 from dynamics_model import export_vehicle_ode_model
@@ -6,6 +7,8 @@ from plot_dynamics_sim import plot_dynamics
 from os.path import dirname, join, abspath
 import yaml
 import pprint
+import shutil
+import os
 
 def load_mpc_yaml_params():
     yaml_path = join(dirname(abspath(__file__)), "../config/mpc_controller.yaml")
@@ -34,8 +37,20 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     # Paths
     ACADOS_PATH = join(dirname(abspath(__file__)), "../../../acados")
     codegen_export_dir = join(dirname(abspath(__file__)), "c_generated_solver_mpc")
+    print("Trying to remove codegen folder...")
+    try:
+        shutil.rmtree(codegen_export_dir)
+        print("Codegen folder removed.")
+    except FileNotFoundError:
+        print("Codegen folder not found and thus not removed.")
     print("Codegen directory: ", codegen_export_dir)
     ocp_solver_json_path = join(dirname(abspath(__file__)), "acados_ocp.json")
+    print("Trying to remove codegen .json...")
+    try:
+        os.remove(ocp_solver_json_path)
+        print("Codegen .json removed.")
+    except FileNotFoundError:
+        print("Codegen .json not found and thus not removed.")
     print("Solver .json directory: ", ocp_solver_json_path)
 
     # Set up optimal control problem
@@ -320,10 +335,11 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
         param_vec = ocp_solver.acados_ocp.parameter_values
 
         """ =========== SET SIMULATION PARAMS ============ """
-        Nsim = 500
+        Nsim = 50
         simX = np.ndarray((Nsim+1, nx))
         simU = np.ndarray((Nsim, nu))
         s_values = np.ndarray((Nsim+1, 1))
+        z_values = np.zeros((Nsim+1, horizon_params['N_horizon']))
         simBlendingFactor = np.ndarray((Nsim, 1))
 
         simX[0,:] = x0
@@ -360,6 +376,8 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
                 t_feedback[i] = ocp_solver.get_stats('time_tot')
 
                 simU[i, :] = ocp_solver.get(0, "u")
+                for j in range(horizon_params['N_horizon']):
+                    z_values[i, j] = ocp_solver.get(j, "z")
                 # print(ocp_solver.get(0, 'x'))
                 # print(ocp_solver.get(horizon_params['N_horizon'], 'x'))
                 # print(ocp_solver.get_cost(), (horizon_params['T_final']/horizon_params['N_horizon'])*i)
@@ -390,6 +408,11 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
 
             for j in range(horizon_params['N_horizon']):
                 ocp_solver.set(j, 'p', param_vec)
+
+        plt.figure()
+        dt_mpc = (horizon_params['T_final']/horizon_params['N_horizon'])
+        for i in range(Nsim):
+            plt.plot(np.linspace(dt_mpc*i, dt_mpc * (i + horizon_params['N_horizon']), horizon_params['N_horizon']), z_values[i, :])
 
         # evaluate timings
         if use_RTI:

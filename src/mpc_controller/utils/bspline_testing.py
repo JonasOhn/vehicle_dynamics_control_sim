@@ -40,7 +40,7 @@ print('num_points:', control_points.shape[0])
 n_s = control_points.shape[0] - 3
 print('n_s:', n_s)
 
-t_step = 0.1
+t_step = 0.5
 t = np.arange(0, n_s, t_step)
 spline_points = []
 dspline_points = []
