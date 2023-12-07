@@ -9,6 +9,7 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/point_cloud2.hpp"
+#include "std_msgs/msg/empty.hpp"
 #include "sensor_msgs/point_cloud2_iterator.hpp"
 #include "visualization_msgs/msg/marker.hpp"
 #include "sim_backend/msg/vehicle_state.hpp"
@@ -34,6 +35,10 @@ class DynamicsSimulator : public rclcpp::Node
                     .allow_undeclared_parameters(true)
                     .automatically_declare_parameters_from_overrides(true))
         {
+            track_fpath_midline_ = this->get_parameter("track_filepath_midline").as_string();
+            track_fpath_leftbound_ = this->get_parameter("track_filepath_leftbound").as_string();
+            track_fpath_rightbound_ = this->get_parameter("track_filepath_rightbound").as_string();
+
             if (!(this->get_csv_ref_track())){
             RCLCPP_ERROR_STREAM(this->get_logger(), "Something went wrong reading CSV ref points file!");
             }
@@ -94,20 +99,42 @@ class DynamicsSimulator : public rclcpp::Node
             input_subscription_ = this->create_subscription<sim_backend::msg::SysInput>(
                 "vehicle_input", 10, std::bind(&DynamicsSimulator::update_input, this, std::placeholders::_1));
 
+            reset_subscription_ = this->create_subscription<std_msgs::msg::Empty>(
+                "reset_sim", 10, std::bind(&DynamicsSimulator::reset_simulator, this, std::placeholders::_1));
+
             RCLCPP_INFO_STREAM(this->get_logger(), "Node " << this->get_name() << " initialized.");
         }
 
     private:
+
+        void reset_simulator(const std_msgs::msg::Empty & msg)
+        {
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Resetting Sim.");
+            x_[0] = 0.0;
+            x_[1] = 0.0;
+            x_[2] = 0.0;
+            x_[3] = 0.0;
+            x_[4] = 0.0;
+            x_[5] = 0.0;
+            x_[6] = 0.0;
+            x_[7] = 0.0;
+            x_[8] = 0.0;
+            x_[9] = 0.0;
+            start_time_ns_ = (double)(this->now().nanoseconds());  // [ns]
+            initial_idx_refloop_ = 0;
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Sim Reset.");
+        }
+
         void update_input(const sim_backend::msg::SysInput & msg)
         {
-            RCLCPP_INFO_STREAM(this->get_logger(), 
+            RCLCPP_DEBUG_STREAM(this->get_logger(), 
                 "Received Input Fx_f: " << msg.fx_f << ""
                 << ", Fx_r: " << msg.fx_r << ", delta_s: " << msg.del_s);
             this->sys_.update_inputs(msg.fx_f, msg.fx_r, msg.del_s);
         }
 
         int get_csv_ref_track(){
-            std::ifstream  data_middle("src/sim_backend/tracks/FSG_middle_path.csv");
+            std::ifstream  data_middle(track_fpath_midline_);
             std::string line;
             while(std::getline(data_middle, line))
             {
@@ -122,7 +149,7 @@ class DynamicsSimulator : public rclcpp::Node
             }
 
             // left cones are blue
-            std::ifstream data_blue("src/sim_backend/tracks/FSG_blue_cones.csv");
+            std::ifstream data_blue(track_fpath_leftbound_);
             while(std::getline(data_blue, line))
             {
                 std::stringstream lineStream(line);
@@ -136,7 +163,7 @@ class DynamicsSimulator : public rclcpp::Node
             }
 
             // right cones are yellow
-            std::ifstream data_yellow("src/sim_backend/tracks/FSG_yellow_cones.csv");
+            std::ifstream data_yellow(track_fpath_rightbound_);
             while(std::getline(data_yellow, line))
             {
                 std::stringstream lineStream(line);
@@ -153,27 +180,27 @@ class DynamicsSimulator : public rclcpp::Node
 
         void print_global_refpoints()
         {
-            RCLCPP_INFO_STREAM(this->get_logger(), "=== \nGot 2D Points (reference) as an array:");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "=== \nGot 2D Points (reference) as an array:");
             for (size_t i=0; i<ref_points_global_.size(); i++)
             {
-                RCLCPP_INFO_STREAM(this->get_logger(), "x: " << ref_points_global_[i][0] << ", y: " << ref_points_global_[i][1]);
+                RCLCPP_DEBUG_STREAM(this->get_logger(), "x: " << ref_points_global_[i][0] << ", y: " << ref_points_global_[i][1]);
             }
-            RCLCPP_INFO_STREAM(this->get_logger(), "===");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "===");
         }
 
         void solve_step()
         {
-            RCLCPP_INFO_STREAM(this->get_logger(), "Solve step started.");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Solve step started.");
             /* Get start time of solve step */
             double t0 = (double_t)(this->now().nanoseconds())/1e6;  // [ms]
 
-            //RCLCPP_INFO_STREAM(this->get_logger(), "Step began at time t_ = " << t_ << " s.");
-            //RCLCPP_INFO_STREAM(this->get_logger(), "Start relative clock time: " << (t0 - start_time_ns_/1e6)/1e3 << " s.");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Step began at time t_ = " << t_ << " s.");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Start relative clock time: " << (t0 - start_time_ns_/1e6)/1e3 << " s.");
             
             double adaptive_dt = 1e-4;
             size_t steps = integrate_adaptive(stepper_, sys_, x_, t_, t_ + dt_seconds_, adaptive_dt);
             t_ = t_ + dt_seconds_;
-            //RCLCPP_INFO_STREAM(this->get_logger(), "Solver produced a valid result integrating " << steps << " step(s) forward.");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Solver produced a valid result integrating " << steps << " step(s) forward.");
 
             auto state_msg = sim_backend::msg::VehicleState();
             /* x = [xc_I, yc_I, psi, dxc_V, dyc_V, dpsi, fx_f, dfx_f, fx_r, dfx_r] */
@@ -204,13 +231,13 @@ class DynamicsSimulator : public rclcpp::Node
             
             /* Get end time of solve step */
             double t1 = (double_t)(this->now().nanoseconds()) / 1e6;  // [ms]
-            RCLCPP_INFO_STREAM(this->get_logger(), "Time needed for step: " << t1-t0 << " ms. \nSolver did " << steps << " step(s).");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Time needed for step: " << t1-t0 << " ms. \nSolver did " << steps << " step(s).");
 
             if (t1 - t0 > 0.99 * dt_.count()){
-                RCLCPP_ERROR_STREAM(this->get_logger(), "Needed too long for solver step!");
+                RCLCPP_ERROR_STREAM(this->get_logger(), "Needed too long for solver step! Took: " << t1-t0 << " ms, but dt is " << dt_.count() << " ms!");
             }
-            // RCLCPP_INFO_STREAM(this->get_logger(), "Step ended at time t_ = " << t_ << " s.");
-            // RCLCPP_INFO_STREAM(this->get_logger(), "End relative clock time: " << (t1 - start_time_ns_/1e6)/1e3 << " s.");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Step ended at time t_ = " << t_ << " s.");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "End relative clock time: " << (t1 - start_time_ns_/1e6)/1e3 << " s.");
 
             auto velvec_msg = visualization_msgs::msg::Marker();
             velvec_msg.header.frame_id = "vehicle_frame";
@@ -242,12 +269,12 @@ class DynamicsSimulator : public rclcpp::Node
             velvec_msg.pose.orientation.w = q.w();
             velocity_vector_publisher_->publish(velvec_msg);
 
-            RCLCPP_INFO_STREAM(this->get_logger(), "Solve step end.");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Solve step end.");
         }
 
         void track_callback()
         {
-            RCLCPP_INFO_STREAM(this->get_logger(), "Track callback started.");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Track callback started.");
             // ======= Track publisher ==========
             pcl::PointCloud<pcl::PointXYZRGB> cloud_;
             uint8_t r_val_point = 0;
@@ -300,12 +327,12 @@ class DynamicsSimulator : public rclcpp::Node
             pc2_msg.header.frame_id = "world";
             pc2_msg.header.stamp = now();
             trackbounds_right_publisher_->publish(pc2_msg);
-            RCLCPP_INFO_STREAM(this->get_logger(), "Track callback ended.");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Track callback ended.");
         }
 
         void ref_path_callback()
         {
-            RCLCPP_INFO_STREAM(this->get_logger(), "Ref path callback started.");
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Ref path callback started.");
             this->gamma_ = this->get_parameter("gamma").as_double();
             this->r_perception_max_ = this->get_parameter("r_perception_max").as_double();
             this->r_perception_min_ = this->get_parameter("r_perception_min").as_double();
@@ -337,6 +364,12 @@ class DynamicsSimulator : public rclcpp::Node
 
             ref_path_message.ref_path.push_back(path_pos);
 
+            pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
+            pt.x = x_c;
+            pt.y = y_c;
+            pt.z = 0.0;
+            cloud_.points.push_back(pt);
+
             size_t idx = 0;
             bool first_visited = false;
 
@@ -347,7 +380,7 @@ class DynamicsSimulator : public rclcpp::Node
                 path_pos.point_2d[1] = ref_points_global_[idx][1];
 
                 // Check if global candidate point lies in the cone defined by the two "perception" halfspaces
-                // And if global point lies inside a "perception circle"
+                // And if global point lies inside (outside) a "perception circle"
                 if((a_1_neg * path_pos.point_2d[0] + a_2_neg * path_pos.point_2d[1] >= b_neg) && 
                     (a_1_pos * path_pos.point_2d[0] + a_2_pos * path_pos.point_2d[1] >= b_pos) &&
                     (sqrt(pow(path_pos.point_2d[0] - x_c, 2) + pow(path_pos.point_2d[1] - y_c, 2)) <= this->r_perception_max_) &&
@@ -395,9 +428,12 @@ class DynamicsSimulator : public rclcpp::Node
         // Subscriber to update input signals
         rclcpp::Subscription<sim_backend::msg::SysInput>::SharedPtr input_subscription_;
 
+        // Subscriber to reset message
+        rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr reset_subscription_;
+
         // Cycle time of Simulation node
         std::chrono::milliseconds dt_{std::chrono::milliseconds(5)};
-        std::chrono::milliseconds dt_trackpub_{std::chrono::milliseconds(200)};
+        std::chrono::milliseconds dt_trackpub_{std::chrono::milliseconds(100)};
         double dt_seconds_;
 
         // Maximum step time for ODE solver
@@ -418,6 +454,11 @@ class DynamicsSimulator : public rclcpp::Node
 
         // Init System
         DynamicSystem sys_;
+
+        // filepaths
+        std::string track_fpath_midline_;
+        std::string track_fpath_leftbound_;
+        std::string track_fpath_rightbound_;
 
         // Global reference path
         std::vector<std::vector<double>> ref_points_global_;
