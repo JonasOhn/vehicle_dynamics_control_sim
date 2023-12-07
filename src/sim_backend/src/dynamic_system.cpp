@@ -93,12 +93,12 @@ void DynamicSystem::operator() ( const state_type &x , state_type &dxdt , const 
 
     /* Motor Dynamics as linear second order system */
 
-    // Fx_f
+    // d(Fx_f) / dt
     dxdt[6] = x[7];
-    // dFx_f / dt
-    dxdt[7] = 1/params_.T_mot * (Fx_f_ - 2 * params_.D_mot * params_.T_mot * x[7] - x[6]);
-    // Fx_r
+    // d (dFx_f / dt) / dt
+    dxdt[7] = 1/pow(params_.T_mot, 2.0) * (Fx_f_ - 2 * params_.D_mot * params_.T_mot * x[7] - x[6]);
+    // d(Fx_r) / dt
     dxdt[8] = x[9];
-    // dFx_r / dt
-    dxdt[9] = 1/params_.T_mot * (Fx_r_ - 2 * params_.D_mot * params_.T_mot * x[9] - x[8]);
+    // d (dFx_r / dt) / dt
+    dxdt[9] = 1/pow(params_.T_mot, 2.0) * (Fx_r_ - 2 * params_.D_mot * params_.T_mot * x[9] - x[8]);
 }
