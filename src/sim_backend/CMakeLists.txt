@@ -11,6 +11,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -52,6 +53,7 @@ ament_target_dependencies(vehicle_frame_publisher
 ament_target_dependencies(dynamics_simulator
   rclcpp
   geometry_msgs
+  std_msgs
   builtin_interfaces
   pcl_conversions
   rcl_interfaces
