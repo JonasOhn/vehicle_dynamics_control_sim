@@ -2,30 +2,32 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import collections  as mc
 
-control_points = np.array([
-    [-5, -5],
-    [-4, -3],
-    [-2, 0],
-    [0, 1],
-    [2, 4],
-    [2, 5],
-    [3, 8],
-    [4, 10],
-    [5, 8],
-    [5, 6],
-])
+# control_points = np.array([
+#     [-5, -5],
+#     [-4, -3],
+#     [-2, 0],
+#     [0, 1],
+#     [2, 4],
+#     [2, 5],
+#     [3, 8],
+#     [4, 10],
+#     [5, 8],
+#     [5, 6],
+# ])
 
-control_points = np.insert(control_points, 0, 2 * control_points[0] - control_points[1], axis=0)
-control_points = np.insert(control_points, -1, 2 * control_points[-1] - control_points[-2], axis=0)
+control_points = []
+for angle in np.linspace(0, np.pi, 20):
+    control_points.append([100 * np.cos(angle), 100 * np.sin(angle)])
+control_points = np.array(control_points)
 
-
-# control_points = []
-# for angle in np.linspace(0, 2*np.pi, 100):
-#     control_points.append([100 * np.cos(angle), 100 * np.sin(angle)])
-# control_points = np.array(control_points)
+control_points = np.insert(control_points, 0, control_points[0], axis=0)
+control_points = np.insert(control_points, -1, control_points[-1], axis=0)
 
 # control_points = np.insert(control_points, 0, control_points[-1], axis=0)
 # control_points = np.insert(control_points, -1, control_points[0], axis=0)
+
+# control_points = np.insert(control_points, 0, 2 * control_points[0] - control_points[1], axis=0)
+# control_points = np.insert(control_points, -1, 2 * control_points[-1] - control_points[-2], axis=0)
 
 print(control_points)
 
@@ -77,12 +79,14 @@ for i in range(spline_points.shape[0]):
     y_dd = ddspline_points[i, 1]
     print('x_dd, y_dd: ', x_dd, y_dd)
     curv = (x_d * y_dd - y_d * x_dd)
-    print('curv: ', curv)
     curv = curv / ((x_d**2 + y_d**2)**(3/2))
+    print('curv: ', curv)
     curvatures.append(curv)
-curvatures = np.array(curvatures)
-abs_curvatures = np.abs(curvatures)
 
+
+curvatures = np.array(curvatures)
+print('curvatures: ', curvatures)
+abs_curvatures = np.abs(curvatures)
 print('abs_curvatures: ', abs_curvatures)
 
 fd_splines = []
@@ -91,7 +95,7 @@ for i in range(spline_points.shape[0]):
                        (spline_points[i, 0] + dspline_points[i, 0], 
                         spline_points[i, 1] + dspline_points[i, 1])])
 
-r_max = 150
+r_max = 200
 radii = []
 for i in range(curvatures.shape[0]):
     tang_norm = np.sqrt(dspline_points[i, 0]**2 + dspline_points[i, 1]**2)
@@ -106,7 +110,8 @@ lc = mc.LineCollection(fd_splines, colors='k', linewidths=1, label='tangent vect
 lc_radii = mc.LineCollection(radii, colors='g', linewidths=1, label='radii')
 
 plt.figure(1)
-plt.scatter(control_points[1:-1, 0], control_points[1:-1, 1], label='reference path')
+plt.scatter(control_points[:, 0], control_points[:, 1], label='control points')
+plt.scatter(control_points[1, 0], control_points[1, 1], c='m', s=100, marker='o', label='first given control point')
 plt.plot(spline_points[:, 0], spline_points[:, 1], 'r+', label='spline points')
 plt.scatter(spline_points[:, 0], spline_points[:, 1], s=100*abs_curvatures, label='curvature')
 ax = plt.gca()

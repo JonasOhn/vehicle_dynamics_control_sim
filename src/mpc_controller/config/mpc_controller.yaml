@@ -11,20 +11,21 @@
       B_tire: 9.5
       C_d: 1.133 # 0.5 * rho * CdA
       C_r: 0.5 # -
-      blending_factor: 0.0
+      blending_factor: 1.0
       kappa_ref: 0.0
     horizon:
-      T_final: 1.0
-      N_horizon: 40
-      n_s: 40
-      s_max: 20.0
+      T_final: 1.5
+      N_horizon: 60
+      n_s: 50
+      s_max: 15.0
     cost:
-      r_dFx: 0.0000005
-      r_del_s: 5.0
+      r_dFx: 0.0000001
+      r_ddel_s: 0.00001
       q_beta: 300.0
       q_sd: 1.0
       q_del: 5.0
       q_n: 5.0
+      q_mu: 0.00001
       q_r_e: 1000.0
       q_mu_e: 1.0
       q_n_e: 100.0
@@ -54,15 +55,15 @@
         L_F: 0.97
         L_R: 0.85
         W: 2.0
-        vx_max: 10.0
-        vx_max_e: 5.0
+        vx_max: 4.0
+        vx_max_e: 2.0
       hard:
         lb_h: -1000000000000000.0
         ub_h: 0.0
-        lb_u_dFx: -1000.0
-        ub_u_dFx: 1000.0
-        lb_u_ddels: -1.0
-        ub_u_ddels: 1.0
+        lb_u_dFx: -100.0
+        ub_u_dFx: 100.0
+        lb_u_ddels: -1.5
+        ub_u_ddels: 1.5
         lb_x_n: -10.0
         ub_x_n: 10.0
         lb_x_mu: -2.0
@@ -78,11 +79,11 @@
         lb_x_dels: -1.5
         ub_x_dels: 1.5
     solver_options:
-      qp_solver: 'FULL_CONDENSING_HPIPM' #'FULL_CONDENSING_QPOASES' #'PARTIAL_CONDENSING_HPIPM'
-      hessian_approx: 'GAUSS_NEWTON' #'EXACT' #
+      qp_solver: 'PARTIAL_CONDENSING_HPIPM' #'FULL_CONDENSING_QPOASES' #'PARTIAL_CONDENSING_HPIPM'
+      hessian_approx: 'EXACT' #'GAUSS_NEWTON' #'EXACT' #
       integrator_type: 'IRK'
       sim_method_newton_iter: 20
       nlp_solver_max_iter: 100
       qp_solver_iter_max: 50
-      tol: 0.0001
-      qp_tol: 0.0001
+      tol: 0.01
+      qp_tol: 0.01

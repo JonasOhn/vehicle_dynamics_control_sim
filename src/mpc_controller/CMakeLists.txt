@@ -11,16 +11,22 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sim_backend REQUIRED)
-find_package (Eigen3 3.3 REQUIRED)
+find_package(Eigen3 3.3 REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(rcl_interfaces REQUIRED)
 find_package(rcutils REQUIRED)
+find_package(Boost REQUIRED COMPONENTS system)
+find_package(pcl_conversions REQUIRED)
+find_package(PCL COMPONENTS REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/MpcStateTrajectory.msg"
   "msg/MpcInputTrajectory.msg"
   "msg/MpcSolverState.msg"
+  "msg/MpcKappaTrajectory.msg"
+  "msg/MpcAlgStateTrajectory.msg"
 )
 
 ament_export_dependencies(rosidl_default_runtime)
@@ -49,6 +55,7 @@ include_directories(
 	${acados_include}/hpipm/include
 	${acados_include}/acados
 	${acados_include}/qpOASES_e
+  ${PCL_INCLUDE_DIRS}
 )
 
 # model
@@ -115,6 +122,8 @@ ament_target_dependencies(mpc_controller_node
   builtin_interfaces
   rcl_interfaces
   rcutils
+  pcl_conversions
+  sensor_msgs
 )
 
 install(TARGETS 
@@ -133,6 +142,7 @@ rosidl_get_typesupport_target(cpp_typesupport_target
 target_link_libraries(mpc_controller_node 
   Eigen3::Eigen
   "${cpp_typesupport_target}"
+  "${Boost_SYSTEM_LIBRARY}"
 )
 
 install(DIRECTORY

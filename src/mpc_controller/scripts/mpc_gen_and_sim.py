@@ -9,12 +9,13 @@ import yaml
 import pprint
 import shutil
 import os
+import random
 
 def load_mpc_yaml_params():
     yaml_path = join(dirname(abspath(__file__)), "../config/mpc_controller.yaml")
     with open(yaml_path, 'r') as file:
         yaml_params = yaml.safe_load(file)
-    yaml_params = yaml_params['/mpc_controller']['ros__parameters']
+    yaml_params = yaml_params['/mpc_controller_node']['ros__parameters']
     model_params = yaml_params['model']
     horizon_params = yaml_params['horizon']
     cost_params = yaml_params['cost']
@@ -77,7 +78,7 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     # cost weight input: dFx
     model_cost_parameters['r_dFx'] = cost_params['r_dFx']
     # cost weight input: ddel_s
-    model_cost_parameters['r_del_s'] = cost_params['r_del_s']
+    model_cost_parameters['r_ddel_s'] = cost_params['r_ddel_s']
 
     # cost weight: beta deviaiton from kinematic
     model_cost_parameters['q_beta'] = cost_params['q_beta']
@@ -87,6 +88,8 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     model_cost_parameters['q_del'] = cost_params['q_del']
     # cost weight: deviation from ref path lateral
     model_cost_parameters['q_n'] = cost_params['q_n']
+    # cost weight: heading difference
+    model_cost_parameters['q_mu'] = cost_params['q_mu']
 
     # terminal cost weight: yaw rate
     model_cost_parameters['q_r_e'] = cost_params['q_r_e']
@@ -292,6 +295,7 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     C_r = model_params['C_r'] # const. rolling resistance
     blending_factor = model_params['blending_factor'] # blending between kinematic and dynamic model
     kappa_ref = model_params['kappa_ref'] * np.ones(horizon_params['n_s']) # reference curvature along s
+    kappa_ref = -0.05 * np.ones(horizon_params['n_s']) # reference curvature along s
 
     paramvec = np.array((m, g, l_f, l_r, Iz, 
                          B_tire, C_tire, D_tire, C_d, C_r, blending_factor))
@@ -338,9 +342,13 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
         Nsim = 50
         simX = np.ndarray((Nsim+1, nx))
         simU = np.ndarray((Nsim, nu))
-        s_values = np.ndarray((Nsim+1, 1))
-        z_values = np.zeros((Nsim+1, horizon_params['N_horizon']))
+        s_values = np.zeros((Nsim+1, 1))
+        kappa_ref_alg_values = np.zeros((Nsim+1, horizon_params['N_horizon']))
+        s_values_horizon = np.zeros((Nsim+1, horizon_params['N_horizon']))
+        alpha_f_alg_values = np.zeros((Nsim+1, horizon_params['N_horizon']))
+        alpha_r_alg_values = np.zeros((Nsim+1, horizon_params['N_horizon']))
         simBlendingFactor = np.ndarray((Nsim, 1))
+        ref_path_s = np.linspace(0, 20, 40)
 
         simX[0,:] = x0
 
@@ -358,6 +366,10 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
 
         # closed loop
         for i in range(Nsim):
+            for k in range(len(param_vec[11:])):
+                param_vec[k+11] = k * 0.01 + i * 0.001
+            for j in range(horizon_params['N_horizon']):
+                ocp_solver.set(j, 'p', param_vec)
             if use_RTI:
                 # preparation phase
                 ocp_solver.options_set('rti_phase', 1)
@@ -366,7 +378,7 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
 
                 # Set initial State
                 init_state = np.copy(simX[i, :])
-                init_state[0] = 0.0
+                init_state[0] = 1e-5
                 ocp_solver.set(0, "lbx", init_state)
                 ocp_solver.set(0, "ubx", init_state)
 
@@ -377,7 +389,12 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
 
                 simU[i, :] = ocp_solver.get(0, "u")
                 for j in range(horizon_params['N_horizon']):
-                    z_values[i, j] = ocp_solver.get(j, "z")
+                    z = ocp_solver.get(j, "z")
+                    kappa_ref_alg_values[i, j] = z[0]
+                    alpha_f_alg_values[i, j] = z[1]
+                    alpha_r_alg_values[i, j] = z[2]
+                    x = ocp_solver.get(j, "x")
+                    s_values_horizon[i, j] = x[0]
                 # print(ocp_solver.get(0, 'x'))
                 # print(ocp_solver.get(horizon_params['N_horizon'], 'x'))
                 # print(ocp_solver.get_cost(), (horizon_params['T_final']/horizon_params['N_horizon'])*i)
@@ -385,7 +402,7 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
             else:
                 # solve ocp and get next control input
                 init_state = np.copy(simX[i, :])
-                init_state[0] = 0.0
+                init_state[0] = 1e-5
                 simU[i,:] = ocp_solver.solve_for_x0(x0_bar = init_state)
 
                 t[i] = ocp_solver.get_stats('time_tot')
@@ -393,7 +410,7 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
             # simulate system
             simX[i+1, :] = integrator.simulate(x=simX[i, :], u=simU[i,:])
             s_values[i+1] = s_values[i] + simX[i+1, 0]
-            simX[i+1, 0] = 0.0
+            simX[i+1, 0] = 1e-5
 
             # States
             vx = simX[i+1, 3]
@@ -411,8 +428,17 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
 
         plt.figure()
         dt_mpc = (horizon_params['T_final']/horizon_params['N_horizon'])
-        for i in range(Nsim):
-            plt.plot(np.linspace(dt_mpc*i, dt_mpc * (i + horizon_params['N_horizon']), horizon_params['N_horizon']), z_values[i, :])
+        
+        for i in range(3):
+            ref_kappa_2_plot = []
+            for k in range(len(param_vec[11:])):
+                ref_kappa_2_plot.append(k * 0.01 + i * 0.001)
+            color_scatter = (random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1))
+            plt.scatter(s_values_horizon[i, :], kappa_ref_alg_values[i, :], marker="^", c=color_scatter)
+            plt.scatter(ref_path_s, ref_kappa_2_plot, marker="*", c=color_scatter)
+
+        # plt.plot(np.linspace(dt_mpc*i, dt_mpc * (i + horizon_params['N_horizon']), horizon_params['N_horizon']), alpha_f_alg_values[i, :])
+        # plt.plot(np.linspace(dt_mpc*i, dt_mpc * (i + horizon_params['N_horizon']), horizon_params['N_horizon']), alpha_r_alg_values[i, :])
 
         # evaluate timings
         if use_RTI:

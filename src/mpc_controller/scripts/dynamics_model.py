@@ -46,8 +46,10 @@ def export_vehicle_ode_model(testing : bool = False,
     u = vertcat(Fx_m_dot_u, del_s_dot_u)
 
     # Algebraic states
-    kappa_ref_z = MX.sym('kappa_ref_z')
-    z = kappa_ref_z
+    kappa_ref_algebraic = MX.sym('kappa_ref_algebraic')
+    alpha_f_algebraic = MX.sym('alpha_f_algebraic')
+    alpha_r_algebraic = MX.sym('alpha_r_algebraic')
+    z = vertcat(kappa_ref_algebraic, alpha_f_algebraic, alpha_r_algebraic)
 
     # Symbolic State Derivative f(x,u)
     s_dot       = MX.sym('s_dot')
@@ -63,7 +65,6 @@ def export_vehicle_ode_model(testing : bool = False,
     # Symbolic Spline Interpolation for kappa(s)
     s_sym_lut = MX.sym('s_sym_lut')
     ref_path_s = np.linspace(0, mpc_horizon_parameters['s_max'], mpc_horizon_parameters['n_s'])
-    print(ref_path_s)
     interpolant_s2k = ca.interpolant("interpol_spline_kappa", "bspline", [ref_path_s])
     interp_exp = interpolant_s2k(s_sym_lut, kappa_ref)
     interp_fun = ca.Function('interp_fun', [s_sym_lut, kappa_ref], [interp_exp])
@@ -131,14 +132,19 @@ def export_vehicle_ode_model(testing : bool = False,
                           dpsi_dot_expl,
                           Fx_m_dot_expl,
                           del_s_dot_expl,
-                          kappa_bspline)
+                          kappa_bspline,
+                          alpha_f,
+                          alpha_r)
 
     # Implicit expression
-    f_impl_time = vertcat(xdot, z) - f_expl_time
+    f_impl_time = vertcat(xdot, z) - f_expl_time # = 0
 
     """ STAGE Cost (model-based, slack is defined on the solver) """
     # Lateral deviation from path cost
     cost_n = model_cost_parameters['q_n'] * n**2
+
+    # Stage cost on heading difference
+    cost_mu = model_cost_parameters['q_mu'] * mu**2
 
     # Steering angle cost
     cost_dels = model_cost_parameters['q_del'] * del_s**2
@@ -153,11 +159,11 @@ def export_vehicle_ode_model(testing : bool = False,
 
     # Input Cost
     R_mat = np.diag([model_cost_parameters['r_dFx'],
-                     model_cost_parameters['r_del_s']])
+                     model_cost_parameters['r_ddel_s']])
     cost_u = ca.transpose(u) @ R_mat @ u
 
     # Stage Cost
-    stage_cost = cost_sd + cost_n + cost_dels + cost_u + cost_bsa
+    stage_cost = cost_sd + cost_n + cost_dels + cost_u + cost_bsa + cost_mu
 
     """ TERMINAL Cost (model-based, slack is defined on the solver) """
     # Lateral deviation from path cost
