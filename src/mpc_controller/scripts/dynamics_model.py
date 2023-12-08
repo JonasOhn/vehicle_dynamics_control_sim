@@ -47,9 +47,7 @@ def export_vehicle_ode_model(testing : bool = False,
 
     # Algebraic states
     kappa_ref_algebraic = MX.sym('kappa_ref_algebraic')
-    alpha_f_algebraic = MX.sym('alpha_f_algebraic')
-    alpha_r_algebraic = MX.sym('alpha_r_algebraic')
-    z = vertcat(kappa_ref_algebraic, alpha_f_algebraic, alpha_r_algebraic)
+    z = vertcat(kappa_ref_algebraic)
 
     # Symbolic State Derivative f(x,u)
     s_dot       = MX.sym('s_dot')
@@ -84,7 +82,7 @@ def export_vehicle_ode_model(testing : bool = False,
 
     # =============== dynamics ========================
     # numerical approximation factor
-    eps = 1e-1
+    eps = 1e-3
 
     # Slip Angles
     # alpha_f = - del_s + atan2((vy + dpsi * l_f), ca.sign(vx) * ca.fmax(ca.fabs(vx), eps))
@@ -132,9 +130,7 @@ def export_vehicle_ode_model(testing : bool = False,
                           dpsi_dot_expl,
                           Fx_m_dot_expl,
                           del_s_dot_expl,
-                          kappa_bspline,
-                          alpha_f,
-                          alpha_r)
+                          kappa_bspline)
 
     # Implicit expression
     f_impl_time = vertcat(xdot, z) - f_expl_time # = 0
@@ -153,8 +149,8 @@ def export_vehicle_ode_model(testing : bool = False,
     cost_sd = - model_cost_parameters['q_sd'] * s_dot_expl
 
     # Body Slip angle Regularization
-    beta_kin = ca.atan(ca.tan(del_s) * l_r / (l_r + l_f))
-    beta_dyn = ca.atan(vy / ca.fmax(vx, eps))
+    beta_kin = del_s * l_r / (l_r + l_f)
+    beta_dyn = ca.atan2(vy, ca.fmax(vx, eps))
     cost_bsa = model_cost_parameters['q_beta'] * (beta_dyn - beta_kin)**2
 
     # Input Cost
@@ -199,42 +195,22 @@ def export_vehicle_ode_model(testing : bool = False,
 
     kappa_n_con = kappa_bspline * n - 1
 
-    vx_con = vx - model_constraint_parameters['vx_max']
-
     stage_constraint_nonlinear = vertcat(tire_ellipse_con_f,
                                          tire_ellipse_con_r,
                                          track_con_fl,
                                          track_con_rl,
                                          track_con_fr,
                                          track_con_rr,
-                                         kappa_n_con,
-                                         vx_con)
+                                         kappa_n_con)
 
     """" TERMINAL Constraints """
-    tire_ellipse_con_f_e = tire_ellipse_con_f
-    tire_ellipse_con_r_e = tire_ellipse_con_r
-    track_con_fl_e = track_con_fl
-    track_con_rl_e = track_con_rl
-    track_con_fr_e = track_con_fr
-    track_con_rr_e = track_con_rr
-    kappa_n_con_e = kappa_n_con
-    vx_con_e = vx - model_constraint_parameters['vx_max_e']
-
-    terminal_constraint_nonlinear = vertcat(tire_ellipse_con_f_e,
-                                            tire_ellipse_con_r_e,
-                                            track_con_fl_e,
-                                            track_con_rl_e,
-                                            track_con_fr_e,
-                                            track_con_rr_e,
-                                            kappa_n_con_e,
-                                            vx_con_e)
+    # same as stage nonlinear constraints
 
     # ============= ACADOS ===============
     # Acados Model Creation from CasADi symbolic expressions
     model = AcadosModel()
 
     model.f_impl_expr = f_impl_time
-    model.f_expl_expr = f_expl_time
     model.x = x
     model.z = z
     model.xdot = xdot
@@ -244,8 +220,7 @@ def export_vehicle_ode_model(testing : bool = False,
     model.cost_expr_ext_cost = stage_cost
     model.cost_expr_ext_cost_e = terminal_cost
     model.con_h_expr = stage_constraint_nonlinear
-    model.con_h_expr_e = terminal_constraint_nonlinear
-    model.con_h_expr_0 = stage_constraint_nonlinear
+    model.con_h_expr_e = stage_constraint_nonlinear
 
     return model
 
