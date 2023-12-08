@@ -77,6 +77,9 @@
         "typeinfo": "cpp",
         "valarray": "cpp",
         "variant": "cpp",
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "regex": "cpp",
+        "ocp_nlp_interface.h": "c",
+        "core": "cpp"
     }
 }

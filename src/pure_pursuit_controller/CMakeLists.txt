@@ -1,19 +1,27 @@
 cmake_minimum_required(VERSION 3.8)
 project(pure_pursuit_controller)
 
+set (CMAKE_CXX_STANDARD 20)
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
 find_package(rclcpp REQUIRED)
 find_package(sim_backend REQUIRED)
 
+include_directories(
+  ${sim_backend_INCLUDE_DIRS}
+)
+
 add_executable(pp_controller src/pp_controller_node.cpp)
-ament_target_dependencies(pp_controller rclcpp sim_backend)
+
+ament_target_dependencies(pp_controller
+  rclcpp
+  sim_backend
+)
 
 install(TARGETS
   pp_controller

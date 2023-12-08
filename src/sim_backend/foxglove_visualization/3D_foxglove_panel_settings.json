@@ -1,0 +1,126 @@
+{
+  "layers": {
+    "845139cb-26bc-40b3-8161-8ab60af4baf5": {
+      "visible": false,
+      "frameLocked": true,
+      "label": "Grid",
+      "instanceId": "845139cb-26bc-40b3-8161-8ab60af4baf5",
+      "layerId": "foxglove.Grid",
+      "size": 0,
+      "divisions": 10,
+      "lineWidth": 1,
+      "color": "#248eff",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "order": 1,
+      "frameId": "world"
+    },
+    "9885498a-5a24-4f03-9aca-0f6ab6c18f33": {
+      "visible": true,
+      "frameLocked": true,
+      "label": "URDF",
+      "instanceId": "9885498a-5a24-4f03-9aca-0f6ab6c18f33",
+      "layerId": "foxglove.Urdf",
+      "sourceType": "filePath",
+      "url": "",
+      "filePath": "/home/jonas/AMZ/vehicle_dynamics_control_sim/src/sim_backend/foxglove_visualization/car.urdf",
+      "parameter": "",
+      "topic": "",
+      "framePrefix": "",
+      "displayMode": "visual",
+      "fallbackColor": "#000000",
+      "order": 2
+    }
+  },
+  "cameraState": {
+    "perspective": true,
+    "distance": 21.938838424549434,
+    "phi": 54.545454545456984,
+    "thetaOffset": -127.56198347107464,
+    "targetOffset": [
+      -0.6821913900998327,
+      1.2296506436353136,
+      -3.918694483890235e-16
+    ],
+    "target": [
+      0,
+      0,
+      0
+    ],
+    "targetOrientation": [
+      0,
+      0,
+      0,
+      1
+    ],
+    "fovy": 45,
+    "near": 0.5,
+    "far": 5000
+  },
+  "followMode": "follow-position",
+  "scene": {
+    "backgroundColor": "#ffffff",
+    "labelScaleFactor": 2.94,
+    "meshUpAxis": "z_up",
+    "transforms": {
+      "axisScale": 10,
+      "lineWidth": 2,
+      "lineColor": "#ff0000",
+      "enablePreloading": true,
+      "labelSize": 0.24
+    },
+    "syncCamera": false
+  },
+  "transforms": {},
+  "topics": {
+    "/track_pcl2d": {
+      "visible": true,
+      "colorField": "rgb",
+      "colorMode": "rgb",
+      "colorMap": "turbo",
+      "pointSize": 5
+    },
+    "/trackbounds_left_pcl2d": {
+      "visible": true,
+      "colorField": "rgb",
+      "colorMode": "rgb",
+      "colorMap": "turbo",
+      "pointSize": 4,
+      "pointShape": "square"
+    },
+    "/trackbounds_right_pcl2d": {
+      "visible": true,
+      "colorField": "rgb",
+      "colorMode": "rgb",
+      "colorMap": "turbo",
+      "pointSize": 4,
+      "pointShape": "square"
+    },
+    "/move_base_simple/goal": {
+      "axisScale": 10.142
+    },
+    "/initialpose": {
+      "axisScale": 11.897
+    }
+  },
+  "publish": {
+    "type": "point",
+    "poseTopic": "/move_base_simple/goal",
+    "pointTopic": "/clicked_point",
+    "poseEstimateTopic": "/initialpose",
+    "poseEstimateXDeviation": 0.5,
+    "poseEstimateYDeviation": 0.5,
+    "poseEstimateThetaDeviation": 0.26179939
+  },
+  "imageMode": {},
+  "followTf": "vehicle_frame",
+  "foxglovePanelTitle": "Track with dufour"
+}

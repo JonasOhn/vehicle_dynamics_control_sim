@@ -34,3 +34,8 @@
 /build
 /install
 /log
+c_generated_solver_mpc/
+c_generated_solver_mpc_sim/
+acados_ocp_sim.json
+acados_ocp.json
+__pycache__/
