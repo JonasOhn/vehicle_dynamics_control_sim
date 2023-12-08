@@ -62,6 +62,7 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     ocp.acados_include_path  = f'{ACADOS_PATH}/include'
     ocp.acados_lib_path      = f'{ACADOS_PATH}/lib'
 
+
     """ ========== MODEL ============ """
     mpc_horizon_parameters = {}
     # final time for prediction horizon
@@ -75,51 +76,14 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
 
     # external cost is defined inside the model
     model_cost_parameters = {}
-    # cost weight input: dFx
-    model_cost_parameters['r_dFx'] = cost_params['r_dFx']
-    # cost weight input: ddel_s
-    model_cost_parameters['r_ddel_s'] = cost_params['r_ddel_s']
-
-    # cost weight: beta deviaiton from kinematic
-    model_cost_parameters['q_beta'] = cost_params['q_beta']
     # cost weight: progress rate
     model_cost_parameters['q_sd'] = cost_params['q_sd']
-    # cost weight: steering angle
-    model_cost_parameters['q_del'] = cost_params['q_del']
-    # cost weight: deviation from ref path lateral
-    model_cost_parameters['q_n'] = cost_params['q_n']
-    # cost weight: heading difference
-    model_cost_parameters['q_mu'] = cost_params['q_mu']
-
-    # terminal cost weight: yaw rate
-    model_cost_parameters['q_r_e'] = cost_params['q_r_e']
-    # terminal cost weight: heading difference
-    model_cost_parameters['q_mu_e'] = cost_params['q_mu_e']
-    # terminal cost weight: deviation from ref path lateral
-    model_cost_parameters['q_n_e'] = cost_params['q_n_e']
-
-    # nonlinear constraints also defined inside the model
-    model_constraint_parameters = {}
-    # tire ellipse mult. factor for Fx
-    model_constraint_parameters['e_x_front'] = constraints_params['soft']['e_x_front']
-    model_constraint_parameters['e_x_rear'] = constraints_params['soft']['e_x_rear']
-    # tire ellipse: e_y together with D_tire defines max. e
-    model_constraint_parameters['e_y_front'] = constraints_params['soft']['e_y_front']
-    model_constraint_parameters['e_y_rear'] = constraints_params['soft']['e_y_rear']
-    # track boundary: max. lateral deviation from ref. path
-    #TODO: make this parameter for online track boundaries
-    model_constraint_parameters['n_max'] = constraints_params['soft']['n_max']
-    model_constraint_parameters['n_min'] = constraints_params['soft']['n_min']
-    # slacked track boundary constraint: vehicle geometry (padded rectangle)    
-    model_constraint_parameters['L_F'] = constraints_params['soft']['L_F']
-    model_constraint_parameters['L_R'] = constraints_params['soft']['L_R']
-    model_constraint_parameters['W'] = constraints_params['soft']['W']
 
     # Get AcadosModel form other python file
     model = export_vehicle_ode_model(mpc_horizon_parameters=mpc_horizon_parameters,
-                                     model_cost_parameters=model_cost_parameters,
-                                     model_constraint_parameters=model_constraint_parameters)
+                                     model_cost_parameters=model_cost_parameters)
     ocp.model = model
+
 
     """ ========== DIMENSIONS ============ """
     # Dimensions
@@ -129,49 +93,37 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
 
     ocp.dims.N = mpc_horizon_parameters['N_horizon']
 
-    """ ========= INITIAL STATE CONSTRAINT =========== """
+
+    """ ========= CONSTRAINT: INITIAL STATE =========== """
     ocp.constraints.x0 = x0
 
-    """ ========= STAGE CONSTRAINTS ======== """
-    # Nonlinear Constraints: lower bounds are -Inf but acados doesn't seem to support it
-    ocp.constraints.lh = constraints_params['hard']['lb_h'] * np.ones(7)
-    # Nonlinear Constraints: upper bounds
-    ocp.constraints.uh = constraints_params['hard']['ub_h'] * np.ones(7)
 
+    """ ========= CONSTRAINTS: STAGE STATE ======== """
     # ---
-    # State: [s, n, mu, vx, vy, dpsi, Fx, del_s]
+    # State: [s, n, mu, vx, vy, dpsi]
     # State Constraints: lower bounds
-    lb_x = [constraints_params['hard']['lb_x_n'],
-            constraints_params['hard']['lb_x_mu'],
-            constraints_params['hard']['lb_x_vx'],
-            constraints_params['hard']['lb_x_vy'],
-            constraints_params['hard']['lb_x_dpsi'],
-            constraints_params['hard']['lb_x_Fx'],
-            constraints_params['hard']['lb_x_dels']]
+    lb_x = [constraints_params['soft']['lb_n'],
+            constraints_params['hard']['lb_vx']]
     # State Constraints: upper bounds
-    ub_x = [constraints_params['hard']['ub_x_n'],
-            constraints_params['hard']['ub_x_mu'],
-            constraints_params['soft']['vx_max'],
-            constraints_params['hard']['ub_x_vy'],
-            constraints_params['hard']['ub_x_dpsi'],
-            constraints_params['hard']['ub_x_Fx'],
-            constraints_params['hard']['ub_x_dels']]
+    ub_x = [constraints_params['soft']['ub_n'],
+            constraints_params['hard']['ub_vx']]
     # State Constraints: indices of lb and ub in State vector
-    idx_b_x = [1, 2, 3, 4, 5, 6, 7]
+    idx_b_x = [1, 3]
 
     ocp.constraints.lbx = np.array(lb_x)
     ocp.constraints.ubx = np.array(ub_x)
     ocp.constraints.idxbx = np.array(idx_b_x)
 
-    # ---
 
-    # Input: [dFx, ddel_s]
+    """ ========= CONSTRAINTS: STAGE INPUT ======== """
+    # ---
+    # Input: [Fx_m, del_s]
     # Input Constraints: lower bounds
-    lb_u = [constraints_params['hard']['lb_u_dFx'],
-            constraints_params['hard']['lb_u_ddels']]
+    lb_u = [constraints_params['hard']['lb_Fxm'],
+            constraints_params['hard']['lb_dels']]
     # Input Constraints: upper bounds
-    ub_u = [constraints_params['hard']['ub_u_dFx'],
-            constraints_params['hard']['ub_u_ddels']]
+    ub_u = [constraints_params['hard']['ub_Fxm'],
+            constraints_params['hard']['ub_dels']]
     # Input Constraints: indices of lb and ub in input vector
     idx_b_u = [0, 1]
 
@@ -179,93 +131,58 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     ocp.constraints.ubu = np.array(ub_u)
     ocp.constraints.idxbu = np.array(idx_b_u)
 
-    """ ========= TERMINAL CONSTRAINTS ======== """
-    # Terminal Nonlinear Constraints: lower bounds are -Inf but acados doesn't seem to support it
-    ocp.constraints.lh_e = constraints_params['hard']['lb_h'] * np.ones(7)
-    # Terminal Nonlinear Constraints: upper bounds
-    ocp.constraints.uh_e = constraints_params['hard']['ub_h'] * np.ones(7)
 
+    """ ========= CONSTRAINTS: TERMINAL STATE ======== """
     # ---
-    # Terminal State: [s, n, mu, vx, vy, dpsi, Fx, del_s]
+    # Terminal State: [s, n, mu, vx, vy, dpsi]
     # Terminal State Constraints: lower bounds
-    lb_x_e = [constraints_params['hard']['lb_x_vx']]
+    lb_x_e = [constraints_params['soft']['lb_n'],
+              constraints_params['hard']['lb_vx']]
     # Terminal State Constraints: upper bounds
-    ub_x_e = [constraints_params['soft']['vx_max_e']]
+    ub_x_e = [constraints_params['soft']['ub_n'],
+              constraints_params['hard']['ub_vx']]
     # Terminal State Constraints: indices of lb and ub in State vector
-    idx_b_x_e = [3]
+    idx_b_x_e = [1, 3]
 
     ocp.constraints.lbx_e = np.array(lb_x_e)
     ocp.constraints.ubx_e = np.array(ub_x_e)
     ocp.constraints.idxbx_e = np.array(idx_b_x_e)
 
-    """ ======== STAGE SLACK COST ========== """
+
+    """ ========= COST =========== """
     # (model cost inside ocp.model) --> cost type external
     ocp.cost.cost_type = 'EXTERNAL'
 
+    """ ========== STAGE SLACK COST =========== """
     # Slack Weights
     S_n_lin = cost_params['slack_penalties']['linear']['S_n_lin']
     S_n_quad = cost_params['slack_penalties']['quadratic']['S_n_quad']
-    S_te_lin = cost_params['slack_penalties']['linear']['S_te_lin']
-    S_te_quad = cost_params['slack_penalties']['quadratic']['S_te_quad']
-
-    S_vx_lin = cost_params['slack_penalties']['linear']['S_vx_lin']
-    S_vx_quad = cost_params['slack_penalties']['quadratic']['S_vx_quad']
 
     # Quadratic Slack Cost weights
-    ocp.cost.Zu = np.diag(np.array([S_vx_quad,
-                                    S_te_quad,
-                                    S_te_quad,
-                                    S_n_quad,
-                                    S_n_quad,
-                                    S_n_quad,
-                                    S_n_quad]))
-    ocp.cost.Zl = np.diag(np.zeros(7))
+    ocp.cost.Zu = np.diag(np.array([S_n_quad]))
+    ocp.cost.Zl = np.diag(np.array([S_n_quad]))
     # Linear Slack Cost Weights
-    ocp.cost.zu = np.array([S_vx_lin,
-                            S_te_lin,
-                            S_te_lin,
-                            S_n_lin,
-                            S_n_lin,
-                            S_n_lin,
-                            S_n_lin])
-    ocp.cost.zl = np.zeros(7)
+    ocp.cost.zu = np.array([S_n_lin])
+    ocp.cost.zl = np.array([S_n_lin])
 
-    # Indices of slack variables in stage nonlinear constraints
-    ocp.constraints.idxsh = np.array([0, 1, 2, 3, 4, 5])
     # Indices of slack variables in stage linear constraints
-    ocp.constraints.idxsbx = np.array([2])
+    ocp.constraints.idxsbx = np.array([0])
 
     """ ======== TERMINAL SLACK COST ========== """
     # Slack Weights
     S_n_lin_e = cost_params['slack_penalties']['linear']['S_n_lin_e']
     S_n_quad_e = cost_params['slack_penalties']['quadratic']['S_n_quad_e']
-    S_vx_lin_e = cost_params['slack_penalties']['linear']['S_vx_lin_e']
-    S_vx_quad_e = cost_params['slack_penalties']['quadratic']['S_vx_quad_e']
-    S_te_lin_e = cost_params['slack_penalties']['linear']['S_te_lin_e']
-    S_te_quad_e = cost_params['slack_penalties']['quadratic']['S_te_quad_e']
-    # Quadratic Slack Cost weights
-    ocp.cost.Zu_e = np.diag(np.array([S_vx_quad_e,
-                                      S_te_quad_e,
-                                      S_te_quad_e,
-                                      S_n_quad_e,
-                                      S_n_quad_e,
-                                      S_n_quad_e,
-                                      S_n_quad_e]))
-    ocp.cost.Zl_e = np.diag(np.zeros(7))
-    # Linear Slack Cost Weights
-    ocp.cost.zu_e = np.array([S_vx_lin_e,
-                              S_te_lin_e,
-                              S_te_lin_e,
-                              S_n_lin_e,
-                              S_n_lin_e,
-                              S_n_lin_e,
-                              S_n_lin_e])
-    ocp.cost.zl_e = np.zeros(7)
 
-    # Indices of slacks in terminal nonlinear constraint
-    ocp.constraints.idxsh_e = np.array([0, 1, 2, 3, 4, 5])
+    # Quadratic Slack Cost weights
+    ocp.cost.Zu_e = np.diag(np.array([S_n_quad_e]))
+    ocp.cost.Zl_e = np.diag(np.array([S_n_quad_e]))
+    # Linear Slack Cost Weights
+    ocp.cost.zu_e = np.array([S_n_lin_e])
+    ocp.cost.zl_e = np.array([S_n_lin_e])
+
     # Indices of slack variables in stage linear constraints
     ocp.constraints.idxsbx_e = np.array([0])
+
 
     """ ============ SOLVER OPTIONS ================== """
     ocp.solver_options.qp_solver = solver_options_params['qp_solver']
@@ -298,12 +215,11 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     D_tire = model_params['D_tire'] # pacejka
     C_d = model_params['C_d'] # effective drag coefficient
     C_r = model_params['C_r'] # const. rolling resistance
-    blending_factor = model_params['blending_factor'] # blending between kinematic and dynamic model
     kappa_ref = model_params['kappa_ref'] * np.ones(horizon_params['n_s']) # reference curvature along s
-    kappa_ref = -0.0 * np.ones(horizon_params['n_s']) # reference curvature along s
+    kappa_ref = 0.0001 * np.ones(horizon_params['n_s']) # reference curvature along s
 
     paramvec = np.array((m, g, l_f, l_r, Iz, 
-                         B_tire, C_tire, D_tire, C_d, C_r, blending_factor))
+                         B_tire, C_tire, D_tire, C_d, C_r))
     paramvec = np.concatenate((paramvec, kappa_ref))
     ocp.parameter_values = paramvec
 
@@ -329,8 +245,8 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
     _, horizon_params, _, _, _ = load_mpc_yaml_params()
 
     """ =========== INITIAL STATE FOR SIMULATION ============ """
-    # x =         [s,   n,   mu,  vx,  vy,  dpsi, Fx_m, del_s]
-    x0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # x =         [s,   n,   mu,  vx,  vy,  dpsi]
+    x0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
     """ =========== GET SOLVER AND INTEGRATOR ============ """
     ocp_solver, integrator = setup_ocp_and_sim(x0, use_RTI, simulate_ocp=simulate_ocp)
@@ -340,18 +256,11 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
         nx = ocp_solver.acados_ocp.dims.nx
         nu = ocp_solver.acados_ocp.dims.nu
 
-        """ =========== GET PARAMS ============ """
-        param_vec = ocp_solver.acados_ocp.parameter_values
-
         """ =========== SET SIMULATION PARAMS ============ """
         Nsim = 500
         simX = np.ndarray((Nsim+1, nx))
         simU = np.ndarray((Nsim, nu))
         s_values = np.zeros((Nsim+1, 1))
-        kappa_ref_alg_values = np.zeros((Nsim+1, horizon_params['N_horizon']))
-        s_values_horizon = np.zeros((Nsim+1, horizon_params['N_horizon']))
-        simBlendingFactor = np.ndarray((Nsim, 1))
-        ref_path_s = np.linspace(0, horizon_params['s_max'], horizon_params['n_s'])
 
         simX[0,:] = x0
 
@@ -369,10 +278,6 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
 
         # closed loop
         for i in range(Nsim):
-            for k in range(len(param_vec[11:])):
-                param_vec[k+11] = k * 0.01 + i * 0.001
-            for j in range(horizon_params['N_horizon']):
-                ocp_solver.set(j, 'p', param_vec)
             if use_RTI:
                 # preparation phase
                 ocp_solver.options_set('rti_phase', 1)
@@ -381,7 +286,7 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
 
                 # Set initial State
                 init_state = np.copy(simX[i, :])
-                init_state[0] = 1e-5
+                init_state[0] = 0.0
                 ocp_solver.set(0, "lbx", init_state)
                 ocp_solver.set(0, "ubx", init_state)
 
@@ -391,19 +296,11 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
                 t_feedback[i] = ocp_solver.get_stats('time_tot')
 
                 simU[i, :] = ocp_solver.get(0, "u")
-                for j in range(horizon_params['N_horizon']):
-                    z = ocp_solver.get(j, "z")
-                    kappa_ref_alg_values[i, j] = z[0]
-                    x = ocp_solver.get(j, "x")
-                    s_values_horizon[i, j] = x[0]
-                # print(ocp_solver.get(0, 'x'))
-                # print(ocp_solver.get(horizon_params['N_horizon'], 'x'))
-                # print(ocp_solver.get_cost(), (horizon_params['T_final']/horizon_params['N_horizon'])*i)
 
             else:
                 # solve ocp and get next control input
                 init_state = np.copy(simX[i, :])
-                init_state[0] = 1e-5
+                init_state[0] = 0.0
                 simU[i,:] = ocp_solver.solve_for_x0(x0_bar = init_state)
 
                 t[i] = ocp_solver.get_stats('time_tot')
@@ -411,35 +308,7 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
             # simulate system
             simX[i+1, :] = integrator.simulate(x=simX[i, :], u=simU[i,:])
             s_values[i+1] = s_values[i] + simX[i+1, 0]
-            simX[i+1, 0] = 1e-6
-
-            ocp_solver.reset()
-
-            # States
-            # vx = simX[i+1, 3]
-            
-            # if vx > 0.5:
-            #     blending_factor = 1.0
-            # else:
-            #     blending_factor = 0.0
-            blending_factor = 1.0
-            simBlendingFactor[i] = blending_factor
-
-            param_vec[10] = blending_factor
-
-            for j in range(horizon_params['N_horizon']):
-                ocp_solver.set(j, 'p', param_vec)
-
-        # plt.figure()
-        # dt_mpc = (horizon_params['T_final']/horizon_params['N_horizon'])
-        
-        for i in range(3):
-            ref_kappa_2_plot = []
-            for k in range(len(param_vec[11:])):
-                ref_kappa_2_plot.append(k * 0.01 + i * 0.001)
-            color_scatter = (random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1))
-            plt.scatter(s_values_horizon[i, :], kappa_ref_alg_values[i, :], marker="^", c=color_scatter)
-            plt.scatter(ref_path_s, ref_kappa_2_plot, marker="*", c=color_scatter)
+            simX[i+1, 0] = 0.0
 
         # evaluate timings
         if use_RTI:
@@ -467,7 +336,6 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
                     idx_b_x, lb_x, ub_x,
                     idx_b_u, lb_u, ub_u, 
                     simU, simX,
-                    simBlendingFactor,
                     plot_constraints=True)
 
     ocp_solver = None

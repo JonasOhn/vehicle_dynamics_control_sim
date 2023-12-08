@@ -160,7 +160,7 @@ class MPCController : public rclcpp::Node
         nlp_opts_ = veh_dynamics_ode_acados_get_nlp_opts(acados_ocp_capsule_);
 
         // Solver options set
-        this->rti_phase_ = 0;
+        this->rti_phase_ = 1;
         this->warm_start_first_qp_ = true;
         this->nlp_solver_max_iter_ = this->get_parameter("solver_options.nlp_solver_max_iter").as_int();
 
@@ -372,8 +372,6 @@ class MPCController : public rclcpp::Node
         idxbx0[3] = 3;
         idxbx0[4] = 4;
         idxbx0[5] = 5;
-        idxbx0[6] = 6;
-        idxbx0[7] = 7;
 
         double lbx0[NBX0];
         double ubx0[NBX0];
@@ -389,10 +387,6 @@ class MPCController : public rclcpp::Node
         ubx0[4] = this->x_[4];
         lbx0[5] = this->x_[5];
         ubx0[5] = this->x_[5];
-        lbx0[6] = this->x_[6];
-        ubx0[6] = this->x_[6];
-        lbx0[7] = this->x_[7];
-        ubx0[7] = this->x_[7];
         RCLCPP_DEBUG_STREAM(this->get_logger(), "init with x_sim done");
 
         ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "idxbx", idxbx0);
@@ -407,13 +401,11 @@ class MPCController : public rclcpp::Node
         x_init[3] = this->x_[3];
         x_init[4] = this->x_[4];
         x_init[5] = this->x_[5];
-        x_init[6] = this->x_[6];
-        x_init[7] = this->x_[7];
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting u0 ...");
         // initial value for control input
         double u0[NU];
-        u0[0] = 1.0;
+        u0[0] = 0.0;
         u0[1] = 0.0;
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting p0 ...");
@@ -429,14 +421,8 @@ class MPCController : public rclcpp::Node
         p[7] = this->D_tire_;
         p[8] = this->C_d_;
         p[9] = this->C_r_;
-        if(this->x_[3] > 0.5){
-            p[10] = 1.0;
-        }else{
-            p[10] = 0.0;
-        }
 
-        int last_idx = 10;
-
+        int last_idx = 9;
         // Init curvature ref
         for(this->j_ = last_idx + 1; this->j_<NP; this->j_++)
         {
@@ -496,7 +482,7 @@ class MPCController : public rclcpp::Node
 
         /* Get solver outputs and publish message asap */
         double u_eval[] = {0.0, 0.0};
-        double x_eval[] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        double x_eval[] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
         // get stage to evaluate based on elapsed solver time
         //int stage_to_eval = (int) (total_elapsed_time / dt_mpc_);
@@ -507,24 +493,19 @@ class MPCController : public rclcpp::Node
         ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, stage_to_eval, "x", &x_eval);
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), " u_eval: (" << u_eval[0] << ", " << u_eval[1] << ")");
-        RCLCPP_INFO_STREAM(this->get_logger(), " Fx_eval: " << x_eval[6]);
-        RCLCPP_DEBUG_STREAM(this->get_logger(), " del_s_eval: " << x_eval[7]);
 
         auto veh_input_msg = sim_backend::msg::SysInput();
         // If solver successful
         if(this->solver_status_ == 0 || this->solver_status_ == 5){
             // Euler forward scheme
-            veh_input_msg.fx_r = (this->x_[6] + dt_seconds_ * u_eval[0]) / 2.0;
-            veh_input_msg.fx_f = (this->x_[6] + dt_seconds_ * u_eval[0]) / 2.0;
-            veh_input_msg.del_s = (this->x_[7] + dt_seconds_ * u_eval[1]);
-            // veh_input_msg.fx_r = x_eval[6] / 2.0;
-            // veh_input_msg.fx_f = x_eval[6] / 2.0;
-            // veh_input_msg.del_s = x_eval[7];
+            veh_input_msg.fx_r = u_eval[0] / 2.0;
+            veh_input_msg.fx_f = u_eval[0] / 2.0;
+            veh_input_msg.del_s = u_eval[1];
         // If solver failed
         }else{
-            veh_input_msg.fx_r = (this->x_[6] + dt_seconds_ * u_eval[0]) / 2.0;
-            veh_input_msg.fx_f = (this->x_[6] + dt_seconds_ * u_eval[0]) / 2.0;
-            veh_input_msg.del_s = (this->x_[7] + dt_seconds_ * u_eval[1]);
+            veh_input_msg.fx_r = 0.0;
+            veh_input_msg.fx_f = 0.0;
+            veh_input_msg.del_s = 0.0;
         }
         control_cmd_publisher_->publish(veh_input_msg);
 
@@ -547,19 +528,14 @@ class MPCController : public rclcpp::Node
             state_traj_msg.vx_c.push_back(x_traj_[this->i_][3]);
             state_traj_msg.vy_c.push_back(x_traj_[this->i_][4]);
             state_traj_msg.dpsi.push_back(x_traj_[this->i_][5]);
-            state_traj_msg.fx_m.push_back(x_traj_[this->i_][6]);
-            state_traj_msg.del_s.push_back(x_traj_[this->i_][7]);
-            state_traj_msg.blending_factor.push_back(p[10]);
 
-            input_traj_msg.dfx_m.push_back(u_traj_[this->i_][0]);
-            input_traj_msg.ddel_s.push_back(u_traj_[this->i_][1]);
+            input_traj_msg.fx_m.push_back(u_traj_[this->i_][0]);
+            input_traj_msg.del_s.push_back(u_traj_[this->i_][1]);
 
             kappa_traj_msg.kappa_traj_mpc.push_back(z_traj_[this->i_][0]);
             kappa_traj_msg.s_traj_mpc.push_back(x_traj_[this->i_][0]);
 
             algstate_traj_msg.kappa_ref.push_back(z_traj_[this->i_][0]);
-            algstate_traj_msg.alpha_f.push_back(z_traj_[this->i_][1]);
-            algstate_traj_msg.alpha_r.push_back(z_traj_[this->i_][2]);
         }
         // get terminal state
         ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->nlp_dims_->N, "x", &this->x_traj_[this->nlp_dims_->N]);
@@ -571,23 +547,13 @@ class MPCController : public rclcpp::Node
         state_traj_msg.vx_c.push_back(x_traj_[this->nlp_dims_->N][3]);
         state_traj_msg.vy_c.push_back(x_traj_[this->nlp_dims_->N][4]);
         state_traj_msg.dpsi.push_back(x_traj_[this->nlp_dims_->N][5]);
-        state_traj_msg.fx_m.push_back(x_traj_[this->nlp_dims_->N][6]);
-        state_traj_msg.del_s.push_back(x_traj_[this->nlp_dims_->N][7]);
-        state_traj_msg.blending_factor.push_back(p[10]);
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Set state trajectory values.");
 
         algstate_traj_msg.kappa_ref.push_back(z_traj_[this->nlp_dims_->N][0]);
-        algstate_traj_msg.alpha_f.push_back(z_traj_[this->nlp_dims_->N][1]);
-        algstate_traj_msg.alpha_r.push_back(z_traj_[this->nlp_dims_->N][2]);
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Set algebraic state trajectory values.");
 
-        double ubx0_get[NBX0];
-        ocp_nlp_constraints_model_get(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "ubx", ubx0_get);
-        RCLCPP_INFO_STREAM(this->get_logger(), "Initial UB on Fx_m: " << ubx0_get[6]);
-        RCLCPP_INFO_STREAM(this->get_logger(), "Initial Fx_m: " << x_traj_[0][6]);
-
-        // kappa_traj_msg.kappa_traj_mpc.push_back(z_traj_[this->nlp_dims_->N][0]);
-        // kappa_traj_msg.s_traj_mpc.push_back(x_traj_[this->nlp_dims_->N][0]);
+        kappa_traj_msg.kappa_traj_mpc.push_back(z_traj_[this->nlp_dims_->N][0]);
+        kappa_traj_msg.s_traj_mpc.push_back(x_traj_[this->nlp_dims_->N][0]);
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Set kappa - s - trajectory values.");
 
         kappa_traj_msg.s_ref_spline = this->s_ref_spline_;
@@ -619,10 +585,6 @@ class MPCController : public rclcpp::Node
         ubx0[4] = x_traj_[stage_to_eval][4];
         lbx0[5] = x_traj_[stage_to_eval][5];
         ubx0[5] = x_traj_[stage_to_eval][5];
-        lbx0[6] = x_traj_[stage_to_eval][6];
-        ubx0[6] = x_traj_[stage_to_eval][6];
-        lbx0[7] = x_traj_[stage_to_eval][7];
-        ubx0[7] = x_traj_[stage_to_eval][7];
 
         // initialization for state values
         x_init[0] = lbx0[0];
@@ -631,8 +593,6 @@ class MPCController : public rclcpp::Node
         x_init[3] = lbx0[3];
         x_init[4] = lbx0[4];
         x_init[5] = lbx0[5];
-        x_init[6] = lbx0[6];
-        x_init[7] = lbx0[7];
 
         u0[0] = u_traj_[stage_to_eval][0];
         u0[1] = u_traj_[stage_to_eval][1];
@@ -766,7 +726,7 @@ class MPCController : public rclcpp::Node
         //     a_1 = x_delta_vector * b_hat_x + y_delta_vector * b_hat_y;
         // }
 
-        this->x_[0] = 0.0001; // s
+        this->x_[0] = 0.000001; // s
         this->x_[1] = a_1; // n
  
         // https://wumbo.net/formulas/angle-between-two-vectors-2d/
@@ -779,10 +739,6 @@ class MPCController : public rclcpp::Node
         this->x_[3] = state_msg.dx_c * cos(psi) + state_msg.dy_c * sin(psi); // vx
         this->x_[4] = state_msg.dy_c * cos(psi) - state_msg.dy_c * sin(psi); // vy
         this->x_[5] = state_msg.dpsi; // r or dpsi
-
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "input state updates ");
-        this->x_[6] = state_msg.fx_f_act + state_msg.fx_r_act; // Fx_m
-        this->x_[7] = state_msg.del_s_ref; // del_s
     }
 
     // Subscriber to state message published at faster frequency
@@ -812,8 +768,8 @@ class MPCController : public rclcpp::Node
     double dt_seconds_;
 
     // Current State for MPC
-    // [s:0, n:1, mu:2, vx:3, vy:4, dpsi:5, Fx:6, dels:7]
-    double x_[8] = {0.0};
+    // [s:0, n:1, mu:2, vx:3, vy:4, dpsi:5]
+    double x_[6] = {0.0};
 
     // Reference Path ahead of the vehicle
     std::vector<Eigen::Vector2d> ref_points_;

@@ -4,7 +4,7 @@ from acados_template import latexify_plot
 import math
 
 
-def plot_dynamics(shooting_nodes, idx_b_x, lb_x, ub_x, idx_b_u, lb_u, ub_u, U, X_true, blending_factor, latexify=False, plt_show=True, plot_constraints=True):
+def plot_dynamics(shooting_nodes, idx_b_x, lb_x, ub_x, idx_b_u, lb_u, ub_u, U, X_true, latexify=False, plt_show=True, plot_constraints=True):
     """
     Params:
         shooting_nodes: time values of the discretization
@@ -32,9 +32,9 @@ def plot_dynamics(shooting_nodes, idx_b_x, lb_x, ub_x, idx_b_u, lb_u, ub_u, U, X
 
     plotting_idx = 1
     plt.figure()
-    n_rows_plot = math.ceil((nx+nu)/2) + 1
+    n_rows_plot = math.ceil((nx+nu)/2)
 
-    inputs_lables = [r'$\dot{F}x_m$', r'$\dot{\delta}_s$']
+    inputs_lables = [r'$Fx_m$', r'$\delta_s$']
     idx_u = 0
     for i in range(nu):
         plt.subplot(n_rows_plot, 2, plotting_idx)
@@ -54,7 +54,7 @@ def plot_dynamics(shooting_nodes, idx_b_x, lb_x, ub_x, idx_b_u, lb_u, ub_u, U, X
 
         plotting_idx += 1
 
-    states_lables = ['$s$', '$n$', r'$\mu$', '$v_x$', '$v_y$', r'$\dot{\psi}$', '$Fx_m$', r'$\delta_s$']
+    states_lables = ['$s$', '$n$', r'$\mu$', '$v_x$', '$v_y$', r'$\dot{\psi}$']
     idx_x = 0
     for i in range(nx):
         plt.subplot(n_rows_plot, 2, plotting_idx)
@@ -77,15 +77,6 @@ def plot_dynamics(shooting_nodes, idx_b_x, lb_x, ub_x, idx_b_u, lb_u, ub_u, U, X
     plt.subplots_adjust(left=None, bottom=None, right=None, top=None, hspace=0.4)
     figManager = plt.get_current_fig_manager()
     figManager.window.showMaximized()
-
-    plt.subplot(n_rows_plot, 2, plotting_idx)
-    plt.step(t, np.append([blending_factor[0, 0]], blending_factor[:, 0]), label='blending')
-    plt.grid('both')
-    plt.ylabel('kin2dyn blend')
-    plt.xlabel('$t$')
-    plt.legend(loc=1)
-    plt.xlim(t[0], t[-1])
-    plotting_idx += 1
 
     if plt_show:
         plt.show()
