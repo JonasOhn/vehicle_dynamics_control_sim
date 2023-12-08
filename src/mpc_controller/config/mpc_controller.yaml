@@ -14,9 +14,9 @@
       blending_factor: 1.0
       kappa_ref: 0.0
     horizon:
-      T_final: 1.5
-      N_horizon: 60
-      n_s: 50
+      T_final: 1.0
+      N_horizon: 40
+      n_s: 30
       s_max: 15.0
     cost:
       r_dFx: 0.0000001
@@ -25,7 +25,7 @@
       q_sd: 1.0
       q_del: 5.0
       q_n: 5.0
-      q_mu: 0.00001
+      q_mu: 0.0
       q_r_e: 1000.0
       q_mu_e: 1.0
       q_n_e: 100.0
@@ -46,17 +46,17 @@
           S_te_quad_e: 2000.0
     constraints:
       soft:
-        e_x_front: 1.25
-        e_x_rear: 1.25
-        e_y_front: 1.25
-        e_y_rear: 1.25
+        e_x_front: 1.1
+        e_x_rear: 1.1
+        e_y_front: 1.1
+        e_y_rear: 1.1
         n_max: 5.0
         n_min: -5.0
         L_F: 0.97
         L_R: 0.85
         W: 2.0
-        vx_max: 4.0
-        vx_max_e: 2.0
+        vx_max: 10.0
+        vx_max_e: 5.0
       hard:
         lb_h: -1000000000000000.0
         ub_h: 0.0
@@ -69,7 +69,6 @@
         lb_x_mu: -2.0
         ub_x_mu: 2.0
         lb_x_vx: -0.1
-        ub_x_vx: 100.0
         lb_x_vy: -5.0
         ub_x_vy: 5.0
         lb_x_dpsi: -5.0
@@ -85,5 +84,7 @@
       sim_method_newton_iter: 20
       nlp_solver_max_iter: 100
       qp_solver_iter_max: 50
+      qp_solver_warm_start: 0
+      alpha_min: 0.05
       tol: 0.01
       qp_tol: 0.01
