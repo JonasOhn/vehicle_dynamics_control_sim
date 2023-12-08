@@ -15,6 +15,9 @@
     gamma: 1.2 # rad  
     r_perception_max: 25.0 # m
     r_perception_min: 3.0 # m
+    # track_filepath_midline: "src/sim_backend/tracks/circular_track_middle_path.csv"
+    # track_filepath_leftbound: "src/sim_backend/tracks/circular_track_blue_cones.csv"
+    # track_filepath_rightbound: "src/sim_backend/tracks/circular_track_yellow_cones.csv"
     track_filepath_midline: "src/sim_backend/tracks/straight_track_middle_path.csv"
     track_filepath_leftbound: "src/sim_backend/tracks/straight_track_blue_cones.csv"
     track_filepath_rightbound: "src/sim_backend/tracks/straight_track_yellow_cones.csv"
