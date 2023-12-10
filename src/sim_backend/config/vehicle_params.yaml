@@ -10,14 +10,17 @@
     B_tire: 9.5
     C_d: 1.133 # 0.5 * rho * CdA
     C_r: 0.5 # -
-    T_mot:  0.001 # s
+    T_mot:  0.01 # s
     D_mot:  1.0 # -
     gamma: 1.2 # rad  
     r_perception_max: 25.0 # m
-    r_perception_min: 3.0 # m
+    r_perception_min: 2.0 # m
+    track_filepath_midline: "src/sim_backend/tracks/FSG_middle_path.csv"
+    track_filepath_leftbound: "src/sim_backend/tracks/FSG_blue_cones.csv"
+    track_filepath_rightbound: "src/sim_backend/tracks/FSG_yellow_cones.csv"
     # track_filepath_midline: "src/sim_backend/tracks/circular_track_middle_path.csv"
     # track_filepath_leftbound: "src/sim_backend/tracks/circular_track_blue_cones.csv"
     # track_filepath_rightbound: "src/sim_backend/tracks/circular_track_yellow_cones.csv"
-    track_filepath_midline: "src/sim_backend/tracks/straight_track_middle_path.csv"
-    track_filepath_leftbound: "src/sim_backend/tracks/straight_track_blue_cones.csv"
-    track_filepath_rightbound: "src/sim_backend/tracks/straight_track_yellow_cones.csv"
+    # track_filepath_midline: "src/sim_backend/tracks/straight_track_middle_path.csv"
+    # track_filepath_leftbound: "src/sim_backend/tracks/straight_track_blue_cones.csv"
+    # track_filepath_rightbound: "src/sim_backend/tracks/straight_track_yellow_cones.csv"
