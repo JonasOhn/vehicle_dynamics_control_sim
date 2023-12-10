@@ -76,7 +76,7 @@ def export_vehicle_ode_model(testing : bool = False,
 
     # =============== dynamics ========================
     # numerical approximation factor
-    eps = 1e-6
+    eps = 1e-1
 
     # Slip Angles
     alpha_f = - del_s + atan2((vy + dpsi * l_f), ca.fmax(vx, eps))
@@ -88,12 +88,13 @@ def export_vehicle_ode_model(testing : bool = False,
     Fy_r = Fz_r * D_tire * sin(C_tire * atan(B_tire * alpha_r))
 
     # derivative of state w.r.t time
-    s_dot_expl_dyn = (vx * cos(mu) - vy * sin(mu)) / ((1 - n * kappa_bspline))
+    s_dot_expl_dyn = (vx * cos(mu) - vy * sin(mu)) / ((1 - n * kappa_ref_algebraic))
     n_dot_expl_dyn =  vx * sin(mu) + vy * cos(mu)
-    mu_dot_expl_dyn = dpsi - kappa_bspline * s_dot_expl_dyn
+    mu_dot_expl_dyn = dpsi - kappa_ref_algebraic * (vx * cos(mu) - vy * sin(mu)) / ((1 - n * kappa_ref_algebraic))
     vx_dot_expl_dyn = 1/m * (Fx_m / 2.0 * (1 + cos(del_s)) - Fy_f * sin(del_s) - (C_r + C_d * vx**2)) + vy * dpsi
     vy_dot_expl_dyn = 1/m * (Fy_r + Fx_m / 2.0 * sin(del_s) + Fy_f * cos(del_s)) - vx * dpsi
     dpsi_dot_expl_dyn = 1/Iz * (l_f * (Fx_m / 2.0 * sin(del_s) + Fy_f * cos(del_s)) - Fy_r * l_r)
+    kappa_ref_algebraic_expl_dyn = kappa_bspline
 
     # Explicit expression
     f_expl_time = vertcat(s_dot_expl_dyn,
@@ -102,7 +103,7 @@ def export_vehicle_ode_model(testing : bool = False,
                           vx_dot_expl_dyn,
                           vy_dot_expl_dyn,
                           dpsi_dot_expl_dyn,
-                          kappa_bspline)
+                          kappa_ref_algebraic_expl_dyn)
 
     # Implicit expression
     f_impl_time = vertcat(xdot, z) - f_expl_time # = 0
