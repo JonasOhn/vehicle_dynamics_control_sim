@@ -78,13 +78,15 @@
         lb_x_dels: -1.5
         ub_x_dels: 1.5
     solver_options:
-      qp_solver: 'PARTIAL_CONDENSING_HPIPM' #'FULL_CONDENSING_QPOASES' #'PARTIAL_CONDENSING_HPIPM'
-      hessian_approx: 'EXACT' #'GAUSS_NEWTON' #'EXACT' #
+      qp_solver: 'PARTIAL_CONDENSING_HPIPM' # 'PARTIAL_CONDENSING_OSQP' # 'PARTIAL_CONDENSING_QPDUNES' #'FULL_CONDENSING_HPIPM' #'FULL_CONDENSING_QPOASES' #'PARTIAL_CONDENSING_HPIPM'
+      hessian_approx: 'GAUSS_NEWTON' #'GAUSS_NEWTON' #'EXACT' #
       integrator_type: 'IRK'
       sim_method_newton_iter: 20
       nlp_solver_max_iter: 100
-      qp_solver_iter_max: 50
-      qp_solver_warm_start: 0
-      alpha_min: 0.05
-      tol: 0.01
-      qp_tol: 0.01
+      qp_solver_iter_max: 100
+      qp_solver_warm_start: 1
+      regularize_method: 'CONVEXIFY'
+      reg_epsilon: 0.00000001
+      alpha_min: 0.0001
+      tol: 0.000001
+      qp_tol: 0.000001

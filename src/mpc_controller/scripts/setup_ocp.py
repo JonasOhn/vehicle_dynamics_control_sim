@@ -278,6 +278,8 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     ocp.solver_options.qp_tol = solver_options_params['qp_tol']
     ocp.solver_options.alpha_min = solver_options_params['alpha_min']
     ocp.solver_options.qp_solver_warm_start = solver_options_params['qp_solver_warm_start']
+    ocp.solver_options.regularize_method = solver_options_params['regularize_method']
+    ocp.solver_options.reg_epsilon = solver_options_params['reg_epsilon']
 
     if RTI:
         ocp.solver_options.nlp_solver_type = 'SQP_RTI'
@@ -493,4 +495,4 @@ HPIPM Solver Status:
 
 
 if __name__ == '__main__':
-    main(use_RTI=True, simulate_ocp=True)
+    main(use_RTI=False, simulate_ocp=True)

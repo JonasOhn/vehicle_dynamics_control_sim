@@ -517,14 +517,11 @@ class MPCController : public rclcpp::Node
             veh_input_msg.fx_r = (this->x_[6] + dt_seconds_ * u_eval[0]) / 2.0;
             veh_input_msg.fx_f = (this->x_[6] + dt_seconds_ * u_eval[0]) / 2.0;
             veh_input_msg.del_s = (this->x_[7] + dt_seconds_ * u_eval[1]);
-            // veh_input_msg.fx_r = x_eval[6] / 2.0;
-            // veh_input_msg.fx_f = x_eval[6] / 2.0;
-            // veh_input_msg.del_s = x_eval[7];
         // If solver failed
         }else{
-            veh_input_msg.fx_r = (this->x_[6] + dt_seconds_ * u_eval[0]) / 2.0;
-            veh_input_msg.fx_f = (this->x_[6] + dt_seconds_ * u_eval[0]) / 2.0;
-            veh_input_msg.del_s = (this->x_[7] + dt_seconds_ * u_eval[1]);
+            veh_input_msg.fx_r = 0.0;
+            veh_input_msg.fx_f = 0.0;
+            veh_input_msg.del_s =0.0;
         }
         control_cmd_publisher_->publish(veh_input_msg);
 
@@ -607,56 +604,56 @@ class MPCController : public rclcpp::Node
 
         /* ======================================================================== */
 
-        lbx0[0] = x_traj_[stage_to_eval][0];
-        ubx0[0] = x_traj_[stage_to_eval][0];
-        lbx0[1] = x_traj_[stage_to_eval][1];
-        ubx0[1] = x_traj_[stage_to_eval][1];
-        lbx0[2] = x_traj_[stage_to_eval][2];
-        ubx0[2] = x_traj_[stage_to_eval][2];
-        lbx0[3] = x_traj_[stage_to_eval][3];
-        ubx0[3] = x_traj_[stage_to_eval][3];
-        lbx0[4] = x_traj_[stage_to_eval][4];
-        ubx0[4] = x_traj_[stage_to_eval][4];
-        lbx0[5] = x_traj_[stage_to_eval][5];
-        ubx0[5] = x_traj_[stage_to_eval][5];
-        lbx0[6] = x_traj_[stage_to_eval][6];
-        ubx0[6] = x_traj_[stage_to_eval][6];
-        lbx0[7] = x_traj_[stage_to_eval][7];
-        ubx0[7] = x_traj_[stage_to_eval][7];
+        // lbx0[0] = x_traj_[stage_to_eval][0];
+        // ubx0[0] = x_traj_[stage_to_eval][0];
+        // lbx0[1] = x_traj_[stage_to_eval][1];
+        // ubx0[1] = x_traj_[stage_to_eval][1];
+        // lbx0[2] = x_traj_[stage_to_eval][2];
+        // ubx0[2] = x_traj_[stage_to_eval][2];
+        // lbx0[3] = x_traj_[stage_to_eval][3];
+        // ubx0[3] = x_traj_[stage_to_eval][3];
+        // lbx0[4] = x_traj_[stage_to_eval][4];
+        // ubx0[4] = x_traj_[stage_to_eval][4];
+        // lbx0[5] = x_traj_[stage_to_eval][5];
+        // ubx0[5] = x_traj_[stage_to_eval][5];
+        // lbx0[6] = x_traj_[stage_to_eval][6];
+        // ubx0[6] = x_traj_[stage_to_eval][6];
+        // lbx0[7] = x_traj_[stage_to_eval][7];
+        // ubx0[7] = x_traj_[stage_to_eval][7];
 
-        // initialization for state values
-        x_init[0] = lbx0[0];
-        x_init[1] = lbx0[1];
-        x_init[2] = lbx0[2];
-        x_init[3] = lbx0[3];
-        x_init[4] = lbx0[4];
-        x_init[5] = lbx0[5];
-        x_init[6] = lbx0[6];
-        x_init[7] = lbx0[7];
+        // // initialization for state values
+        // x_init[0] = lbx0[0];
+        // x_init[1] = lbx0[1];
+        // x_init[2] = lbx0[2];
+        // x_init[3] = lbx0[3];
+        // x_init[4] = lbx0[4];
+        // x_init[5] = lbx0[5];
+        // x_init[6] = lbx0[6];
+        // x_init[7] = lbx0[7];
 
-        u0[0] = u_traj_[stage_to_eval][0];
-        u0[1] = u_traj_[stage_to_eval][1];
+        // u0[0] = u_traj_[stage_to_eval][0];
+        // u0[1] = u_traj_[stage_to_eval][1];
 
-        for (this->i_ = 0; this->i_ < this->N_; this->i_++)
-        {
-            ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->i_, "x", x_init);
-            ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->i_, "u", u0);
-        }
-        ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->N_, "x", x_init);
+        // for (this->i_ = 0; this->i_ < this->N_; this->i_++)
+        // {
+        //     ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->i_, "x", x_init);
+        //     ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->i_, "u", u0);
+        // }
+        // ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->N_, "x", x_init);
 
-        ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "idxbx", idxbx0);
-        ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "lbx", lbx0);
-        ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "ubx", ubx0);
+        // ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "idxbx", idxbx0);
+        // ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "lbx", lbx0);
+        // ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "ubx", ubx0);
 
-        this->rti_phase_ = 1;
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "=== Solver Call with rti_phase " << this->rti_phase_);
-        ocp_nlp_solver_opts_set(this->nlp_config_, this->nlp_opts_, "rti_phase", &this->rti_phase_);
-        this->solver_status_ = veh_dynamics_ode_acados_solve(this->acados_ocp_capsule_);
-        ocp_nlp_get(this->nlp_config_, this->nlp_solver_, "time_tot", &elapsed_time);
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Elapsed time: " << elapsed_time*1000 << " ms");
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "veh_dynamics_ode_acados_solve() status: " << this->solver_status_);
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "\n");
-        total_elapsed_time += elapsed_time;
+        // this->rti_phase_ = 1;
+        // RCLCPP_DEBUG_STREAM(this->get_logger(), "=== Solver Call with rti_phase " << this->rti_phase_);
+        // ocp_nlp_solver_opts_set(this->nlp_config_, this->nlp_opts_, "rti_phase", &this->rti_phase_);
+        // this->solver_status_ = veh_dynamics_ode_acados_solve(this->acados_ocp_capsule_);
+        // ocp_nlp_get(this->nlp_config_, this->nlp_solver_, "time_tot", &elapsed_time);
+        // RCLCPP_DEBUG_STREAM(this->get_logger(), "Elapsed time: " << elapsed_time*1000 << " ms");
+        // RCLCPP_DEBUG_STREAM(this->get_logger(), "veh_dynamics_ode_acados_solve() status: " << this->solver_status_);
+        // RCLCPP_DEBUG_STREAM(this->get_logger(), "\n");
+        // total_elapsed_time += elapsed_time;
 
         /* ======================================================================== */
 
@@ -808,7 +805,7 @@ class MPCController : public rclcpp::Node
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr xy_predict_traj_publisher_;
 
     // Step Time for controller publisher
-    std::chrono::milliseconds dt_{std::chrono::milliseconds(40)};
+    std::chrono::milliseconds dt_{std::chrono::milliseconds(400)};
     double dt_seconds_;
 
     // Current State for MPC
