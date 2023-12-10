@@ -102,53 +102,51 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     # ---
     # State: [s, n, mu, vx, vy, dpsi]
     # State Constraints: lower bounds
-    lb_x = [constraints_params['soft']['lb_n'],
-            constraints_params['hard']['lb_vx']]
+    ocp.constraints.lbx = np.array((constraints_params['soft']['lb_n'],
+                                    constraints_params['soft']['lb_mu'],
+                                    constraints_params['soft']['lb_vx'],
+                                    constraints_params['soft']['lb_vy'],
+                                    constraints_params['soft']['lb_dpsi']))
     # State Constraints: upper bounds
-    ub_x = [constraints_params['soft']['ub_n'],
-            constraints_params['hard']['ub_vx']]
+    ocp.constraints.ubx = np.array((constraints_params['soft']['ub_n'],
+                                    constraints_params['soft']['ub_mu'],
+                                    constraints_params['soft']['ub_vx'],
+                                    constraints_params['soft']['ub_vy'],
+                                    constraints_params['soft']['ub_dpsi']))
     # State Constraints: indices of lb and ub in State vector
-    idx_b_x = [1, 3]
-
-    ocp.constraints.lbx = np.array(lb_x)
-    ocp.constraints.ubx = np.array(ub_x)
-    ocp.constraints.idxbx = np.array(idx_b_x)
-
+    ocp.constraints.idxbx = np.array((1, 2, 3, 4, 5))
 
     """ ========= CONSTRAINTS: STAGE INPUT ======== """
     # ---
     # Input: [Fx_m, del_s]
     # Input Constraints: lower bounds
-    lb_u = [constraints_params['hard']['lb_Fxm'],
-            constraints_params['hard']['lb_dels']]
+    ocp.constraints.lbu = np.array((constraints_params['hard']['lb_Fxm'],
+                                    constraints_params['hard']['lb_dels']))
     # Input Constraints: upper bounds
-    ub_u = [constraints_params['hard']['ub_Fxm'],
-            constraints_params['hard']['ub_dels']]
+    ocp.constraints.ubu = np.array((constraints_params['hard']['ub_Fxm'],
+                                    constraints_params['hard']['ub_dels']))
     # Input Constraints: indices of lb and ub in input vector
-    idx_b_u = [0, 1]
-
-    ocp.constraints.lbu = np.array(lb_u)
-    ocp.constraints.ubu = np.array(ub_u)
-    ocp.constraints.idxbu = np.array(idx_b_u)
+    ocp.constraints.idxbu = np.array((0, 1))
 
 
     """ ========= CONSTRAINTS: TERMINAL STATE ======== """
     # ---
     # Terminal State: [s, n, mu, vx, vy, dpsi]
     # Terminal State Constraints: lower bounds
-    lb_x_e = [constraints_params['soft']['lb_n'],
-              constraints_params['hard']['lb_vx']]
+    ocp.constraints.lbx_e = np.array((constraints_params['soft']['lb_n'],
+                                      constraints_params['soft']['lb_mu'],
+                                      constraints_params['soft']['lb_vx'],
+                                      constraints_params['soft']['lb_vy'],
+                                      constraints_params['soft']['lb_dpsi']))
     # Terminal State Constraints: upper bounds
-    ub_x_e = [constraints_params['soft']['ub_n'],
-              constraints_params['hard']['ub_vx']]
+    ocp.constraints.ubx_e = np.array((constraints_params['soft']['ub_n'],
+                                      constraints_params['soft']['ub_mu'],
+                                      constraints_params['soft']['ub_vx'],
+                                      constraints_params['soft']['ub_vy'],
+                                      constraints_params['soft']['ub_dpsi']))
     # Terminal State Constraints: indices of lb and ub in State vector
-    idx_b_x_e = [1, 3]
-
-    ocp.constraints.lbx_e = np.array(lb_x_e)
-    ocp.constraints.ubx_e = np.array(ub_x_e)
-    ocp.constraints.idxbx_e = np.array(idx_b_x_e)
-
-
+    ocp.constraints.idxbx_e = np.array((1, 2, 3, 4, 5))
+    
     """ ========= COST =========== """
     # (model cost inside ocp.model) --> cost type external
     ocp.cost.cost_type = 'EXTERNAL'
@@ -157,31 +155,79 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     # Slack Weights
     S_n_lin = cost_params['slack_penalties']['linear']['S_n_lin']
     S_n_quad = cost_params['slack_penalties']['quadratic']['S_n_quad']
+    S_mu_lin = cost_params['slack_penalties']['linear']['S_mu_lin']
+    S_mu_quad = cost_params['slack_penalties']['quadratic']['S_mu_quad']
+    S_vx_lin = cost_params['slack_penalties']['linear']['S_vx_lin']
+    S_vx_quad = cost_params['slack_penalties']['quadratic']['S_vx_quad']
+    S_vy_lin = cost_params['slack_penalties']['linear']['S_vy_lin']
+    S_vy_quad = cost_params['slack_penalties']['quadratic']['S_vy_quad']
+    S_dpsi_lin = cost_params['slack_penalties']['linear']['S_dpsi_lin']
+    S_dpsi_quad = cost_params['slack_penalties']['quadratic']['S_dpsi_quad']
 
     # Quadratic Slack Cost weights
-    ocp.cost.Zu = np.diag(np.array([S_n_quad]))
-    ocp.cost.Zl = np.diag(np.array([S_n_quad]))
+    ocp.cost.Zu = np.diag(np.array((S_n_quad,
+                                    S_mu_quad,
+                                    S_vx_quad,
+                                    S_vy_quad,
+                                    S_dpsi_quad)))
+    ocp.cost.Zl = np.diag(np.array((S_n_quad,
+                                    S_mu_quad,
+                                    S_vx_quad,
+                                    S_vy_quad,
+                                    S_dpsi_quad)))
     # Linear Slack Cost Weights
-    ocp.cost.zu = np.array([S_n_lin])
-    ocp.cost.zl = np.array([S_n_lin])
+    ocp.cost.zu = np.array((S_n_lin,
+                            S_mu_lin,
+                            S_vx_lin,
+                            S_vy_lin,
+                            S_dpsi_lin))
+    ocp.cost.zl = np.array((S_n_lin,
+                            S_mu_lin,
+                            S_vx_lin,
+                            S_vy_lin,
+                            S_dpsi_lin))
 
     # Indices of slack variables in stage linear constraints
-    ocp.constraints.idxsbx = np.array([0])
+    ocp.constraints.idxsbx = np.array((0, 1, 2, 3, 4))
 
     """ ======== TERMINAL SLACK COST ========== """
     # Slack Weights
     S_n_lin_e = cost_params['slack_penalties']['linear']['S_n_lin_e']
     S_n_quad_e = cost_params['slack_penalties']['quadratic']['S_n_quad_e']
+    S_mu_lin_e = cost_params['slack_penalties']['linear']['S_mu_lin_e']
+    S_mu_quad_e = cost_params['slack_penalties']['quadratic']['S_mu_quad_e']
+    S_vx_lin_e = cost_params['slack_penalties']['linear']['S_vx_lin_e']
+    S_vx_quad_e = cost_params['slack_penalties']['quadratic']['S_vx_quad_e']
+    S_vy_lin_e = cost_params['slack_penalties']['linear']['S_vy_lin_e']
+    S_vy_quad_e = cost_params['slack_penalties']['quadratic']['S_vy_quad_e']
+    S_dpsi_lin_e = cost_params['slack_penalties']['linear']['S_dpsi_lin_e']
+    S_dpsi_quad_e = cost_params['slack_penalties']['quadratic']['S_dpsi_quad_e']
 
     # Quadratic Slack Cost weights
-    ocp.cost.Zu_e = np.diag(np.array([S_n_quad_e]))
-    ocp.cost.Zl_e = np.diag(np.array([S_n_quad_e]))
+    ocp.cost.Zu_e = np.diag(np.array((S_n_quad_e,
+                                      S_mu_quad_e,
+                                      S_vx_quad_e,
+                                      S_vy_quad_e,
+                                      S_dpsi_quad_e)))
+    ocp.cost.Zl_e = np.diag(np.array((S_n_quad_e,
+                                      S_mu_quad_e,
+                                      S_vx_quad_e,
+                                      S_vy_quad_e,
+                                      S_dpsi_quad_e)))
     # Linear Slack Cost Weights
-    ocp.cost.zu_e = np.array([S_n_lin_e])
-    ocp.cost.zl_e = np.array([S_n_lin_e])
+    ocp.cost.zu_e = np.array((S_n_lin_e,
+                              S_mu_lin_e,
+                              S_vx_lin_e,
+                              S_vy_lin_e,
+                              S_dpsi_lin_e))
+    ocp.cost.zl_e = np.array((S_n_lin_e,
+                              S_mu_lin_e,
+                              S_vx_lin_e,
+                              S_vy_lin_e,
+                              S_dpsi_lin_e))
 
     # Indices of slack variables in stage linear constraints
-    ocp.constraints.idxsbx_e = np.array([0])
+    ocp.constraints.idxsbx_e = np.array((0, 1, 2, 3, 4))
 
 
     """ ============ SOLVER OPTIONS ================== """
@@ -195,6 +241,8 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     ocp.solver_options.qp_tol = solver_options_params['qp_tol']
     ocp.solver_options.alpha_min = solver_options_params['alpha_min']
     ocp.solver_options.qp_solver_warm_start = solver_options_params['qp_solver_warm_start']
+    ocp.solver_options.regularize_method = solver_options_params['regularize_method']
+    ocp.solver_options.reg_epsilon = solver_options_params['reg_epsilon']
 
     if RTI:
         ocp.solver_options.nlp_solver_type = 'SQP_RTI'
@@ -216,7 +264,7 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     C_d = model_params['C_d'] # effective drag coefficient
     C_r = model_params['C_r'] # const. rolling resistance
     kappa_ref = model_params['kappa_ref'] * np.ones(horizon_params['n_s']) # reference curvature along s
-    kappa_ref = 0.0001 * np.ones(horizon_params['n_s']) # reference curvature along s
+    kappa_ref = 0.2 * np.ones(horizon_params['n_s']) # reference curvature along s
 
     paramvec = np.array((m, g, l_f, l_r, Iz, 
                          B_tire, C_tire, D_tire, C_d, C_r))
@@ -272,7 +320,7 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
             t = np.zeros((Nsim))
 
         # do some initial iterations to start with a good initial guess
-        num_iter_initial = 30
+        num_iter_initial = 10
         for _ in range(num_iter_initial):
             ocp_solver.solve_for_x0(x0_bar = x0)
 
@@ -337,6 +385,8 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
                     idx_b_u, lb_u, ub_u, 
                     simU, simX,
                     plot_constraints=True)
+
+        print(ocp_solver)
 
     ocp_solver = None
 
