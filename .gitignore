@@ -36,6 +36,8 @@
 /log
 c_generated_solver_mpc/
 c_generated_solver_mpc_sim/
+c_generated_solver_mpc_qp_initializer/
+acados_ocp_qp_init.json
 acados_ocp_sim.json
 acados_ocp.json
 __pycache__/

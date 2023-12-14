@@ -8,10 +8,23 @@
 #include "sim_backend/msg/sys_input.hpp"
 #include "sim_backend/msg/vehicle_state.hpp"
 #include "sim_backend/msg/ref_path.hpp"
-#include "sim_backend/sim_geometry.hpp"
 
 using namespace std::chrono_literals;
 
+namespace sim_geometry{
+
+struct Pose2D {
+    double x;
+    double y;
+    double psi;
+};
+
+struct Point2D {
+    double x;
+    double y;
+};
+
+}
 
 class PPController : public rclcpp::Node
 {

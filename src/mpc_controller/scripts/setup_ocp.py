@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
 from acados_template.acados_ocp_solver import ocp_get_default_cmake_builder
 from dynamics_model import export_vehicle_ode_model
+from dynamics_model_initializer import export_vehicle_ode_init_model
 import numpy as np
 from plot_dynamics_sim import plot_dynamics
 from os.path import dirname, join, abspath
@@ -9,7 +10,18 @@ import yaml
 import pprint
 import shutil
 import os
+import scipy.linalg
 import random
+
+def load_mpc_initializer_yaml_params():
+    yaml_path = join(dirname(abspath(__file__)), "../config/mpc_initializer.yaml")
+    with open(yaml_path, 'r') as file:
+        yaml_params = yaml.safe_load(file)
+    model_params = yaml_params['model']
+    horizon_params = yaml_params['horizon']
+    cost_params = yaml_params['cost']
+    solver_options_params = yaml_params['solver_options']
+    return model_params, horizon_params, cost_params, solver_options_params
 
 def load_mpc_yaml_params():
     yaml_path = join(dirname(abspath(__file__)), "../config/mpc_controller.yaml")
@@ -22,6 +34,140 @@ def load_mpc_yaml_params():
     constraints_params = yaml_params['constraints']
     solver_options_params = yaml_params['solver_options']
     return model_params, horizon_params, cost_params, constraints_params, solver_options_params
+
+
+def setup_ocp_init(x0):
+    
+    """ Load .yaml file parameters """
+    model_params, horizon_params, cost_params, solver_options_params = load_mpc_initializer_yaml_params()
+    pprint.pprint(model_params)
+    pprint.pprint(horizon_params)
+    pprint.pprint(cost_params)
+    pprint.pprint(solver_options_params)
+
+    """ ========== OCP Setup ============ """
+
+    # Paths
+    ACADOS_PATH = join(dirname(abspath(__file__)), "../../../acados")
+    codegen_export_dir = join(dirname(abspath(__file__)), "c_generated_solver_mpc_qp_initializer")
+    print("Trying to remove codegen folder...")
+    try:
+        shutil.rmtree(codegen_export_dir)
+        print("Codegen folder removed.")
+    except FileNotFoundError:
+        print("Codegen folder not found and thus not removed.")
+    print("Codegen directory: ", codegen_export_dir)
+    ocp_solver_json_path = join(dirname(abspath(__file__)), "acados_ocp_qp_init.json")
+    print("Trying to remove codegen .json...")
+    try:
+        os.remove(ocp_solver_json_path)
+        print("Codegen .json removed.")
+    except FileNotFoundError:
+        print("Codegen .json not found and thus not removed.")
+    print("Solver .json directory: ", ocp_solver_json_path)
+
+    # Set up optimal control problem
+    ocp = AcadosOcp()
+    # Set code export directory
+    ocp.code_export_directory = codegen_export_dir
+    # set header paths
+    ocp.acados_include_path  = f'{ACADOS_PATH}/include'
+    ocp.acados_lib_path      = f'{ACADOS_PATH}/lib'
+
+
+    """ ========== MODEL ============ """
+    mpc_horizon_parameters = {}
+    # final time for prediction horizon
+    mpc_horizon_parameters['T_final'] = horizon_params['T_final']
+    # number of steps along horizon
+    mpc_horizon_parameters['N_horizon'] = horizon_params['N_horizon']
+
+    # Get AcadosModel form other python file
+    model = export_vehicle_ode_init_model()
+    ocp.model = model
+
+
+    """ ========== DIMENSIONS ============ """
+    # Dimensions
+    # x: state
+    # u: input
+    # N: prediction horizon number of stages
+
+    ocp.dims.N = mpc_horizon_parameters['N_horizon']
+
+    """ ========= CONSTRAINT: INITIAL STATE =========== """
+    ocp.constraints.x0 = x0
+
+    
+    """ ========= COST =========== """
+    # (model cost inside ocp.model) --> cost type external
+    ocp.cost.cost_type = 'LINEAR_LS'
+    nx = ocp.model.x.size()[0]
+    nu = ocp.model.u.size()[0]
+    ny = nx + nu
+    ny_e = nx
+
+    """ ========== STAGE COST =========== """
+    Q = np.diag(np.array((cost_params['q_s'],
+                          cost_params['q_n'],
+                          cost_params['q_mu'],
+                          cost_params['q_vy'],
+                          cost_params['q_dpsi'])))
+    R = cost_params['r_dels'] * np.eye(1)
+    ocp.cost.W = scipy.linalg.block_diag(Q, R)
+    ocp.cost.W_e = Q
+
+    ocp.cost.Vx = np.zeros((ny, nx))
+    ocp.cost.Vx[:nx,:nx] = np.eye(nx)
+
+    Vu = np.zeros((ny, nu))
+    Vu[nx:nx+nu, :] = np.eye(nu)
+    ocp.cost.Vu = Vu
+
+    ocp.cost.Vx_e = np.eye(ny_e)
+
+    ocp.cost.yref = np.zeros(ny)
+    ocp.cost.yref_e = np.zeros(ny_e)
+
+    """ ============ SOLVER OPTIONS ================== """
+    ocp.solver_options.qp_solver = solver_options_params['qp_solver']
+    ocp.solver_options.hessian_approx = solver_options_params['hessian_approx']
+    ocp.solver_options.integrator_type = solver_options_params['integrator_type']
+    ocp.solver_options.nlp_solver_max_iter = solver_options_params['nlp_solver_max_iter']
+    ocp.solver_options.qp_solver_iter_max = solver_options_params['qp_solver_iter_max']
+    ocp.solver_options.tol = solver_options_params['tol']
+    ocp.solver_options.qp_tol = solver_options_params['qp_tol']
+    ocp.solver_options.qp_solver_warm_start = solver_options_params['qp_solver_warm_start']
+    ocp.solver_options.hpipm_mode = solver_options_params['hpipm_mode']
+    ocp.solver_options.nlp_solver_type = 'SQP'
+
+    # Set prediction horizon
+    ocp.solver_options.tf = horizon_params['T_final']
+
+    """ ============ INITIAL PARAMETER VALUES ================== """
+    m = model_params['m'] # mass
+    g = model_params['g'] # gravity
+    l_f = model_params['l_f']
+    l_r = model_params['l_r']
+    Iz = model_params['Iz'] # yaw moment of inertia
+    B_tire = model_params['B_tire'] # pacejka
+    C_tire = model_params['C_tire'] # pacejka
+    D_tire = model_params['D_tire'] # pacejka
+    vx_const = model_params['vx_const']
+    kappa_const = model_params['kappa_const']
+
+    paramvec = np.array((m, g, l_f, l_r, Iz, 
+                         B_tire, C_tire, D_tire, 
+                         vx_const, kappa_const))
+    ocp.parameter_values = paramvec
+
+    """ ====== CREATE OCP AND SIM SOLVERS =========== """
+    cmake_builder = ocp_get_default_cmake_builder()
+    acados_ocp_solver = AcadosOcpSolver(ocp, json_file = ocp_solver_json_path,
+                                        cmake_builder=cmake_builder)
+
+    return acados_ocp_solver
+
 
 def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     
@@ -243,6 +389,9 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     ocp.solver_options.qp_solver_warm_start = solver_options_params['qp_solver_warm_start']
     ocp.solver_options.regularize_method = solver_options_params['regularize_method']
     ocp.solver_options.reg_epsilon = solver_options_params['reg_epsilon']
+    ocp.solver_options.alpha_reduction = solver_options_params['alpha_reduction']
+    ocp.solver_options.hpipm_mode = solver_options_params['hpipm_mode']
+    ocp.solver_options.cost_discretization = solver_options_params['cost_discretization']
 
     if RTI:
         ocp.solver_options.nlp_solver_type = 'SQP_RTI'
@@ -296,81 +445,117 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
     # x =         [s,   n,   mu,  vx,  vy,  dpsi]
     x0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
+    # x_initializer = [s,   n,   mu,  vy,  dpsi]
+    x0_initializer = np.array([x0[0], x0[1], x0[2], x0[4], x0[5]])
+    vx_const_0 = 0.1
+    kappa_at_stages = np.zeros(horizon_params["N_horizon"])
+    u_Fxm_0 = 0.0
+
     """ =========== GET SOLVER AND INTEGRATOR ============ """
+    ocp_init_solver = setup_ocp_init(x0_initializer)
     ocp_solver, integrator = setup_ocp_and_sim(x0, use_RTI, simulate_ocp=simulate_ocp)
 
     if simulate_ocp:
         """ =========== GET DIMS ============ """
         nx = ocp_solver.acados_ocp.dims.nx
         nu = ocp_solver.acados_ocp.dims.nu
+        nx_initializer = ocp_init_solver.acados_ocp.dims.nx
+        nu_initializer = ocp_init_solver.acados_ocp.dims.nu
 
         """ =========== SET SIMULATION PARAMS ============ """
-        Nsim = 500
+        Nsim = 100
         simX = np.ndarray((Nsim+1, nx))
         simU = np.ndarray((Nsim, nu))
+        stagesX_initializer = np.ndarray((horizon_params["N_horizon"], nx_initializer))
+        stagesU_initializer = np.ndarray((horizon_params["N_horizon"] - 1, nu_initializer))
         s_values = np.zeros((Nsim+1, 1))
 
         simX[0,:] = x0
-
-        if use_RTI:
-            t_preparation = np.zeros((Nsim))
-            t_feedback = np.zeros((Nsim))
-
-        else:
-            t = np.zeros((Nsim))
-
-        # do some initial iterations to start with a good initial guess
-        num_iter_initial = 10
-        for _ in range(num_iter_initial):
-            ocp_solver.solve_for_x0(x0_bar = x0)
+        stagesX_initializer[0,:] = x0_initializer
+        
+        t_ocp = np.zeros((Nsim))
+        t_qp = np.zeros((Nsim))
 
         # closed loop
         for i in range(Nsim):
-            if use_RTI:
-                # preparation phase
-                ocp_solver.options_set('rti_phase', 1)
-                status = ocp_solver.solve()
-                t_preparation[i] = ocp_solver.get_stats('time_tot')
+            """  Solve QP for initialization """
+            # set vx and kappa parameters
+            # reset state and input to zero
+            for j in range(horizon_params["N_horizon"]):
+                ocp_init_solver.set_params_sparse(j, np.array((8,)), np.array((vx_const_0,)))
+                ocp_init_solver.set_params_sparse(j, np.array((9,)), np.array((kappa_at_stages[j],)))
+                ocp_init_solver.set(j, "x", np.zeros(nx_initializer))
+                ocp_init_solver.set(j, "u", np.zeros(nu_initializer))
 
-                # Set initial State
-                init_state = np.copy(simX[i, :])
-                init_state[0] = 0.0
-                ocp_solver.set(0, "lbx", init_state)
-                ocp_solver.set(0, "ubx", init_state)
+            # solve QP given previously computed x0 (same x0 as for QCP solver)
+            ocp_init_solver.solve_for_x0(x0_bar=x0_initializer)
+            
+            # retrieve state and input trajectories from QP
+            for j in range(horizon_params["N_horizon"]-1):
+                stagesU_initializer[j, 0] = ocp_init_solver.get(j, "u")
+                stagesX_initializer[j, :] = ocp_init_solver.get(j, "x")
+            stagesX_initializer[horizon_params["N_horizon"]-1, :] = ocp_init_solver.get(horizon_params["N_horizon"]-1, "x")
 
-                # feedback phase
-                ocp_solver.options_set('rti_phase', 2)
-                status = ocp_solver.solve()
-                t_feedback[i] = ocp_solver.get_stats('time_tot')
+            """  Initialize OCP """
+            for j in range(horizon_params["N_horizon"]-1):
+                init_state_stage_j = np.array((stagesX_initializer[j, 0], # s
+                                               stagesX_initializer[j, 1], # n
+                                               stagesX_initializer[j, 2], # mu
+                                               vx_const_0, # vx
+                                               stagesX_initializer[j, 3], # vy
+                                               stagesX_initializer[j, 4], # dpsi
+                                               ))
+                init_u_stage_j = np.array((u_Fxm_0, # Fxm
+                                           stagesU_initializer[j, 0], # del_s
+                                           ))
+                ocp_solver.set(j, "x", init_state_stage_j)
+                ocp_solver.set(j, "u", init_u_stage_j)
+            init_state_stage_j = np.array((stagesX_initializer[horizon_params["N_horizon"]-1, 0], # s
+                                            stagesX_initializer[horizon_params["N_horizon"]-1, 1], # n
+                                            stagesX_initializer[horizon_params["N_horizon"]-1, 2], # mu
+                                            vx_const_0, # vx
+                                            stagesX_initializer[horizon_params["N_horizon"]-1, 3], # vy
+                                            stagesX_initializer[horizon_params["N_horizon"]-1, 4], # dpsi
+                                            ))
+            ocp_solver.set(horizon_params["N_horizon"]-1, "x", init_state_stage_j)
 
-                simU[i, :] = ocp_solver.get(0, "u")
+            """  Solve OCP """
+            init_state = np.copy(simX[i, :])
+            init_state[0] = 0.0
+            simU[i,:] = ocp_solver.solve_for_x0(x0_bar = init_state)
 
-            else:
-                # solve ocp and get next control input
-                init_state = np.copy(simX[i, :])
-                init_state[0] = 0.0
-                simU[i,:] = ocp_solver.solve_for_x0(x0_bar = init_state)
+            # get elapsed solve time
+            t_qp[i] = ocp_init_solver.get_stats('time_tot')
+            t_ocp[i] = ocp_solver.get_stats('time_tot')
 
-                t[i] = ocp_solver.get_stats('time_tot')
-
-            # simulate system
+            # simulate system one step
             simX[i+1, :] = integrator.simulate(x=simX[i, :], u=simU[i,:])
             s_values[i+1] = s_values[i] + simX[i+1, 0]
             simX[i+1, 0] = 0.0
 
-        # evaluate timings
-        if use_RTI:
-            # scale to milliseconds
-            t_preparation *= 1000
-            t_feedback *= 1000
-            print(f'Computation time in preparation phase in ms: \
-                    min {np.min(t_preparation):.3f} median {np.median(t_preparation):.3f} max {np.max(t_preparation):.3f}')
-            print(f'Computation time in feedback phase in ms:    \
-                    min {np.min(t_feedback):.3f} median {np.median(t_feedback):.3f} max {np.max(t_feedback):.3f}')
-        else:
-            # scale to milliseconds
-            t *= 1000
-            print(f'Computation time in ms: min {np.min(t):.3f} median {np.median(t):.3f} max {np.max(t):.3f}')
+            """ Get simulation state for QP initializer """
+            # parameter calculation
+            vx_const_0 = simX[i+1, 3]
+            for j in range(horizon_params["N_horizon"]):
+                kappa_at_stages[j] = ocp_solver.get(j, "z")
+            # initial state for QP
+            x0_initializer = np.array((simX[i+1, 0],
+                                       simX[i+1, 1],
+                                       simX[i+1, 2],
+                                       simX[i+1, 4],
+                                       simX[i+1, 5]))
+            # initial input for QP
+            u_Fxm_0 = simU[i, 0]
+
+            print("vx0_initializer = ", vx_const_0)
+
+        # scale to milliseconds
+        t_ocp *= 1000
+        t_qp *= 1000
+        t_total = t_ocp + t_qp
+        print(f'Computation time (total) in ms: min {np.min(t_total):.3f} median {np.median(t_total):.3f} max {np.max(t_total):.3f}')
+        print(f'Computation time (qp) in ms: min {np.min(t_qp):.3f} median {np.median(t_qp):.3f} max {np.max(t_qp):.3f}')
+        print(f'Computation time (nlp-ocp) in ms: min {np.min(t_ocp):.3f} median {np.median(t_ocp):.3f} max {np.max(t_ocp):.3f}')
 
         # plot results
         idx_b_x = ocp_solver.acados_ocp.constraints.idxbx
@@ -386,7 +571,7 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
                     simU, simX,
                     plot_constraints=True)
 
-        print(ocp_solver)
+        # print(ocp_solver)
 
     ocp_solver = None
 
@@ -411,4 +596,4 @@ HPIPM Solver Status:
 
 
 if __name__ == '__main__':
-    main(use_RTI=True, simulate_ocp=True)
+    main(use_RTI=False, simulate_ocp=True)

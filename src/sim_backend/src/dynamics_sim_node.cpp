@@ -18,9 +18,9 @@
 #include "sim_backend/msg/point2_d.hpp"
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include "tf2/LinearMath/Quaternion.h"
-#include "sim_backend/dynamic_system.hpp"
-#include "sim_backend/sim_geometry.hpp"
 #include <pcl_conversions/pcl_conversions.h>
+
+#include "sim_backend/dynamic_system.hpp"
 
 using namespace std::chrono_literals;
 using namespace boost::numeric::odeint;
@@ -91,8 +91,6 @@ class DynamicsSimulator : public rclcpp::Node
 
             solve_timer_ = this->create_wall_timer(
                 this->dt_, std::bind(&DynamicsSimulator::solve_step, this));
-            ref_path_timer_ = this->create_wall_timer(
-                this->dt_, std::bind(&DynamicsSimulator::ref_path_callback, this));
             track_timer_ = this->create_wall_timer(
                 this->dt_trackpub_, std::bind(&DynamicsSimulator::track_callback, this));
 
@@ -228,6 +226,8 @@ class DynamicsSimulator : public rclcpp::Node
             state_msg.fx_r_ref = fx_r;
 
             state_publisher_->publish(state_msg);
+
+            this->ref_path_callback();
             
             /* Get end time of solve step */
             double t1 = (double_t)(this->now().nanoseconds()) / 1e6;  // [ms]
@@ -411,7 +411,6 @@ class DynamicsSimulator : public rclcpp::Node
 
         // Timer for solving the ODE
         rclcpp::TimerBase::SharedPtr solve_timer_;
-        rclcpp::TimerBase::SharedPtr ref_path_timer_;
         rclcpp::TimerBase::SharedPtr track_timer_;
 
         // Publisher for vehicle state
@@ -432,7 +431,7 @@ class DynamicsSimulator : public rclcpp::Node
         rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr reset_subscription_;
 
         // Cycle time of Simulation node
-        std::chrono::milliseconds dt_{std::chrono::milliseconds(5)};
+        std::chrono::milliseconds dt_{std::chrono::milliseconds(10)};
         std::chrono::milliseconds dt_trackpub_{std::chrono::milliseconds(100)};
         double dt_seconds_;
 

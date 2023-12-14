@@ -1,0 +1,31 @@
+model:
+  l_f: 0.8 # m
+  l_r: 0.7 # m
+  m: 220.0 # kg
+  Iz: 100.0 # kg m m
+  g: 9.81 # m s-2
+  D_tire: -1.0
+  C_tire: 1.4
+  B_tire: 9.5
+  kappa_const: 0.0
+  vx_const: 0.0
+horizon:
+  T_final: 1.0
+  N_horizon: 40
+cost:
+  q_s: 0.00001
+  q_n: 10.0
+  q_mu: 1.0
+  q_vy: 0.1
+  q_dpsi: 0.1
+  r_dels: 0.0001
+solver_options:
+  qp_solver: 'PARTIAL_CONDENSING_HPIPM' #'FULL_CONDENSING_HPIPM' #'FULL_CONDENSING_QPOASES' #'PARTIAL_CONDENSING_HPIPM'
+  hessian_approx: 'GAUSS_NEWTON' #'GAUSS_NEWTON' #'EXACT' #
+  integrator_type: 'IRK'
+  nlp_solver_max_iter: 2
+  qp_solver_iter_max: 50
+  qp_solver_warm_start: 1
+  hpipm_mode: 'BALANCE' #'BALANCE', 'ROBUST', 'SPEED'
+  tol: 0.0001
+  qp_tol: 0.0001

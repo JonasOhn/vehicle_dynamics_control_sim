@@ -9,6 +9,8 @@
 #include <fstream>
 
 #include "rclcpp/rclcpp.hpp"
+
+// message includes
 #include "sim_backend/msg/sys_input.hpp"
 #include "sim_backend/msg/vehicle_state.hpp"
 #include "sim_backend/msg/ref_path.hpp"
@@ -16,722 +18,357 @@
 #include "mpc_controller/msg/mpc_input_trajectory.hpp"
 #include "mpc_controller/msg/mpc_kappa_trajectory.hpp"
 #include "mpc_controller/msg/mpc_solver_state.hpp"
-#include "sensor_msgs/msg/point_cloud2.hpp"
-#include "sensor_msgs/point_cloud2_iterator.hpp"
-#include <pcl_conversions/pcl_conversions.h>
-#include <Eigen/Dense>
+#include "visualization_msgs/msg/marker_array.hpp"
 
-// acados
-#include "acados/utils/print.h"
-#include "acados/utils/math.h"
-#include "acados_c/ocp_nlp_interface.h"
-#include "acados_c/external_function_interface.h"
-#include "acados_solver_veh_dynamics_ode.h"
+// controller class include
+#include "mpc_controller/mpc_controller_class.hpp"
 
-// blasfeo
-#include "blasfeo/include/blasfeo_d_aux_ext_dep.h"
 
 using namespace std::chrono_literals;
 
-#define NX     VEH_DYNAMICS_ODE_NX
-#define NZ     VEH_DYNAMICS_ODE_NZ
-#define NU     VEH_DYNAMICS_ODE_NU
-#define NP     VEH_DYNAMICS_ODE_NP
-#define NBX    VEH_DYNAMICS_ODE_NBX
-#define NBX0   VEH_DYNAMICS_ODE_NBX0
-#define NBU    VEH_DYNAMICS_ODE_NBU
-#define NSBX   VEH_DYNAMICS_ODE_NSBX
-#define NSBU   VEH_DYNAMICS_ODE_NSBU
-#define NSH    VEH_DYNAMICS_ODE_NSH
-#define NSG    VEH_DYNAMICS_ODE_NSG
-#define NSPHI  VEH_DYNAMICS_ODE_NSPHI
-#define NSHN   VEH_DYNAMICS_ODE_NSHN
-#define NSGN   VEH_DYNAMICS_ODE_NSGN
-#define NSPHIN VEH_DYNAMICS_ODE_NSPHIN
-#define NSBXN  VEH_DYNAMICS_ODE_NSBXN
-#define NS     VEH_DYNAMICS_ODE_NS
-#define NSN    VEH_DYNAMICS_ODE_NSN
-#define NG     VEH_DYNAMICS_ODE_NG
-#define NBXN   VEH_DYNAMICS_ODE_NBXN
-#define NGN    VEH_DYNAMICS_ODE_NGN
-#define NY0    VEH_DYNAMICS_ODE_NY0
-#define NY     VEH_DYNAMICS_ODE_NY
-#define NYN    VEH_DYNAMICS_ODE_NYN
-#define NH     VEH_DYNAMICS_ODE_NH
-#define NPHI   VEH_DYNAMICS_ODE_NPHI
-#define NHN    VEH_DYNAMICS_ODE_NHN
-#define NH0    VEH_DYNAMICS_ODE_NH0
-#define NPHIN  VEH_DYNAMICS_ODE_NPHIN
-#define NR     VEH_DYNAMICS_ODE_NR
 
-
-class MPCController : public rclcpp::Node
+class MPCControllerNode : public rclcpp::Node
 {
   public:
-    MPCController()
+    MPCControllerNode()
     : Node("mpc_controller",
             rclcpp::NodeOptions()
                 .allow_undeclared_parameters(true)
                 .automatically_declare_parameters_from_overrides(true))
     {
-        // Spline matrices
-        bspline_coeff_ << -1, 3, -3, 1,
-                         3, -6, 0, 4,
-                         -3, 3, 3, 1,
-                         1, 0, 0, 0;
-        bspline_coeff_ = bspline_coeff_ / 6.0;
-        std::cout << bspline_coeff_ << std::endl;
-        ctrl_points_ << 0.0, 0.0, 0.0, 0.0,
-                        0.0, 0.0, 0.0, 0.0;
-        std::cout << ctrl_points_ << std::endl;
 
-        // Init s_ref_mpc_, which is constant
-        for (i_ = 0; i_<n_s_mpc_; i_++)
-        {
-            this->s_ref_mpc_.push_back(i_ * ds_);
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "Init -- Adding: s_i=" << i_ * ds_);
-        }
-        for (i_ = 0; i_<n_s_mpc_; i_++)
-        {
-            this->curv_ref_mpc_.push_back(0.0);
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "Init -- Adding: curv_i=" << 0.0);
-        }
-        // init dt in seconds from previously defined dt in chrono
-        this->dt_seconds_ = dt_.count() / 1e3;
-
-        this->l_f_ = this->get_parameter("model.l_f").as_double();
-        this->l_r_ = this->get_parameter("model.l_r").as_double();
-        this->m_ = this->get_parameter("model.m").as_double();
-        this->Iz_ = this->get_parameter("model.Iz").as_double();
-        this->g_ = this->get_parameter("model.g").as_double();
-        this->D_tire_ = this->get_parameter("model.D_tire").as_double();
-        this->C_tire_ = this->get_parameter("model.C_tire").as_double();
-        this->B_tire_ = this->get_parameter("model.B_tire").as_double();
-        this->C_d_ = this->get_parameter("model.C_d").as_double();
-        this->C_r_ = this->get_parameter("model.C_r").as_double();
-
+        /* ========= SUBSCRIBER ============ */
         // Init State Subscriber
-        state_subscriber_ = this->create_subscription<sim_backend::msg::VehicleState>(
-            "vehicle_state", 1, std::bind(&MPCController::state_update, this, std::placeholders::_1));
-
+        this->state_subscriber_ = this->create_subscription<sim_backend::msg::VehicleState>(
+            "vehicle_state", 1, std::bind(&MPCControllerNode::state_update, this, std::placeholders::_1));
         // Init reference path subscriber
-        ref_path_subscriber_ = this->create_subscription<sim_backend::msg::RefPath>(
-            "reference_path", 1, std::bind(&MPCController::ref_path_update, this, std::placeholders::_1));
+        this->ref_path_subscriber_ = this->create_subscription<sim_backend::msg::RefPath>(
+            "reference_path", 1, std::bind(&MPCControllerNode::ref_path_update, this, std::placeholders::_1));
 
-        mpc_xtraj_publisher_ = this->create_publisher<mpc_controller::msg::MpcStateTrajectory>("mpc_state_trajectory", 10);
-        mpc_utraj_publisher_ = this->create_publisher<mpc_controller::msg::MpcInputTrajectory>("mpc_input_trajectory", 10);
-        mpc_solve_state_publisher_ = this->create_publisher<mpc_controller::msg::MpcSolverState>("mpc_solver_state", 10);
-        mpc_kappa_traj_publisher_ = this->create_publisher<mpc_controller::msg::MpcKappaTrajectory>("mpc_kappa_trajectory", 10);
 
-        spline_fit_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("mpc_spline_fit", 10);
-        xy_predict_traj_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("mpc_xy_predict_trajectory", 10);
-        
+        /* ========= PUBLISHER ============ */
+        // Init MPC <Numerical> Prediction Horizon Publishers
+        this->mpc_xtraj_publisher_ = this->create_publisher<mpc_controller::msg::MpcStateTrajectory>(
+            "mpc_state_trajectory", 10);
+        this->mpc_utraj_publisher_ = this->create_publisher<mpc_controller::msg::MpcInputTrajectory>(
+            "mpc_input_trajectory", 10);
+        this->mpc_solve_state_publisher_ = this->create_publisher<mpc_controller::msg::MpcSolverState>(
+            "mpc_solver_state", 10);
+        this->mpc_kappa_traj_publisher_ = this->create_publisher<mpc_controller::msg::MpcKappaTrajectory>(
+            "mpc_kappa_trajectory", 10);
+
+        // Init MPC <Visual> Prediction Horizon Publishers
+        this->spline_fit_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+            "mpc_spline_fit", 10);
+        this->xy_predict_traj_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+            "mpc_xy_predict_trajectory", 10);
+
         // Init Control Command Publisher and corresponding Timer with respecitve callback
-        control_cmd_publisher_ = this->create_publisher<sim_backend::msg::SysInput>("vehicle_input", 10);
-        control_cmd_timer_ = this->create_wall_timer(this->dt_, std::bind(&MPCController::control_callback, this));
+        this->control_cmd_publisher_ = this->create_publisher<sim_backend::msg::SysInput>("vehicle_input", 10);
+        this->control_cmd_timer_ = this->create_wall_timer(this->dt_, std::bind(&MPCControllerNode::control_callback, this));
+
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting up MPC.");
+        /* ========= CONTROLLER ============ */
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Initializing Horizon parameters.");
+        this->mpc_controller_obj_.set_horizon_parameters(this->n_s_mpc_,
+                                                         this->N_horizon_mpc_,
+                                                         this->T_final_mpc_,
+                                                         this->s_max_mpc_);
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Initializing Solver parameters.");
+        this->mpc_controller_obj_.set_solver_parameters(this->sqp_max_iter_,
+                                                        this->rti_phase_,
+                                                        this->warm_start_first_qp_);
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Initializing Model parameters.");
+        this->mpc_controller_obj_.set_model_parameters(this->l_f_,
+                                                       this->l_r_,
+                                                       this->m_,
+                                                       this->Iz_,
+                                                       this->g_,
+                                                       this->D_tire_,
+                                                       this->C_tire_,
+                                                       this->B_tire_,
+                                                       this->C_d_,
+                                                       this->C_r_);
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Sending control loop time step to MPC.");
+        this->mpc_controller_obj_.set_dt_control_feedback(this->dt_seconds_);
         
-        // ---------------------
-
-        // allocate memory and get empty ocp capsule
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Allocating Memory for solver capsule ...");
-        acados_ocp_capsule_ = veh_dynamics_ode_acados_create_capsule();
-
-        // there is an opportunity to change the number of shooting intervals in C without new code generation
-        N_ = VEH_DYNAMICS_ODE_N;
-        
-        // allocate the array and fill it accordingly
-        new_time_steps_ = NULL;
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Creating Solver and filling capsule ...");
-        solver_status_ = veh_dynamics_ode_acados_create_with_discretization(acados_ocp_capsule_, N_, new_time_steps_);
-
-        if (solver_status_)
-        {
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "veh_dynamics_ode_acados_create() returned solver_status_ " << solver_status_ << ". Exiting.\n");
-            // rclcpp::shutdown();
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Initializing MPC Solver.");
+        if(this->mpc_controller_obj_.init_solver() != 0){
+            RCLCPP_INFO_STREAM(this->get_logger(), "Solver initialization failed. Node being shut down.");
+            rclcpp::shutdown();
         }
 
-        nlp_config_ = veh_dynamics_ode_acados_get_nlp_config(acados_ocp_capsule_);
-        nlp_dims_ = veh_dynamics_ode_acados_get_nlp_dims(acados_ocp_capsule_);
-        nlp_in_ = veh_dynamics_ode_acados_get_nlp_in(acados_ocp_capsule_);
-        nlp_out_ = veh_dynamics_ode_acados_get_nlp_out(acados_ocp_capsule_);
-        nlp_solver_ = veh_dynamics_ode_acados_get_nlp_solver(acados_ocp_capsule_);
-        nlp_opts_ = veh_dynamics_ode_acados_get_nlp_opts(acados_ocp_capsule_);
 
-        // Solver options set
-        this->rti_phase_ = 1;
-        this->warm_start_first_qp_ = true;
-        this->nlp_solver_max_iter_ = this->get_parameter("solver_options.nlp_solver_max_iter").as_int();
-
-        RCLCPP_INFO_STREAM(this->get_logger(), "Trying to set rti_phase.");
-        ocp_nlp_solver_opts_set(this->nlp_config_, this->nlp_opts_, "rti_phase", &this->rti_phase_);
-        //ocp_nlp_solver_opts_set(this->nlp_config_, this->nlp_opts_, "nlp_solver_max_iter", &this->nlp_solver_max_iter_);
-        RCLCPP_INFO_STREAM(this->get_logger(), "Setting warm start first qp true.");
-        ocp_nlp_solver_opts_set(this->nlp_config_, this->nlp_opts_, "warm_start_first_qp", &this->warm_start_first_qp_);
-
-        setvbuf(stdout, NULL, _IONBF, 0);
-
-        solver_initialized_ = false;
-
-        //this->control_callback();
-
-        // ==========================================
+        /* ========= SUCCESS MESSAGE ============ */
         RCLCPP_INFO_STREAM(this->get_logger(), "Node " << this->get_name() << " initialized.");
     }
 
   private:
 
-    void ref_path_update(const sim_backend::msg::RefPath & refpath_msg){
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Reference path update.");
+    void ref_path_update(const sim_backend::msg::RefPath & refpath_msg)
+    {
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Reference path update called.");
+
+        // clear previous reference path
+        this->reference_path_.clear();
+
         // Create container for single 2D point with data type from message
         auto path_pos = sim_backend::msg::Point2D();
-        // Create container for single 2D point with internal data type
-        Eigen::Vector2d ref_point;
 
-        // set curvature to zero
-        for(this->j_ = 0; this->j_ < (int)this->curv_ref_mpc_.size(); this->j_++){
-            this->curv_ref_mpc_[this->j_] = 0.0;
-        }
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Clearing ref. points");
-        // Clear all 2D reference points
-        this->ref_points_.clear();
-        this->t_ref_spline_.clear();
-        this->curv_ref_spline_.clear();
-        this->xy_ref_spline_.clear();
-        this->dxy_ref_spline_.clear();
-        this->ddxy_ref_spline_.clear();
-        this->s_ref_spline_.clear();
+        // 2D point
+        std::vector<double> ref_point{0.0, 0.0};
 
-        // Check amount of reference points
-        if(refpath_msg.ref_path.size() <= 1){
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "Reference path size less than or equal to 1, no ref path update.");
-            return;
-        }
+        // variable to store distance between points on the path
+        double dist_to_prev_point = 0.0;
 
         // get all reference points
         for (size_t i = 0; i < refpath_msg.ref_path.size(); i++){
+            // Get i-th point on published path
             path_pos = refpath_msg.ref_path[i];
             ref_point[0] = path_pos.point_2d[0];
             ref_point[1] = path_pos.point_2d[1];
+
+            // From second point on: Check if point too far from previous point
             if(i > 0){
-                if(sqrt(pow(ref_point[0] - this->ref_points_[i-1][0], 2.0) 
-                    + pow(ref_point[1] - this->ref_points_[i-1][1], 2.0)) > 5.0){
-                    RCLCPP_DEBUG_STREAM(this->get_logger(), "Breaking out because: ref_point = (" << ref_point[0] << ", " << ref_point[1] << ") too far from last point.");
+                dist_to_prev_point = sqrt(pow(ref_point[0] - this->reference_path_[i-1][0], 2.0) 
+                    + pow(ref_point[1] - this->reference_path_[i-1][1], 2.0));
+
+                if(dist_to_prev_point > this->max_dist_to_prev_path_point_){
+                    RCLCPP_DEBUG_STREAM(this->get_logger(), 
+                                        "Breaking out because: ref_point = (" 
+                                        << ref_point[0] << ", " 
+                                        << ref_point[1] << ") too far from last point.");
                     break;
                 }
             }
-            this->ref_points_.push_back(ref_point);
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "Got: ref_point = (" << ref_point[0] << ", " << ref_point[1] << ")");
+            this->reference_path_.push_back(ref_point);
+            RCLCPP_DEBUG_STREAM(this->get_logger(),
+                                "Got: ref_point = (" << ref_point[0] << ", " << ref_point[1] << ")");
         }
-        if(this->ref_points_.size() + 2 < 4){
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "Distance-filtered ref-path size too small. Quitting Callback.");
+
+        // Check if we have enough points for a bspline fit
+        if(this->reference_path_.size() + 2 < 4){
+            RCLCPP_DEBUG_STREAM(this->get_logger(),
+                                "Distance-filtered ref-path size too small for bspline fit. Quitting Callback.");
             return;
         }
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Iterated through reference points, size of vector: " << this->ref_points_.size());
 
-        /* === create an additional point in the beginning of ref_points */
+        RCLCPP_DEBUG_STREAM(this->get_logger(), 
+                            "Iterated through reference points, size of reference path: " 
+                            << this->reference_path_.size());
 
-        // option 1: mirror second point on first point
-        ref_point[0] = 2 * this->ref_points_[0][0] - this->ref_points_[1][0];
-        ref_point[1] = 2 * this->ref_points_[0][1] - this->ref_points_[1][1];
+        // Invoke Reference Path update in MPC object (includes bspline fit etc.)
+        this->mpc_controller_obj_.set_reference_path(this->reference_path_);
 
-        // option 2: stack first point such that it exists twice
-        //ref_point[0] = this->ref_points_[0][0];
-        //ref_point[1] = this->ref_points_[0][1];
 
-        this->ref_points_.insert(this->ref_points_.begin(), ref_point);
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Added: ref_point[0] = (" << this->ref_points_[0][0] << ", " << this->ref_points_[0][1] << ")");
-        
-        /* === create an additional point at the end of ref_points */
-        
-        // option 1: mirror second last point on last point
-        ref_point[0] = 2 * this->ref_points_[this->ref_points_.size()-1][0] - this->ref_points_[this->ref_points_.size()-2][0];
-        ref_point[1] = 2 * this->ref_points_[this->ref_points_.size()-1][1] - this->ref_points_[this->ref_points_.size()-2][1];
-
-        // option 2: stack last point such that it exists twice
-        //ref_point[0] = this->ref_points_[this->ref_points_.size()-1][0];
-        //ref_point[1] = this->ref_points_[this->ref_points_.size()-1][1];
-
-        this->ref_points_.push_back(ref_point);
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Added: ref_point[end] = (" << this->ref_points_[this->ref_points_.size()-1][0] << ", " << this->ref_points_[this->ref_points_.size()-1][1] << ")");
-
-        // Calculate number of control points
-        size_t num_control_points = this->ref_points_.size();
-
-        // count number of points in the reference path
-        this->n_s_spline_ = (int)num_control_points - 3;
-
-        // Generate knot vector with necessary number of points
-        for(double t = 0.0; t <= (double)this->n_s_spline_; t+=this->dt_spline_){
-            this->t_ref_spline_.push_back(t);
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "Generated: t_i = " << t);
-        }
-
-        // path coordinate s along spline-fitted reference path
-        double s_ref_length = 0.0;
-        // instant curvature
-        double curv_instant = 0.0;
-        for(size_t i = 0; i < (size_t)this->t_ref_spline_.size(); i++){
-
-            // get integer value of knot vector
-            this->j_ = (int) t_ref_spline_[i];
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "t integer: " << this->j_);
-
-            // Fill the control points 2x4 matrix
-            // rows
-            for(this->i_=0; this->i_ < 2; this->i_++){
-                // columns
-                for(this->k_=0; this->k_ < 4; this->k_++){
-                    this->ctrl_points_(this->i_, this->k_) = this->ref_points_[this->j_+this->k_][this->i_];
-                }
-            }
-
-            // get fractional vatue of knot vector
-            this->t_frac_ = t_ref_spline_[i] - this->j_;
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "t fraction: " << this->t_frac_);
-
-            // fill knot polynomial vector
-            this->t_vec_ << pow(this->t_frac_, 3),
-                            pow(this->t_frac_, 2),
-                            this->t_frac_,
-                            1.0;
-            // fill 1st deriv knot polynomial vector
-            this->dt_vec_ << 3 * pow(this->t_frac_, 2),
-                            2 * this->t_frac_,
-                            1.0,
-                            0.0;
-            // fill 2nd deriv knot polynomial vector
-            this->ddt_vec_ << 6 * this->t_frac_,
-                            2.0,
-                            0.0,
-                            0.0;
-            this->xy_ref_spline_.push_back(this->ctrl_points_ * this->bspline_coeff_ * this->t_vec_);
-            this->dxy_ref_spline_.push_back(this->ctrl_points_ * this->bspline_coeff_ * this->dt_vec_);
-            this->ddxy_ref_spline_.push_back(this->ctrl_points_ * this->bspline_coeff_ * this->ddt_vec_);
-            
-            // Discretely integrate up the path coordinate s
-            if(i > 0){
-                s_ref_length += sqrt(pow(this->xy_ref_spline_[i][0] - this->xy_ref_spline_[i-1][0], 2.0)
-                                    + pow(this->xy_ref_spline_[i][1] - this->xy_ref_spline_[i-1][1], 2.0));
-            }
-            this->s_ref_spline_.push_back(s_ref_length);
-
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "cumsum s: " << s_ref_length);
-
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "Spline interpolation: " << this->xy_ref_spline_[i][0] << " " << this->xy_ref_spline_[i][1]);
-
-            // Calculate curvature from first and second derivatives
-            curv_instant = (this->dxy_ref_spline_[i][0] * this->ddxy_ref_spline_[i][1] -
-                            this->dxy_ref_spline_[i][1] * this->ddxy_ref_spline_[i][0]);
-            curv_instant /= (pow((pow(this->dxy_ref_spline_[i][0], 2.0) + 
-                                  pow(this->dxy_ref_spline_[i][1], 2.0)), 1.5));
-            this->curv_ref_spline_.push_back(curv_instant);
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "Curvature here: " << curv_instant);
-        }
-
-        int idx_next_s = 0;
-        // Fill Curvature for MPC
-        // - if s_max is larger than the integrated s_ref_length, need to fill curv_ref_mpc (with zeros?)
-        // - if s_max is smaller than the integrated s_ref_length, no need to take further steps 
-        //   since curv_ref_mpc is interpolated correctly
-        for (this->i_ = 0; this->i_<this->n_s_mpc_; this->i_++)
-        {
-            // Iterate through the previously calculated s_ref vector and go 
-            // for first entry that is larger than in mpc s ref, interpolate between this and the previous point
-            for(this->j_ = 0; this->j_ < (int)this->s_ref_spline_.size(); this->j_++){
-                // As soon as s_ref_mpc (constant) is larger than s_ref, calculate curvature as 
-                // linear interpolation and break out
-                if (this->s_ref_mpc_[this->i_] < this->s_ref_spline_[this->j_]){
-                    idx_next_s = this->j_;
-                    // Linearly interpolate between given s_ref values on the spline to get curvature
-                    this->curv_ref_mpc_[this->i_] = this->curv_ref_spline_[idx_next_s - 1] + 
-                        (this->s_ref_mpc_[this->i_] - this->s_ref_spline_[idx_next_s - 1])/
-                        (this->s_ref_spline_[idx_next_s] - this->s_ref_spline_[idx_next_s - 1]) 
-                        * (this->curv_ref_spline_[idx_next_s] - this->curv_ref_spline_[idx_next_s - 1]);
-                    // go for next s_ref_mpc curvature
-                    break;
-                }else if (this->s_max_mpc_ <= this->s_ref_spline_[this->j_]){
-                    // Fill with previous value if the reference spline length is larger than the maximum s_ref_mpc
-                    this->curv_ref_mpc_[this->i_] = this->curv_ref_mpc_[this->i_ - 1];
-                }
-            }
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "Adding: curv_i=" << this->curv_ref_mpc_[this->i_]);
-        }
+        // ========== END of path update ===============
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Reference path update succesful.");
     }
 
     void control_callback()
     {
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Control Callback called.");
+
+        // total time count
+        double total_elapsed_time = 0.0;
+
+
+        // =================== Initial State for MPC ========================
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting x0");
-        // initial condition
-        int idxbx0[NBX0];
-        idxbx0[0] = 0;
-        idxbx0[1] = 1;
-        idxbx0[2] = 2;
-        idxbx0[3] = 3;
-        idxbx0[4] = 4;
-        idxbx0[5] = 5;
+        this->mpc_controller_obj_.set_initial_state();
 
-        double lbx0[NBX0];
-        double ubx0[NBX0];
-        lbx0[0] = this->x_[0];
-        ubx0[0] = this->x_[0];
-        lbx0[1] = this->x_[1];
-        ubx0[1] = this->x_[1];
-        lbx0[2] = this->x_[2];
-        ubx0[2] = this->x_[2];
-        lbx0[3] = this->x_[3];
-        ubx0[3] = this->x_[3];
-        lbx0[4] = this->x_[4];
-        ubx0[4] = this->x_[4];
-        lbx0[5] = this->x_[5];
-        ubx0[5] = this->x_[5];
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "init with x_sim done");
 
-        ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "idxbx", idxbx0);
-        ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "lbx", lbx0);
-        ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "ubx", ubx0);
-
-        // initialization for state values
-        double x_init[NX];
-        x_init[0] = this->x_[0];
-        x_init[1] = this->x_[1];
-        x_init[2] = this->x_[2];
-        x_init[3] = this->x_[3];
-        x_init[4] = this->x_[4];
-        x_init[5] = this->x_[5];
-
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting z0 ...");
-        // initialization for algebraic state values
-        double z0[NZ];
-        z0[0] = 0.0;
-
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting u0 ...");
-        // initial value for control input
-        double u0[NU];
-        u0[0] = 0.0;
-        u0[1] = 0.0;
-
+        // =================== Parametrization for MPC ========================
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting p0 ...");
-        // set parameters
-        double p[NP];
-        p[0] = this->m_;
-        p[1] = this->g_;
-        p[2] = this->l_f_;
-        p[3] = this->l_r_;
-        p[4] = this->Iz_;
-        p[5] = this->B_tire_;
-        p[6] = this->C_tire_;
-        p[7] = this->D_tire_;
-        p[8] = this->C_d_;
-        p[9] = this->C_r_;
+        this->mpc_controller_obj_.init_mpc_parameters();
 
-        int last_idx = 9;
-        // Init curvature ref
-        for(this->j_ = last_idx + 1; this->j_<NP; this->j_++)
-        {
-            p[this->j_] = this->curv_ref_mpc_[this->j_ - (last_idx + 1)];
-        }
 
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting parameters ...");
-        for (this->i_ = 0; this->i_ <= this->N_; this->i_++)
-        {
-            veh_dynamics_ode_acados_update_params(this->acados_ocp_capsule_, this->i_, p, NP);
-        }
+        // ============== State and Input Trajectory Initialization for MPC ==============
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Initializing solution (x, u, x_N)");
+        this->mpc_controller_obj_.init_mpc_horizon();
 
+
+        /* ===================== SOLVE MPC ===================== */
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Calling NLP Solver.. ");
+        this->mpc_controller_obj_.solve_mpc();
+
+
+        // =================== Evaluate and Publish MPC Solve Process ========================
         // prepare evaluation
         double kkt_norm_inf;
         double elapsed_time;
-        double total_elapsed_time = 0.0;
         int sqp_iter;
+        int qp_status;
+        int sqp_status;
 
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Initializing solution (x, u, x_N)");
-        // initialize solution
-        for (this->i_ = 0; this->i_ < this->N_; this->i_++)
-        {
-            ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "x", x_init);
-            ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "u", u0);
-            ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "z", z0);
-        }
-        ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->N_, "x", x_init);
-
-        if(!solver_initialized_){
-            this->rti_phase_ = 1;
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "=== Solver Call with rti_phase " << this->rti_phase_);
-            ocp_nlp_solver_opts_set(this->nlp_config_, this->nlp_opts_, "rti_phase", &this->rti_phase_);
-            this->solver_status_ = veh_dynamics_ode_acados_solve(this->acados_ocp_capsule_);
-            ocp_nlp_get(this->nlp_config_, this->nlp_solver_, "time_tot", &elapsed_time);
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "Elapsed time: " << elapsed_time*1000 << " ms");
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "veh_dynamics_ode_acados_solve() status: " << this->solver_status_);
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "\n");
-            total_elapsed_time += elapsed_time;
-
-            solver_initialized_ = true;
-        }
-
-        this->rti_phase_ = 2;
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "=== Solver Call with rti_phase " << this->rti_phase_);
-        ocp_nlp_solver_opts_set(this->nlp_config_, this->nlp_opts_, "rti_phase", &this->rti_phase_);
-
-        ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "idxbx", idxbx0);
-        ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "lbx", lbx0);
-        ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "ubx", ubx0);
-        /* SOLVE */
-        this->solver_status_ = veh_dynamics_ode_acados_solve(this->acados_ocp_capsule_);
-        // get time
-        ocp_nlp_get(this->nlp_config_, this->nlp_solver_, "time_tot", &elapsed_time);
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Elapsed time: " << elapsed_time*1000 << " ms");
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "veh_dynamics_ode_acados_solve() status: " << this->solver_status_);
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "\n");
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Retrieving Solver Statistics..");
+        this->mpc_controller_obj_.get_solver_statistics(sqp_status,
+                                                        qp_status,
+                                                        sqp_iter,
+                                                        kkt_norm_inf, 
+                                                        elapsed_time);
         total_elapsed_time += elapsed_time;
 
-        /* Get solver outputs and publish message asap */
-        double u_eval[] = {0.0, 0.0};
-        double x_eval[] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-
-        // get stage to evaluate based on elapsed solver time
-        //int stage_to_eval = (int) (total_elapsed_time / dt_mpc_);
-        int stage_to_eval = 0;
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Eval stage: " << stage_to_eval);
-        // evaluate u and x at that stage
-        ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, stage_to_eval, "u", &u_eval);
-        ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, stage_to_eval, "x", &x_eval);
-
-        RCLCPP_DEBUG_STREAM(this->get_logger(), " u_eval: (" << u_eval[0] << ", " << u_eval[1] << ")");
-
-        auto veh_input_msg = sim_backend::msg::SysInput();
-        // If solver successful
-        if(this->solver_status_ == 0 || this->solver_status_ == 5){
-            // Euler forward scheme
-            veh_input_msg.fx_r = u_eval[0] / 2.0;
-            veh_input_msg.fx_f = u_eval[0] / 2.0;
-            veh_input_msg.del_s = u_eval[1];
-        // If solver failed
-        }else{
-            veh_input_msg.fx_r = 0.0;
-            veh_input_msg.fx_f = 0.0;
-            veh_input_msg.del_s = 0.0;
-        }
-        control_cmd_publisher_->publish(veh_input_msg);
-
-        /* ======================================================================== */
-
-        auto state_traj_msg = mpc_controller::msg::MpcStateTrajectory();
-        auto input_traj_msg = mpc_controller::msg::MpcInputTrajectory();
-        auto kappa_traj_msg = mpc_controller::msg::MpcKappaTrajectory();
-
-        /* Get solution */ 
-        for (this->i_ = 0; this->i_ < this->nlp_dims_->N; this->i_++){
-            ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->i_, "x", &this->x_traj_[this->i_]);
-            ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->i_, "u", &this->u_traj_[this->i_]);
-            ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->i_, "z", &this->z_traj_[this->i_]);
-
-            state_traj_msg.s.push_back(x_traj_[this->i_][0]);
-            state_traj_msg.n.push_back(x_traj_[this->i_][1]);
-            state_traj_msg.mu.push_back(x_traj_[this->i_][2]);
-            state_traj_msg.vx_c.push_back(x_traj_[this->i_][3]);
-            state_traj_msg.vy_c.push_back(x_traj_[this->i_][4]);
-            state_traj_msg.dpsi.push_back(x_traj_[this->i_][5]);
-
-            input_traj_msg.fx_m.push_back(u_traj_[this->i_][0]);
-            input_traj_msg.del_s.push_back(u_traj_[this->i_][1]);
-
-            kappa_traj_msg.kappa_traj_mpc.push_back(z_traj_[this->i_]);
-            kappa_traj_msg.s_traj_mpc.push_back(x_traj_[this->i_][0]);
-        }
-        // get terminal state
-        ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->nlp_dims_->N, "x", &this->x_traj_[this->nlp_dims_->N]);
-
-        state_traj_msg.s.push_back(x_traj_[this->nlp_dims_->N][0]);
-        state_traj_msg.n.push_back(x_traj_[this->nlp_dims_->N][1]);
-        state_traj_msg.mu.push_back(x_traj_[this->nlp_dims_->N][2]);
-        state_traj_msg.vx_c.push_back(x_traj_[this->nlp_dims_->N][3]);
-        state_traj_msg.vy_c.push_back(x_traj_[this->nlp_dims_->N][4]);
-        state_traj_msg.dpsi.push_back(x_traj_[this->nlp_dims_->N][5]);
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Set state trajectory values.");
-
-        kappa_traj_msg.s_ref_spline = this->s_ref_spline_;
-        kappa_traj_msg.s_ref_mpc = this->s_ref_mpc_;
-        kappa_traj_msg.kappa_ref_spline = this->curv_ref_spline_;
-        for(int k = last_idx + 1; k < NP; k++){
-            // Get parameter values to see what values are given to the solver to interpolate
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "p" << k << "= " << p[k]);
-            kappa_traj_msg.kappa_ref_mpc.push_back(p[k]);
-        }
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Set Ref.");
-
-        mpc_xtraj_publisher_->publish(state_traj_msg);
-        mpc_utraj_publisher_->publish(input_traj_msg);
-        mpc_kappa_traj_publisher_->publish(kappa_traj_msg);
-
-        /* ======================================================================== */
-
-        // lbx0[0] = x_traj_[stage_to_eval][0];
-        // ubx0[0] = x_traj_[stage_to_eval][0];
-        // lbx0[1] = x_traj_[stage_to_eval][1];
-        // ubx0[1] = x_traj_[stage_to_eval][1];
-        // lbx0[2] = x_traj_[stage_to_eval][2];
-        // ubx0[2] = x_traj_[stage_to_eval][2];
-        // lbx0[3] = x_traj_[stage_to_eval][3];
-        // ubx0[3] = x_traj_[stage_to_eval][3];
-        // lbx0[4] = x_traj_[stage_to_eval][4];
-        // ubx0[4] = x_traj_[stage_to_eval][4];
-        // lbx0[5] = x_traj_[stage_to_eval][5];
-        // ubx0[5] = x_traj_[stage_to_eval][5];
-
-        // // initialization for state values
-        // x_init[0] = lbx0[0];
-        // x_init[1] = lbx0[1];
-        // x_init[2] = lbx0[2];
-        // x_init[3] = lbx0[3];
-        // x_init[4] = lbx0[4];
-        // x_init[5] = lbx0[5];
-
-        // u0[0] = u_traj_[stage_to_eval][0];
-        // u0[1] = u_traj_[stage_to_eval][1];
-
-        // for (this->i_ = 0; this->i_ < this->N_; this->i_++)
-        // {
-        //     ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->i_, "x", x_init);
-        //     ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->i_, "u", u0);
-        // }
-        // ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->N_, "x", x_init);
-
-        // ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "idxbx", idxbx0);
-        // ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "lbx", lbx0);
-        // ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "ubx", ubx0);
-
-        // this->rti_phase_ = 1;
-        // RCLCPP_DEBUG_STREAM(this->get_logger(), "=== Solver Call with rti_phase " << this->rti_phase_);
-        // ocp_nlp_solver_opts_set(this->nlp_config_, this->nlp_opts_, "rti_phase", &this->rti_phase_);
-        // this->solver_status_ = veh_dynamics_ode_acados_solve(this->acados_ocp_capsule_);
-        // ocp_nlp_get(this->nlp_config_, this->nlp_solver_, "time_tot", &elapsed_time);
-        // RCLCPP_DEBUG_STREAM(this->get_logger(), "Elapsed time: " << elapsed_time*1000 << " ms");
-        // RCLCPP_DEBUG_STREAM(this->get_logger(), "veh_dynamics_ode_acados_solve() status: " << this->solver_status_);
-        // RCLCPP_DEBUG_STREAM(this->get_logger(), "\n");
-        // total_elapsed_time += elapsed_time;
-
-        /* ======================================================================== */
-
-        // get KKT inf. norm
-        ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, 0, "kkt_norm_inf", &kkt_norm_inf);
-        // get SQP iterations
-        ocp_nlp_get(nlp_config_, this->nlp_solver_, "sqp_iter", &sqp_iter);
-        int qp_status;
-        ocp_nlp_get(this->nlp_config_, this->nlp_solver_, "qp_status", &qp_status);
-        // Print Capsule Stats
-        veh_dynamics_ode_acados_print_stats(acados_ocp_capsule_);
-
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "===\nSolver info: sqp_iter=" << sqp_iter << ", kkt_inf_norm=" << kkt_norm_inf);
-
         auto solver_state_msg = mpc_controller::msg::MpcSolverState();
-        solver_state_msg.solver_status = this->solver_status_;
+        solver_state_msg.solver_status = sqp_status;
         solver_state_msg.kkt_norm_inf = kkt_norm_inf;
         solver_state_msg.total_solve_time = total_elapsed_time;
         solver_state_msg.sqp_iter = sqp_iter;
         solver_state_msg.qp_solver_status = qp_status;
         mpc_solve_state_publisher_->publish(solver_state_msg);
 
-        veh_dynamics_ode_acados_reset(this->acados_ocp_capsule_, 1);
 
-        /* ======================================================================== */
+        // =================== Get Input for Plant from MPC Solver ========================
+        /* Get solver outputs and publish message asap */
+        double u_eval[2];
 
-        // Publish spline fit for visualization
-        pcl::PointCloud<pcl::PointXYZRGB> cloud_;
-        uint8_t r_val_point = 0;
-        uint8_t g_val_point = 250;
-        uint8_t b_val_point = 0;
-        pcl::PointXYZRGB pt;
-        for(this->j_ = 0; this->j_ < (int)this->xy_ref_spline_.size(); this->j_++){
-            pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
-            pt.x = this->xy_ref_spline_[this->j_][0];
-            pt.y = this->xy_ref_spline_[this->j_][1];
-            pt.z = 0.0;
-            cloud_.points.push_back(pt);
+        this->mpc_controller_obj_.get_input(u_eval);
+
+        auto veh_input_msg = sim_backend::msg::SysInput();
+        veh_input_msg.fx_r = u_eval[0] / 2.0;
+        veh_input_msg.fx_f = u_eval[0] / 2.0;
+        veh_input_msg.del_s = u_eval[1];
+        
+        control_cmd_publisher_->publish(veh_input_msg);
+
+        RCLCPP_INFO_STREAM(this->get_logger(), "Published Input message.");
+
+
+        // =================== Evaluate and Publish MPC Predictions ========================
+        
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Evaluating MPC Predictions.");
+        
+        auto state_traj_msg = mpc_controller::msg::MpcStateTrajectory();
+        auto input_traj_msg = mpc_controller::msg::MpcInputTrajectory();
+        auto kappa_traj_msg = mpc_controller::msg::MpcKappaTrajectory();
+
+        this->mpc_controller_obj_.get_predictions(state_traj_msg.s,
+                                                  state_traj_msg.n,
+                                                  state_traj_msg.mu,
+                                                  state_traj_msg.vx_c,
+                                                  state_traj_msg.vy_c,
+                                                  state_traj_msg.dpsi,
+                                                  input_traj_msg.fx_m,
+                                                  input_traj_msg.del_s,
+                                                  kappa_traj_msg.s_traj_mpc,
+                                                  kappa_traj_msg.kappa_traj_mpc,
+                                                  kappa_traj_msg.s_ref_spline,
+                                                  kappa_traj_msg.kappa_ref_spline,
+                                                  kappa_traj_msg.s_ref_mpc,
+                                                  kappa_traj_msg.kappa_ref_mpc
+                                                  );
+
+        mpc_xtraj_publisher_->publish(state_traj_msg);
+        mpc_utraj_publisher_->publish(input_traj_msg);
+        mpc_kappa_traj_publisher_->publish(kappa_traj_msg);
+
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Published MPC Predictions.");
+
+        /* ========================== Publish Visualization Messages ======================== */
+
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Clearing MPC Visual Predictions.");
+
+        this->xy_spline_points_.clear();
+        this->xy_predict_points_.clear();
+
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Retrieving new MPC Visual Predictions.");
+
+        this->mpc_controller_obj_.get_visual_predictions(this->xy_spline_points_,
+                                                         this->xy_predict_points_);
+
+        // ------ SPLINE FIT
+        auto bspline_fit_msg = visualization_msgs::msg::MarkerArray();
+        auto marker_i = visualization_msgs::msg::Marker();
+
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Filling Spline Fit Marker Array.");
+        int i = 0;
+        // iterate through all spline points
+        for (i = 0; i < (int)this->xy_spline_points_.size(); i++){
+            marker_i.header.frame_id = "world";
+            marker_i.header.stamp = now();
+            // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
+            marker_i.type = 2;
+            marker_i.id = i;
+
+            // Set the scale of the marker
+            marker_i.scale.x = 0.2;
+            marker_i.scale.y = 0.2;
+            marker_i.scale.z = 0.2;
+
+            // Set the color
+            marker_i.color.r = 0.0;
+            marker_i.color.g = 1.0;
+            marker_i.color.b = 0.0;
+            marker_i.color.a = 1.0;
+
+            // Set the pose of the marker
+            marker_i.pose.position.x = this->xy_spline_points_[i][0];
+            marker_i.pose.position.y = this->xy_spline_points_[i][1];
+            marker_i.pose.position.z = 0;
+            marker_i.pose.orientation.x = 0;
+            marker_i.pose.orientation.y = 0;
+            marker_i.pose.orientation.z = 0;
+            marker_i.pose.orientation.w = 1;
+
+            // append to marker array
+            bspline_fit_msg.markers.push_back(marker_i);
         }
-        auto pc2_msg = sensor_msgs::msg::PointCloud2();
-        pcl::toROSMsg(cloud_, pc2_msg);
-        pc2_msg.header.frame_id = "world";
-        pc2_msg.header.stamp = now();
-        spline_fit_publisher_->publish(pc2_msg);
-        cloud_.points.clear();
+        
+        spline_fit_publisher_->publish(bspline_fit_msg);
 
-        // Publish x-y trajectory prediction for visualization
-        r_val_point = 0;
-        g_val_point = 200;
-        b_val_point = 200;
-        // Initial position in vehicle frame
-        std::vector<double> last_position;
-        last_position.push_back(0.0);
-        last_position.push_back(0.0);
-        pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
-        pt.x = last_position[0];
-        pt.y = last_position[1];
-        pt.z = 0.0;
-        cloud_.points.push_back(pt);
-        for (this->i_ = 0; this->i_ < this->nlp_dims_->N; this->i_++){
-            last_position[0] = pt.x;
-            last_position[1] = pt.y;
-            pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
-            pt.x = last_position[0] + dt_mpc_ * state_traj_msg.vx_c[this->i_];
-            pt.y = last_position[1] + dt_mpc_ * state_traj_msg.vy_c[this->i_];
-            pt.z = 0.0;
-            cloud_.points.push_back(pt);
+        // ----- PATH PREDICTION MPC
+        auto path_predict_msg = visualization_msgs::msg::MarkerArray();
+
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Filling XY-predictions Marker Array.");
+
+        // iterate through all spline points
+        for (i = 0; i < (int)this->xy_predict_points_.size(); i++){
+            marker_i.header.frame_id = "vehicle_frame";
+            marker_i.header.stamp = now();
+            // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
+            marker_i.type = 1;
+            marker_i.id = 0;
+
+            // Set the scale of the marker
+            marker_i.scale.x = 0.2;
+            marker_i.scale.y = 0.2;
+            marker_i.scale.z = 0.2;
+
+            // Set the color
+            marker_i.color.r = 0.8;
+            marker_i.color.g = 0.0;
+            marker_i.color.b = 0.8;
+            marker_i.color.a = 1.0;
+
+            // Set the pose of the marker
+            marker_i.pose.position.x = this->xy_predict_points_[i][0];
+            marker_i.pose.position.y = this->xy_predict_points_[i][0];
+            marker_i.pose.position.z = 0;
+            marker_i.pose.orientation.x = 0;
+            marker_i.pose.orientation.y = 0;
+            marker_i.pose.orientation.z = 0;
+            marker_i.pose.orientation.w = 1;
+
+            // append to marker array
+            path_predict_msg.markers.push_back(marker_i);
         }
-        auto xy_predict_traj_msg = sensor_msgs::msg::PointCloud2();
-        pcl::toROSMsg(cloud_, xy_predict_traj_msg);
-        xy_predict_traj_msg.header.frame_id = "vehicle_frame";
-        xy_predict_traj_msg.header.stamp = now();
-        xy_predict_traj_publisher_->publish(xy_predict_traj_msg);
+        xy_predict_traj_publisher_->publish(path_predict_msg);
+
+
+        // ===== FINISH Control Callback =========
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Control Callback ended.");
     }
 
     void state_update(const sim_backend::msg::VehicleState & state_msg)
     {
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "State Update.");
-        double x_c = state_msg.x_c;
-        double y_c = state_msg.y_c;
-        double psi = state_msg.psi;
-
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "car heading update");
-        double dx_car_heading = cos(psi);
-        double dy_car_heading = sin(psi);
-
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "d(x,y) path update");
-        double dx_path = dx_car_heading;
-        double dy_path = dy_car_heading;
-        double a_1 = 0.0;
-        if(this->dxy_ref_spline_.size() > 0){
-            dx_path = this->dxy_ref_spline_[0][0];
-            dy_path = this->dxy_ref_spline_[0][1];
-        }
-        // if(this->dxy_ref_spline_.size() > 1){
-        //     // projection onto path normal vector to get n
-        //     // https://en.wikipedia.org/wiki/Vector_projection
-        //     // vector from path start point to CoG of car, vector a
-        //     double x_delta_vector = x_c - this->xy_ref_spline_[0][0];
-        //     double y_delta_vector = y_c - this->xy_ref_spline_[0][1];
-
-        //     // unit normal vector on path, e_n, vector b_hat
-        //     double b_hat_x = - dy_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
-        //     double b_hat_y = dx_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
-
-        //     // projection: a_1 = b_hat dot a
-        //     a_1 = x_delta_vector * b_hat_x + y_delta_vector * b_hat_y;
-        // }
-
-        this->x_[0] = 0.000001; // s
-        this->x_[1] = a_1; // n
- 
-        // https://wumbo.net/formulas/angle-between-two-vectors-2d/
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "mu update");
-        this->x_[2] = atan2(dy_car_heading * dx_path - dx_car_heading * dy_path,
-                            dx_car_heading * dx_path + dy_car_heading * dy_path); // mu
-
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "velocities update");
-
-        this->x_[3] = state_msg.dx_c * cos(psi) + state_msg.dy_c * sin(psi); // vx
-        this->x_[4] = state_msg.dy_c * cos(psi) - state_msg.dy_c * sin(psi); // vy
-        this->x_[5] = state_msg.dpsi; // r or dpsi
+        this->mpc_controller_obj_.set_state(state_msg.psi,
+                                            state_msg.dx_c_v,
+                                            state_msg.dy_c_v,
+                                            state_msg.dpsi);
     }
+
+    // Initialize Controller Object
+    MpcController mpc_controller_obj_ = MpcController();
 
     // Subscriber to state message published at faster frequency
     rclcpp::Subscription<sim_backend::msg::VehicleState>::SharedPtr state_subscriber_;
@@ -751,100 +388,50 @@ class MPCController : public rclcpp::Node
     rclcpp::Publisher<mpc_controller::msg::MpcKappaTrajectory>::SharedPtr mpc_kappa_traj_publisher_;
     rclcpp::Publisher<mpc_controller::msg::MpcSolverState>::SharedPtr mpc_solve_state_publisher_;
 
-    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr spline_fit_publisher_;
-    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr xy_predict_traj_publisher_;
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr spline_fit_publisher_;
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr xy_predict_traj_publisher_;
+
+    // Reference Path to give to MPC
+    std::vector<std::vector<double>> reference_path_;
+    const double max_dist_to_prev_path_point_ = 5.0;
 
     // Step Time for controller publisher
-    std::chrono::milliseconds dt_{std::chrono::milliseconds(200)};
-    double dt_seconds_;
+    std::chrono::milliseconds dt_{std::chrono::milliseconds(50)};
+    const double dt_seconds_ = dt_.count() / 1e3;
 
-    // Current State for MPC
-    // [s:0, n:1, mu:2, vx:3, vy:4, dpsi:5]
-    double x_[6] = {0.0};
+    // MPC horizon parameters
+    int n_s_mpc_ = this->get_parameter("horizon.n_s").as_int();
+    double s_max_mpc_ = this->get_parameter("horizon.s_max").as_double();
+    double T_final_mpc_ = this->get_parameter("horizon.T_final").as_double();
+    int N_horizon_mpc_ = this->get_parameter("horizon.N_horizon").as_int();
 
-    // Reference Path ahead of the vehicle
-    std::vector<Eigen::Vector2d> ref_points_;
-
-    // some iterables
-    int i_ = 0, j_ = 0, k_ = 0;
-
-    // Solver interface path
-    const int n_s_mpc_ = this->get_parameter("horizon.n_s").as_int();
-    const double s_max_mpc_ = this->get_parameter("horizon.s_max").as_double();
-    const double T_final_mpc_ = this->get_parameter("horizon.T_final").as_double();
-    const int N_horizon_mpc_ = this->get_parameter("horizon.N_horizon").as_int();
-    const double ds_ = s_max_mpc_ / (n_s_mpc_ - 1);
-    const double dt_mpc_ = (this->T_final_mpc_ / this->N_horizon_mpc_);
-
-    bool solver_initialized_;
-
-    // s vector
-    std::vector<double> s_ref_mpc_;
-    // curvature vector
-    std::vector<double> curv_ref_mpc_;
-
-    Eigen::Matrix4d bspline_coeff_;
-    Eigen::Vector4d t_vec_;
-    Eigen::Vector4d dt_vec_;
-    Eigen::Vector4d ddt_vec_;
-    double t_frac_;
-
-    Eigen::Matrix<double, 2, 4> ctrl_points_;
-
-    double x_traj_[VEH_DYNAMICS_ODE_N + 1][NX];
-    double u_traj_[VEH_DYNAMICS_ODE_N][NU];
-    double z_traj_[VEH_DYNAMICS_ODE_N];
-
-    // Spline vectors
-    // knot step (uniform spline)
-    double dt_spline_ = 0.1;
-    // knot vector for b-spline fit to ref path
-    std::vector<double> t_ref_spline_;
-    // s vector of spline
-    std::vector<double> s_ref_spline_;
-    // curvature vector on spline
-    std::vector<double> curv_ref_spline_;
-    // spline xy-points, derivatives
-    std::vector<Eigen::Vector2d> xy_ref_spline_;
-    std::vector<Eigen::Vector2d> dxy_ref_spline_;
-    std::vector<Eigen::Vector2d> ddxy_ref_spline_;
-    int n_s_spline_;
+    // Solver parameters
+    int sqp_max_iter_ = this->get_parameter("solver_options.nlp_solver_max_iter").as_int();
+    int rti_phase_ = 0;
+    int ws_first_qp = this->get_parameter("solver_options.qp_solver_warm_start").as_int();
+    bool warm_start_first_qp_ = (bool) ws_first_qp;
 
     // Controller Model parameters
-    double l_f_;
-    double l_r_;
-    double m_;
-    double Iz_;
-    double g_;
-    double D_tire_;
-    double C_tire_;
-    double B_tire_;
-    double C_d_;
-    double C_r_;
+    double l_f_ = this->get_parameter("model.l_f").as_double();
+    double l_r_ = this->get_parameter("model.l_r").as_double();
+    double m_ = this->get_parameter("model.m").as_double();
+    double Iz_ = this->get_parameter("model.Iz").as_double();
+    double g_ = this->get_parameter("model.g").as_double();
+    double D_tire_ = this->get_parameter("model.D_tire").as_double();
+    double C_tire_ = this->get_parameter("model.C_tire").as_double();
+    double B_tire_ = this->get_parameter("model.B_tire").as_double();
+    double C_d_ = this->get_parameter("model.C_d").as_double();
+    double C_r_ = this->get_parameter("model.C_r").as_double();
 
-    // Solver variables
-    ocp_nlp_config *nlp_config_;
-    ocp_nlp_dims *nlp_dims_;
-    ocp_nlp_in *nlp_in_;
-    ocp_nlp_out *nlp_out_;
-    ocp_nlp_solver *nlp_solver_;
-    void *nlp_opts_;
-
-    veh_dynamics_ode_solver_capsule *acados_ocp_capsule_;
-
-    int rti_phase_;
-    bool warm_start_first_qp_;
-    int nlp_solver_max_iter_;
-
-    int N_;
-    double* new_time_steps_;
-    int solver_status_;
+    // For visualization
+    std::vector<std::vector<double>> xy_spline_points_;
+    std::vector<std::vector<double>> xy_predict_points_;
 };
 
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<MPCController>());
+  rclcpp::spin(std::make_shared<MPCControllerNode>());
   rclcpp::shutdown();
   return 0;
 }

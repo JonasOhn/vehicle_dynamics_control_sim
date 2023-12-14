@@ -1,3 +1,3 @@
 from setup_ocp import main
 
-main(use_RTI=True, simulate_ocp=False)
+main(use_RTI=False, simulate_ocp=False)
