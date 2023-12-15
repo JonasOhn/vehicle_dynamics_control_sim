@@ -23,9 +23,9 @@
       q_sd: 1.0
       slack_penalties:
         linear:
-          S_n_lin: 5.0
+          S_n_lin: 10.0
           S_n_lin_e: 10.0
-          S_mu_lin: 5.0
+          S_mu_lin: 10.0
           S_mu_lin_e: 10.0
           S_vx_lin: 10.0
           S_vx_lin_e: 10.0
@@ -58,7 +58,7 @@
         ub_dpsi: 3.0
       hard:
         lb_s: -0.1
-        ub_s: 100.0
+        ub_s: 40.0
         lb_Fxm: -1500.0
         ub_Fxm: 1500.0
         lb_dels: -0.4
@@ -68,7 +68,7 @@
       hessian_approx: 'EXACT' #'GAUSS_NEWTON' #'EXACT' #
       integrator_type: 'IRK'
       sim_method_newton_iter: 20
-      nlp_solver_max_iter: 5
+      nlp_solver_max_iter: 1
       qp_solver_iter_max: 50
       qp_solver_warm_start: 1
       regularize_method: 'MIRROR'
