@@ -17,7 +17,17 @@ def generate_launch_description():
                              'launch/foxglove_bridge_launch.xml')
             )
         )
-    
+
+    sim_time_node = Node(
+            package='sim_backend',
+            executable='sim_time_node',
+            name='sim_time_node',
+            parameters=[os.path.join(
+                get_package_share_directory('sim_backend'),
+                'config', 'time_params.yaml')],
+            output='screen',
+        )
+
     sim_backend_node = Node(
             package='sim_backend',
             executable='dynamics_simulator',
@@ -26,18 +36,21 @@ def generate_launch_description():
                 get_package_share_directory('sim_backend'),
                 'config', 'vehicle_params.yaml')],
             output='log',
+            arguments=['--ros-args', '--log-level', 'info'],
         )
     
     tf_pub_node = Node(
             package='sim_backend',
             executable='vehicle_frame_publisher',
             name='vehicle_frame_publisher',
-            parameters=[
-                {'tf_name': 'vehicle_frame'}
-            ]
+            parameters=[os.path.join(
+                get_package_share_directory('sim_backend'),
+                'config', 'transform_params.yaml')],
+            output='screen',
         )
     
     ld.add_action(visualization)
+    ld.add_action(sim_time_node)
     ld.add_action(sim_backend_node)
     ld.add_action(tf_pub_node)
     

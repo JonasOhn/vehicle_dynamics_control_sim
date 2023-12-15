@@ -69,7 +69,7 @@ class PPController : public rclcpp::Node
 
         // Init Control Command Publisher and corresponding Timer with respecitve callback
         control_cmd_publisher_ = this->create_publisher<sim_backend::msg::SysInput>("vehicle_input", 10);
-        control_cmd_timer_ = this->create_wall_timer(this->dt_, std::bind(&PPController::control_callback, this));
+        control_cmd_timer_ = rclcpp::create_timer(this, this->get_clock(), this->dt_, std::bind(&PPController::control_callback, this));
 
         RCLCPP_INFO_STREAM(this->get_logger(), "Node " << this->get_name() << " initialized.");
     }

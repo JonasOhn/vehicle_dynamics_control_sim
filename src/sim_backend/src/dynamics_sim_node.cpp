@@ -8,9 +8,7 @@
 #include <tf2/LinearMath/Quaternion.h>
 
 #include "rclcpp/rclcpp.hpp"
-#include "sensor_msgs/msg/point_cloud2.hpp"
 #include "std_msgs/msg/empty.hpp"
-#include "sensor_msgs/point_cloud2_iterator.hpp"
 #include "visualization_msgs/msg/marker.hpp"
 #include "sim_backend/msg/vehicle_state.hpp"
 #include "sim_backend/msg/sys_input.hpp"
@@ -18,7 +16,7 @@
 #include "sim_backend/msg/point2_d.hpp"
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include "tf2/LinearMath/Quaternion.h"
-#include <pcl_conversions/pcl_conversions.h>
+#include "visualization_msgs/msg/marker_array.hpp"
 
 #include "sim_backend/dynamic_system.hpp"
 
@@ -83,16 +81,15 @@ class DynamicsSimulator : public rclcpp::Node
 
             state_publisher_ = this->create_publisher<sim_backend::msg::VehicleState>("vehicle_state", 10);
             ref_path_publisher_ = this->create_publisher<sim_backend::msg::RefPath>("reference_path", 10);
-            track_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("track_pcl2d", 10);
-            trackbounds_left_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("trackbounds_left_pcl2d", 10);
-            trackbounds_right_publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("trackbounds_right_pcl2d", 10);
+            track_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("track_pcl2d", 10);
+            trackbounds_left_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("trackbounds_left_pcl2d", 10);
+            trackbounds_right_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("trackbounds_right_pcl2d", 10);
             velocity_vector_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("car_cog_velocity_vector", 10);
-            ref_path_publisher_pcl_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("reference_path_pcl", 10);
+            ref_path_publisher_pcl_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("reference_path_pcl", 10);
 
-            solve_timer_ = this->create_wall_timer(
-                this->dt_, std::bind(&DynamicsSimulator::solve_step, this));
-            track_timer_ = this->create_wall_timer(
-                this->dt_trackpub_, std::bind(&DynamicsSimulator::track_callback, this));
+
+            solve_timer_ = rclcpp::create_timer(this, this->get_clock(), this->dt_, std::bind(&DynamicsSimulator::solve_step, this));
+            trackpub_timer_ = rclcpp::create_timer(this, this->get_clock(), this->dt_trackpub_, std::bind(&DynamicsSimulator::track_callback, this));
 
             input_subscription_ = this->create_subscription<sim_backend::msg::SysInput>(
                 "vehicle_input", 10, std::bind(&DynamicsSimulator::update_input, this, std::placeholders::_1));
@@ -111,7 +108,7 @@ class DynamicsSimulator : public rclcpp::Node
             x_[0] = 0.0;
             x_[1] = 0.0;
             x_[2] = 0.0;
-            x_[3] = 0.0;
+            x_[3] = 1.0;
             x_[4] = 0.0;
             x_[5] = 0.0;
             x_[6] = 0.0;
@@ -241,7 +238,7 @@ class DynamicsSimulator : public rclcpp::Node
 
             auto velvec_msg = visualization_msgs::msg::Marker();
             velvec_msg.header.frame_id = "vehicle_frame";
-            velvec_msg.header.stamp = now();
+            velvec_msg.header.stamp = this->now();
             // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
             velvec_msg.type = 0;
             velvec_msg.id = 0;
@@ -275,58 +272,131 @@ class DynamicsSimulator : public rclcpp::Node
         void track_callback()
         {
             RCLCPP_DEBUG_STREAM(this->get_logger(), "Track callback started.");
+            
             // ======= Track publisher ==========
-            pcl::PointCloud<pcl::PointXYZRGB> cloud_;
-            uint8_t r_val_point = 0;
-            uint8_t g_val_point = 0;
-            uint8_t b_val_point = 0;
-            for (size_t i=0; i<ref_points_global_.size(); i++) {
-                pcl::PointXYZRGB pt;
-                pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
-                pt.x = ref_points_global_[i][0];
-                pt.y = ref_points_global_[i][1];
-                pt.z = 0.0;
-                cloud_.points.push_back(pt);
-            }
-            auto pc2_msg = sensor_msgs::msg::PointCloud2();
-            pcl::toROSMsg(cloud_, pc2_msg);
-            pc2_msg.header.frame_id = "world";
-            pc2_msg.header.stamp = now();
-            track_publisher_->publish(pc2_msg);
+            auto track_msg = visualization_msgs::msg::MarkerArray();
+            auto marker_i = visualization_msgs::msg::Marker();
+            double r_val_point = 0;
+            double g_val_point = 0;
+            double b_val_point = 0;
 
+            for (size_t i=0; i<ref_points_global_.size(); i++) 
+            {                
+                marker_i.header.frame_id = "world";
+                marker_i.header.stamp = this->now();
+                // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
+                marker_i.type = 2;
+                marker_i.id = (int)i;
+
+                // Set the scale of the marker
+                marker_i.scale.x = 0.1;
+                marker_i.scale.y = 0.1;
+                marker_i.scale.z = 0.1;
+
+                // Set the color
+                marker_i.color.r = r_val_point;
+                marker_i.color.g = g_val_point;
+                marker_i.color.b = b_val_point;
+                marker_i.color.a = 1.0;
+
+                // Set the pose of the marker
+                marker_i.pose.position.x = ref_points_global_[i][0];
+                marker_i.pose.position.y = ref_points_global_[i][1];
+                marker_i.pose.position.z = 0;
+                marker_i.pose.orientation.x = 0;
+                marker_i.pose.orientation.y = 0;
+                marker_i.pose.orientation.z = 0;
+                marker_i.pose.orientation.w = 1;
+
+                // append to marker array
+                track_msg.markers.push_back(marker_i);
+            }
+            track_publisher_->publish(track_msg);
+
+            
             // ======= Left/Blue Boundary publisher ==========
+            
+            auto left_bound_msg = visualization_msgs::msg::MarkerArray();
+
             r_val_point = 0;
             g_val_point = 0;
-            b_val_point = 255;
-            for (size_t i=0; i<trackbounds_left_.size(); i++) {
-                pcl::PointXYZRGB pt;
-                pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
-                pt.x = trackbounds_left_[i][0];
-                pt.y = trackbounds_left_[i][1];
-                pt.z = 0.0;
-                cloud_.points.push_back(pt);
+            b_val_point = 1.0;
+            
+            for (size_t i=0; i<trackbounds_left_.size(); i++)
+            {
+                marker_i.header.frame_id = "world";
+                marker_i.header.stamp = this->now();
+                // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
+                marker_i.type = 3;
+                marker_i.id = (int)i;
+
+                // Set the scale of the marker
+                marker_i.scale.x = 0.25;
+                marker_i.scale.y = 0.25;
+                marker_i.scale.z = 0.3;
+
+                // Set the color
+                marker_i.color.r = r_val_point;
+                marker_i.color.g = g_val_point;
+                marker_i.color.b = b_val_point;
+                marker_i.color.a = 1.0;
+
+                // Set the pose of the marker
+                marker_i.pose.position.x = trackbounds_left_[i][0];
+                marker_i.pose.position.y = trackbounds_left_[i][1];
+                marker_i.pose.position.z = 0;
+                marker_i.pose.orientation.x = 0;
+                marker_i.pose.orientation.y = 0;
+                marker_i.pose.orientation.z = 0;
+                marker_i.pose.orientation.w = 1;
+
+                // append to marker array
+                left_bound_msg.markers.push_back(marker_i);
             }
-            pcl::toROSMsg(cloud_, pc2_msg);
-            pc2_msg.header.frame_id = "world";
-            pc2_msg.header.stamp = now();
-            trackbounds_left_publisher_->publish(pc2_msg);
+            trackbounds_left_publisher_->publish(left_bound_msg);
+
 
             // ======= Right/Yellow Boundary publisher ==========
-            r_val_point = 255;
-            g_val_point = 255;
+
+            auto right_bound_msg = visualization_msgs::msg::MarkerArray();
+
+            r_val_point = 0.9;
+            g_val_point = 0.9;
             b_val_point = 0;
-            for (size_t i=0; i<trackbounds_right_.size(); i++) {
-                pcl::PointXYZRGB pt;
-                pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
-                pt.x = trackbounds_right_[i][0];
-                pt.y = trackbounds_right_[i][1];
-                pt.z = 0.0;
-                cloud_.points.push_back(pt);
+            
+            for (size_t i=0; i<trackbounds_right_.size(); i++)
+            {
+                marker_i.header.frame_id = "world";
+                marker_i.header.stamp = this->now();
+                // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
+                marker_i.type = 3;
+                marker_i.id = (int)i;
+
+                // Set the scale of the marker
+                marker_i.scale.x = 0.25;
+                marker_i.scale.y = 0.25;
+                marker_i.scale.z = 0.3;
+
+                // Set the color
+                marker_i.color.r = r_val_point;
+                marker_i.color.g = g_val_point;
+                marker_i.color.b = b_val_point;
+                marker_i.color.a = 1.0;
+
+                // Set the pose of the marker
+                marker_i.pose.position.x = trackbounds_right_[i][0];
+                marker_i.pose.position.y = trackbounds_right_[i][1];
+                marker_i.pose.position.z = 0;
+                marker_i.pose.orientation.x = 0;
+                marker_i.pose.orientation.y = 0;
+                marker_i.pose.orientation.z = 0;
+                marker_i.pose.orientation.w = 1;
+
+                // append to marker array
+                right_bound_msg.markers.push_back(marker_i);
             }
-            pcl::toROSMsg(cloud_, pc2_msg);
-            pc2_msg.header.frame_id = "world";
-            pc2_msg.header.stamp = now();
-            trackbounds_right_publisher_->publish(pc2_msg);
+            trackbounds_right_publisher_->publish(right_bound_msg);
+
             RCLCPP_DEBUG_STREAM(this->get_logger(), "Track callback ended.");
         }
 
@@ -352,23 +422,44 @@ class DynamicsSimulator : public rclcpp::Node
             auto ref_path_message = sim_backend::msg::RefPath();
             auto path_pos = sim_backend::msg::Point2D();
 
-            pcl::PointCloud<pcl::PointXYZRGB> cloud_;
-            uint8_t r_val_point = 255;
-            uint8_t g_val_point = 0;
-            uint8_t b_val_point = 0;
-            auto pc2_msg = sensor_msgs::msg::PointCloud2();
-            pcl::PointXYZRGB pt;
+            double r_val_point = 1.0;
+            double g_val_point = 0;
+            double b_val_point = 0;
 
             path_pos.point_2d[0] = x_c;
             path_pos.point_2d[1] = y_c;
 
             ref_path_message.ref_path.push_back(path_pos);
 
-            pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
-            pt.x = x_c;
-            pt.y = y_c;
-            pt.z = 0.0;
-            cloud_.points.push_back(pt);
+            auto ref_path_marker_msg = visualization_msgs::msg::MarkerArray();
+            auto marker_i = visualization_msgs::msg::Marker();
+
+            marker_i.header.frame_id = "world";
+            marker_i.header.stamp = this->now();
+            // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
+            marker_i.type = 2;
+            marker_i.id = (int) 0;
+            // Set the scale of the marker
+            marker_i.scale.x = 0.12;
+            marker_i.scale.y = 0.12;
+            marker_i.scale.z = 0.12;
+            // Set the color
+            marker_i.color.r = r_val_point;
+            marker_i.color.g = g_val_point;
+            marker_i.color.b = b_val_point;
+            marker_i.color.a = 1.0;
+
+            // Set the pose of the marker
+            marker_i.pose.position.x = x_c;
+            marker_i.pose.position.y = y_c;
+            marker_i.pose.position.z = 0;
+            marker_i.pose.orientation.x = 0;
+            marker_i.pose.orientation.y = 0;
+            marker_i.pose.orientation.z = 0;
+            marker_i.pose.orientation.w = 1;
+
+            // append to marker array
+            ref_path_marker_msg.markers.push_back(marker_i);
 
             size_t idx = 0;
             bool first_visited = false;
@@ -385,14 +476,35 @@ class DynamicsSimulator : public rclcpp::Node
                     (a_1_pos * path_pos.point_2d[0] + a_2_pos * path_pos.point_2d[1] >= b_pos) &&
                     (sqrt(pow(path_pos.point_2d[0] - x_c, 2) + pow(path_pos.point_2d[1] - y_c, 2)) <= this->r_perception_max_) &&
                     (sqrt(pow(path_pos.point_2d[0] - x_c, 2) + pow(path_pos.point_2d[1] - y_c, 2)) >= this->r_perception_min_)){
-                    
+
                     ref_path_message.ref_path.push_back(path_pos);
-                    
-                    pt = pcl::PointXYZRGB(r_val_point, g_val_point, b_val_point);
-                    pt.x = ref_points_global_[idx][0];
-                    pt.y = ref_points_global_[idx][1];
-                    pt.z = 0.0;
-                    cloud_.points.push_back(pt);
+
+                    marker_i.header.frame_id = "world";
+                    marker_i.header.stamp = this->now();
+                    // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
+                    marker_i.type = 2;
+                    marker_i.id = (int) idx + 1;
+                    // Set the scale of the marker
+                    marker_i.scale.x = 0.12;
+                    marker_i.scale.y = 0.12;
+                    marker_i.scale.z = 0.12;
+                    // Set the color
+                    marker_i.color.r = r_val_point;
+                    marker_i.color.g = g_val_point;
+                    marker_i.color.b = b_val_point;
+                    marker_i.color.a = 1.0;
+
+                    // Set the pose of the marker
+                    marker_i.pose.position.x = ref_points_global_[idx][0];
+                    marker_i.pose.position.y = ref_points_global_[idx][1];
+                    marker_i.pose.position.z = 0;
+                    marker_i.pose.orientation.x = 0;
+                    marker_i.pose.orientation.y = 0;
+                    marker_i.pose.orientation.z = 0;
+                    marker_i.pose.orientation.w = 1;
+
+                    // append to marker array
+                    ref_path_marker_msg.markers.push_back(marker_i);
                     
                     if (!first_visited){
                         first_visited = true;
@@ -402,27 +514,24 @@ class DynamicsSimulator : public rclcpp::Node
             }
             ref_path_publisher_->publish(ref_path_message);
 
-            pcl::toROSMsg(cloud_, pc2_msg);
-            pc2_msg.header.frame_id = "world";
-            pc2_msg.header.stamp = now();
-            ref_path_publisher_pcl_->publish(pc2_msg);
+            ref_path_publisher_pcl_->publish(ref_path_marker_msg);
 
         }
 
-        // Timer for solving the ODE
+        // Timers
         rclcpp::TimerBase::SharedPtr solve_timer_;
-        rclcpp::TimerBase::SharedPtr track_timer_;
+        rclcpp::TimerBase::SharedPtr trackpub_timer_;
 
         // Publisher for vehicle state
         rclcpp::Publisher<sim_backend::msg::VehicleState>::SharedPtr state_publisher_;
         rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr velocity_vector_publisher_;
         rclcpp::Publisher<sim_backend::msg::RefPath>::SharedPtr ref_path_publisher_;
-        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr ref_path_publisher_pcl_;
+        rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr ref_path_publisher_pcl_;
 
         // Publisher for track
-        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr track_publisher_;
-        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr trackbounds_left_publisher_;
-        rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr trackbounds_right_publisher_;
+        rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr track_publisher_;
+        rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr trackbounds_left_publisher_;
+        rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr trackbounds_right_publisher_;
 
         // Subscriber to update input signals
         rclcpp::Subscription<sim_backend::msg::SysInput>::SharedPtr input_subscription_;

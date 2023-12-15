@@ -264,6 +264,12 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     # State Constraints: indices of lb and ub in State vector
     ocp.constraints.idxbx = np.array((0, 1, 2, 3, 4, 5))
 
+    ocp.constraints.uh = np.array((0,))
+    ocp.constraints.lh = np.array((-10000000,))
+
+    ocp.constraints.uh_0 = np.array((0,))
+    ocp.constraints.lh_0 = np.array((-10000000,))
+
     """ ========= CONSTRAINTS: STAGE INPUT ======== """
     # ---
     # Input: [Fx_m, del_s]
@@ -296,6 +302,9 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
                                       constraints_params['soft']['ub_dpsi']))
     # Terminal State Constraints: indices of lb and ub in State vector
     ocp.constraints.idxbx_e = np.array((0, 1, 2, 3, 4, 5))
+
+    ocp.constraints.uh_e = np.array((0,))
+    ocp.constraints.lh_e = np.array((-10000000,))
     
     """ ========= COST =========== """
     # (model cost inside ocp.model) --> cost type external
@@ -396,6 +405,9 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     ocp.solver_options.alpha_reduction = solver_options_params['alpha_reduction']
     ocp.solver_options.hpipm_mode = solver_options_params['hpipm_mode']
     ocp.solver_options.cost_discretization = solver_options_params['cost_discretization']
+    ocp.solver_options.globalization = solver_options_params['globalization']
+    ocp.solver_options.levenberg_marquardt = solver_options_params['levenberg_marquardt']
+    ocp.solver_options.nlp_solver_step_length = solver_options_params['nlp_solver_step_length']
 
     if RTI:
         ocp.solver_options.nlp_solver_type = 'SQP_RTI'

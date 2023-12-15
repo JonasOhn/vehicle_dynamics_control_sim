@@ -23,7 +23,7 @@
 // controller class include
 #include "mpc_controller/mpc_controller_class.hpp"
 
-#define DT_MS 500
+#define DT_MS 50
 
 
 using namespace std::chrono_literals;
@@ -67,7 +67,7 @@ class MPCControllerNode : public rclcpp::Node
 
         // Init Control Command Publisher and corresponding Timer with respecitve callback
         this->control_cmd_publisher_ = this->create_publisher<sim_backend::msg::SysInput>("vehicle_input", 10);
-        this->control_cmd_timer_ = this->create_wall_timer(this->dt_, std::bind(&MPCControllerNode::control_callback, this));
+        this->control_cmd_timer_ = rclcpp::create_timer(this, this->get_clock(), this->dt_, std::bind(&MPCControllerNode::control_callback, this));
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting up MPC.");
         /* ========= CONTROLLER ============ */
@@ -209,6 +209,11 @@ class MPCControllerNode : public rclcpp::Node
                                                         sqp_iter,
                                                         kkt_norm_inf, 
                                                         elapsed_time);
+        RCLCPP_INFO_STREAM(this->get_logger(), "SQP Status: " << sqp_status << "\n" <<
+                                               "QP (in SQP) Status: " << qp_status << "\n" <<
+                                               "SQP Iterations: " << sqp_iter << "\n" << 
+                                               "KKT inf. norm: " << kkt_norm_inf << "\n" <<
+                                               "Solve Time: " << elapsed_time );
         total_elapsed_time += elapsed_time;
 
         auto solver_state_msg = mpc_controller::msg::MpcSolverState();
@@ -287,7 +292,7 @@ class MPCControllerNode : public rclcpp::Node
         // iterate through all spline points
         for (i = 0; i < (int)this->xy_spline_points_.size(); i++){
             marker_i.header.frame_id = "world";
-            marker_i.header.stamp = now();
+            marker_i.header.stamp = this->now();
             // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
             marker_i.type = 2;
             marker_i.id = i;
@@ -326,10 +331,10 @@ class MPCControllerNode : public rclcpp::Node
         // iterate through all spline points
         for (i = 0; i < (int)this->xy_predict_points_.size(); i++){
             marker_i.header.frame_id = "vehicle_frame";
-            marker_i.header.stamp = now();
+            marker_i.header.stamp = this->now();
             // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
             marker_i.type = 1;
-            marker_i.id = 0;
+            marker_i.id = i;
 
             // Set the scale of the marker
             marker_i.scale.x = 0.2;
@@ -344,7 +349,7 @@ class MPCControllerNode : public rclcpp::Node
 
             // Set the pose of the marker
             marker_i.pose.position.x = this->xy_predict_points_[i][0];
-            marker_i.pose.position.y = this->xy_predict_points_[i][0];
+            marker_i.pose.position.y = this->xy_predict_points_[i][1];
             marker_i.pose.position.z = 0;
             marker_i.pose.orientation.x = 0;
             marker_i.pose.orientation.y = 0;

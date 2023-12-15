@@ -76,7 +76,7 @@ def export_vehicle_ode_model(testing : bool = False,
 
     # =============== dynamics ========================
     # numerical approximation factor
-    eps = 1e-1
+    eps = 1e-3
 
     # Slip Angles
     alpha_f = - del_s + atan2((vy + dpsi * l_f), ca.fmax(vx, eps))
@@ -84,10 +84,10 @@ def export_vehicle_ode_model(testing : bool = False,
     # lateral forces
     Fz_f = m * g * l_r / (l_r + l_f)
     Fz_r = m * g * l_f / (l_r + l_f)
-    # Fy_f = Fz_f * D_tire * sin(C_tire * atan(B_tire * alpha_f))
-    # Fy_r = Fz_r * D_tire * sin(C_tire * atan(B_tire * alpha_r))
-    Fy_f = Fz_f * D_tire * C_tire * B_tire * alpha_f
-    Fy_r = Fz_r * D_tire * C_tire * B_tire * alpha_r
+    Fy_f = Fz_f * D_tire * sin(C_tire * atan(B_tire * alpha_f))
+    Fy_r = Fz_r * D_tire * sin(C_tire * atan(B_tire * alpha_r))
+    # Fy_f = Fz_f * D_tire * C_tire * B_tire * alpha_f
+    # Fy_r = Fz_r * D_tire * C_tire * B_tire * alpha_r
 
     # derivative of state w.r.t time
     s_dot_expl_dyn = (vx * cos(mu) - vy * sin(mu)) / ((1 - n * kappa_ref_algebraic))
@@ -118,6 +118,9 @@ def export_vehicle_ode_model(testing : bool = False,
     # Stage Cost
     stage_cost = cost_sd
 
+    """ Constraints """
+    h = vertcat(kappa_bspline * n - 0.99)
+
     # ============= ACADOS ===============
     # Acados Model Creation from CasADi symbolic expressions
     model = AcadosModel()
@@ -130,6 +133,9 @@ def export_vehicle_ode_model(testing : bool = False,
     model.p = p
     model.name = model_name
     model.cost_expr_ext_cost = stage_cost
+    model.con_h_expr = h
+    model.con_h_expr_e = h
+    model.con_h_expr_0 = h
 
     return model
 

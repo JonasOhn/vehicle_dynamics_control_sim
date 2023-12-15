@@ -14,10 +14,13 @@ class VehicleFramePublisher : public rclcpp::Node
 {
 public:
   VehicleFramePublisher()
-  : Node("vehicle_frame_publisher")
+  : Node("vehicle_frame_publisher",
+                rclcpp::NodeOptions()
+                    .allow_undeclared_parameters(true)
+                    .automatically_declare_parameters_from_overrides(true))
   {
-    // Declare and acquire `tf_name` parameter
-    frame_name_ = this->declare_parameter<std::string>("tf_name", "vehicle_frame");
+    // acquire `tf_name` parameter
+    frame_name_ = this->get_parameter("frame_name").as_string();
 
     // Initialize the transform broadcaster
     tf_broadcaster_ =

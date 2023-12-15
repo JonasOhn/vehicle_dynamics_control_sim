@@ -1,5 +1,6 @@
 /mpc_controller_node:
   ros__parameters:
+    use_sim_time: true
     model:
       l_f: 0.8 # m
       l_r: 0.7 # m
@@ -23,33 +24,33 @@
         linear:
           S_n_lin: 10.0
           S_n_lin_e: 10.0
-          S_mu_lin: 1.0
+          S_mu_lin: 0.1
           S_mu_lin_e: 1.0
-          S_vx_lin: 20.0
-          S_vx_lin_e: 20.0
-          S_vy_lin: 1.0
+          S_vx_lin: 5.0
+          S_vx_lin_e: 5.0
+          S_vy_lin: 0.1
           S_vy_lin_e: 1.0
-          S_dpsi_lin: 1.0
+          S_dpsi_lin: 0.1
           S_dpsi_lin_e: 1.0
         quadratic:
           S_n_quad: 10.0
           S_n_quad_e: 10.0
-          S_mu_quad: 1.0
-          S_mu_quad_e: 1.0
-          S_vx_quad: 3.0
-          S_vx_quad_e: 3.0
+          S_mu_quad: 0.5
+          S_mu_quad_e: 0.5
+          S_vx_quad: 10.0
+          S_vx_quad_e: 10.0
           S_vy_quad: 1.0
           S_vy_quad_e: 1.0
-          S_dpsi_quad: 1.0
-          S_dpsi_quad_e: 1.0
+          S_dpsi_quad: 0.1
+          S_dpsi_quad_e: 0.1
     constraints:
       soft:
-        lb_n: -1.0
-        ub_n: 1.0
+        lb_n: -1.5
+        ub_n: 1.5
         lb_mu: -1.5
         ub_mu: 1.5
         lb_vx: -0.1
-        ub_vx: 15.0
+        ub_vx: 10.0
         lb_vy: -2.0
         ub_vy: 2.0
         lb_dpsi: -3.0
@@ -57,8 +58,8 @@
       hard:
         lb_s: -0.1
         ub_s: 100.0
-        lb_Fxm: -2000.0
-        ub_Fxm: 2000.0
+        lb_Fxm: -1500.0
+        ub_Fxm: 1500.0
         lb_dels: -1.5
         ub_dels: 1.5
     solver_options:
@@ -66,14 +67,17 @@
       hessian_approx: 'EXACT' #'GAUSS_NEWTON' #'EXACT' #
       integrator_type: 'IRK'
       sim_method_newton_iter: 20
-      nlp_solver_max_iter: 100
+      nlp_solver_max_iter: 10
       qp_solver_iter_max: 50
       qp_solver_warm_start: 1
-      regularize_method: 'MIRROR'
+      regularize_method: 'PROJECT'
       reg_epsilon: 0.0000000001
       alpha_min: 0.05
       alpha_reduction: 0.7
       hpipm_mode: 'BALANCE' #'BALANCE', 'ROBUST', 'SPEED'
       cost_discretization: 'EULER'
+      globalization: 'FIXED_STEP' # MERIT_BACKTRACKING  FIXED_STEP
+      levenberg_marquardt: 0.0
+      nlp_solver_step_length: 1.0
       tol: 0.01
       qp_tol: 0.00001

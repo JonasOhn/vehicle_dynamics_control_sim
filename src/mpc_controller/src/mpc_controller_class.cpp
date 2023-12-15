@@ -148,7 +148,7 @@ int8_t MpcController::set_state(double psi, double vx_local, double vy_local, do
 
     // vx, vy: velocities in local frame
     this->x_[3] = vx_local; // vx
-    this->vx_const_qp_ = vx_local;
+    this->vx_const_qp_ = fmax(vx_local, 1.0);
 
     this->x_[4] = vy_local; // vy
     this->x_qp_[3] = vy_local; // vy
@@ -371,7 +371,7 @@ int8_t MpcController::get_input(double (&u)[2])
         || this->solver_out_.nlp_solver_status == 2){
         // evaluate u at stage
         ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, stage_to_eval, "u", &u);
-        this->Fxm_const_qp_ = u[0];
+        this->Fxm_const_qp_ = fmax(u[0], 100.0);
     // If solver failed
     }else{
         u[0] = 0.0;
@@ -474,16 +474,34 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
 int8_t MpcController::get_visual_predictions(std::vector<std::vector<double>> &xy_spline_points,
                                              std::vector<std::vector<double>> &xy_predict_points)
 {
+    int i = 0;
     std::cout << "Retrieving MPC visual predictions." << std::endl;
 
     std::vector<double> xy_spline_point{0.0, 0.0};
-    for(int i = 0; i < this->mpc_geometry_obj_.get_number_of_spline_evaluations(); i++){
+    for(i = 0; i < this->mpc_geometry_obj_.get_number_of_spline_evaluations(); i++)
+    {
         this->mpc_geometry_obj_.get_spline_eval_waypoint(xy_spline_point, i);
         xy_spline_points.push_back(xy_spline_point);
     }
 
     std::vector<double> xy_predicted_point{0.0, 0.0};
     xy_predict_points.push_back(xy_predicted_point);
+    double psi_predict = 0.0;
+    double dx = 0.0;
+    double dy = 0.0;
+    for(i = 0; i < this->horizon_params_.N_horizon_mpc; i++)
+    {
+        // psi_k+1 = psi_k + dpsi_k * dt
+        psi_predict = psi_predict + this->x_traj_[i][5] * this->horizon_params_.dt_mpc;
+
+        dx = this->x_traj_[i][3] * this->horizon_params_.dt_mpc;
+        dy = this->x_traj_[i][4] * this->horizon_params_.dt_mpc;
+
+        xy_predicted_point[0] = xy_predicted_point[0] + (dx * cos(psi_predict) - dy * sin(psi_predict));
+        xy_predicted_point[1] = xy_predicted_point[1] + (dy * cos(psi_predict) + dx * sin(psi_predict));
+
+        xy_predict_points.push_back(xy_predicted_point);
+    }
 
     return 0;
 }

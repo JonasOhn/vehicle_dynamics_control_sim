@@ -1,0 +1,4 @@
+/vehicle_frame_publisher:
+  ros__parameters:
+    frame_name: "vehicle_frame"
+    use_sim_time: true

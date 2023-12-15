@@ -1,5 +1,6 @@
 /dynamics_simulator:
   ros__parameters:
+    use_sim_time: true
     l_f: 0.8 # m
     l_r: 0.7 # m
     m: 220.0 # kg
@@ -15,12 +16,12 @@
     gamma: 1.2 # rad  
     r_perception_max: 25.0 # m
     r_perception_min: 2.0 # m
-    # track_filepath_midline: "src/sim_backend/tracks/FSG_middle_path.csv"
-    # track_filepath_leftbound: "src/sim_backend/tracks/FSG_blue_cones.csv"
-    # track_filepath_rightbound: "src/sim_backend/tracks/FSG_yellow_cones.csv"
+    track_filepath_midline: "src/sim_backend/tracks/FSG_middle_path.csv"
+    track_filepath_leftbound: "src/sim_backend/tracks/FSG_blue_cones.csv"
+    track_filepath_rightbound: "src/sim_backend/tracks/FSG_yellow_cones.csv"
     # track_filepath_midline: "src/sim_backend/tracks/circular_track_middle_path.csv"
     # track_filepath_leftbound: "src/sim_backend/tracks/circular_track_blue_cones.csv"
     # track_filepath_rightbound: "src/sim_backend/tracks/circular_track_yellow_cones.csv"
-    track_filepath_midline: "src/sim_backend/tracks/straight_track_middle_path.csv"
-    track_filepath_leftbound: "src/sim_backend/tracks/straight_track_blue_cones.csv"
-    track_filepath_rightbound: "src/sim_backend/tracks/straight_track_yellow_cones.csv"
+    # track_filepath_midline: "src/sim_backend/tracks/straight_track_middle_path.csv"
+    # track_filepath_leftbound: "src/sim_backend/tracks/straight_track_blue_cones.csv"
+    # track_filepath_rightbound: "src/sim_backend/tracks/straight_track_yellow_cones.csv"

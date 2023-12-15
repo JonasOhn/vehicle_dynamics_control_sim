@@ -11,6 +11,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(rosgraph_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
@@ -38,10 +39,21 @@ include_directories(include ${PCL_INCLUDE_DIRS})
 
 add_executable(dynamics_simulator 
   src/dynamics_sim_node.cpp
-  src/dynamic_system.cpp)
+  src/dynamic_system.cpp
+)
 
 add_executable(vehicle_frame_publisher
-  src/vehicle_frame_publisher.cpp)
+  src/vehicle_frame_publisher.cpp
+)
+
+add_executable(sim_time_node
+  src/sim_time_node.cpp
+)
+
+ament_target_dependencies(sim_time_node
+  rclcpp
+  rosgraph_msgs
+  builtin_interfaces)
 
 ament_target_dependencies(vehicle_frame_publisher
   rclcpp
@@ -75,6 +87,11 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+install(TARGETS
+  sim_time_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 install(DIRECTORY
   launch
   DESTINATION share/${PROJECT_NAME}/
@@ -90,6 +107,7 @@ rosidl_get_typesupport_target(cpp_typesupport_target
 
 target_link_libraries(dynamics_simulator "${cpp_typesupport_target}" "${Boost_SYSTEM_LIBRARY}")
 target_link_libraries(vehicle_frame_publisher "${cpp_typesupport_target}")
+target_link_libraries(sim_time_node "${cpp_typesupport_target}")
 
 install(
   DIRECTORY include/
