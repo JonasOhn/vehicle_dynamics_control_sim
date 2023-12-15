@@ -20,9 +20,6 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system)
-find_package(pcl_conversions REQUIRED)
-find_package(PCL COMPONENTS REQUIRED)
 find_package(rcl_interfaces REQUIRED)
 find_package(rcutils REQUIRED)
 
@@ -35,7 +32,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 
 ament_export_dependencies(rosidl_default_runtime)
 
-include_directories(include ${PCL_INCLUDE_DIRS})
+include_directories(include)
 
 add_executable(dynamics_simulator 
   src/dynamics_sim_node.cpp
@@ -67,7 +64,6 @@ ament_target_dependencies(dynamics_simulator
   geometry_msgs
   std_msgs
   builtin_interfaces
-  pcl_conversions
   rcl_interfaces
   sensor_msgs
   visualization_msgs
