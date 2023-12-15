@@ -13,7 +13,7 @@ horizon:
   T_final: 1.0
   N_horizon: 40
 cost:
-  q_s: 0.00001
+  q_s: 0.0000001
   q_n: 10.0
   q_mu: 1.0
   q_vy: 0.1

@@ -98,12 +98,12 @@ class MpcController {
         int qp_init_max_iter_ = 5;
         double vx_const_qp_ = 0.0;
         double Fxm_const_qp_ = 0.0;
-        double mean_curv_qp_ = 0.0;
+        double curv_qp_[VEH_DYNAMICS_ODE_N + 1] = {0.0};
 
         // NLP Prediction trajectories
         double x_traj_[VEH_DYNAMICS_ODE_N + 1][NX];
         double u_traj_[VEH_DYNAMICS_ODE_N][NU];
-        double z_traj_[VEH_DYNAMICS_ODE_N];
+        double z_traj_[VEH_DYNAMICS_ODE_N] = {0.0};
 
         // QP Prediction trajectories
         double x_traj_qp_[VEH_KINEMATICS_ODE_INIT_N + 1][NX_QP];

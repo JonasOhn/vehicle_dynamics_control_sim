@@ -28,7 +28,7 @@ class MpcGeometry {
         int t_int_ = 0;
 
         // knot step (uniform spline)
-        double dt_spline_ = 0.2;
+        double dt_spline_ = 0.5;
         // knot vector for b-spline fit to ref path
         std::vector<double> t_ref_spline_;
         // s vector of spline

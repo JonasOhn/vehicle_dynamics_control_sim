@@ -250,17 +250,11 @@ int8_t MpcController::init_mpc_parameters()
     p_qp[6] = this->model_params_.C_tire;
     p_qp[7] = this->model_params_.D_tire;
     p_qp[8] = this->vx_const_qp_;
-    p_qp[9] = 0.0;
 
-    // Init curvature ref as average ov curvature ahead
-    for(this->j_ = 0; this->j_ < this->horizon_params_.n_s_mpc; this->j_++)
-    {
-        p_qp[9] += (this->mpc_geometry_obj_.get_mpc_curvature(this->j_)) / this->horizon_params_.n_s_mpc;
-    }
-    this->mean_curv_qp_ = p_qp[9];
-
+    // Init curvature ref as previous solution for curvature
     for (this->i_ = 0; this->i_ <= this->horizon_params_.N_horizon_mpc; this->i_++)
     {
+        p_qp[9] = this->curv_qp_[this->i_];
         veh_kinematics_ode_init_acados_update_params(this->acados_qp_capsule_, this->i_, p_qp, NP_QP);
     }
 
@@ -302,7 +296,7 @@ int8_t MpcController::init_mpc_horizon()
 
         ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "x", this->x_stage_to_fill_);
         ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "u", this->u_stage_to_fill_);
-        ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "z", &this->mean_curv_qp_);
+        ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "z", &this->curv_qp_[this->i_]);
     }
     this->x_stage_to_fill_[0] = this->x_traj_qp_[VEH_KINEMATICS_ODE_INIT_N][0]; // s
     this->x_stage_to_fill_[1] = this->x_traj_qp_[VEH_KINEMATICS_ODE_INIT_N][1]; // n
@@ -373,7 +367,8 @@ int8_t MpcController::get_input(double (&u)[2])
 
     // If solver successful
     if(this->solver_out_.nlp_solver_status == 0
-        || this->solver_out_.nlp_solver_status == 5){
+        || this->solver_out_.nlp_solver_status == 5
+        || this->solver_out_.nlp_solver_status == 2){
         // evaluate u at stage
         ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, stage_to_eval, "u", &u);
         this->Fxm_const_qp_ = u[0];
@@ -425,6 +420,7 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
         ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i, "x", &this->x_traj_[i]);
         ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i, "u", &this->u_traj_[i]);
         ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i, "z", &this->z_traj_[i]);
+        ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i, "z", &this->curv_qp_[i]);
 
         s_predict.push_back(this->x_traj_[i][0]);
         n_predict.push_back(this->x_traj_[i][1]);
@@ -446,6 +442,12 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
                     this->nlp_dims_->N, 
                     "x", 
                     &this->x_traj_[this->nlp_dims_->N]);
+    ocp_nlp_out_get(this->nlp_config_,
+                    this->nlp_dims_,
+                    this->nlp_out_, 
+                    this->nlp_dims_->N,
+                    "z", 
+                    &this->curv_qp_[this->nlp_dims_->N]);
 
     s_predict.push_back(x_traj_[this->nlp_dims_->N][0]);
     n_predict.push_back(x_traj_[this->nlp_dims_->N][1]);

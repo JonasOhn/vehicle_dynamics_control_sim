@@ -23,6 +23,8 @@
 // controller class include
 #include "mpc_controller/mpc_controller_class.hpp"
 
+#define DT_MS 500
+
 
 using namespace std::chrono_literals;
 
@@ -396,7 +398,7 @@ class MPCControllerNode : public rclcpp::Node
     const double max_dist_to_prev_path_point_ = 5.0;
 
     // Step Time for controller publisher
-    std::chrono::milliseconds dt_{std::chrono::milliseconds(50)};
+    std::chrono::milliseconds dt_{std::chrono::milliseconds(DT_MS)};
     const double dt_seconds_ = dt_.count() / 1e3;
 
     // MPC horizon parameters

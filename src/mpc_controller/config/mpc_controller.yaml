@@ -21,19 +21,19 @@
       q_sd: 1.0
       slack_penalties:
         linear:
-          S_n_lin: 100.0
+          S_n_lin: 10.0
           S_n_lin_e: 10.0
-          S_mu_lin: 0.0
+          S_mu_lin: 1.0
           S_mu_lin_e: 1.0
           S_vx_lin: 20.0
           S_vx_lin_e: 20.0
-          S_vy_lin: 0.0
+          S_vy_lin: 1.0
           S_vy_lin_e: 1.0
-          S_dpsi_lin: 0.0
+          S_dpsi_lin: 1.0
           S_dpsi_lin_e: 1.0
         quadratic:
-          S_n_quad: 1.0
-          S_n_quad_e: 1.0
+          S_n_quad: 10.0
+          S_n_quad_e: 10.0
           S_mu_quad: 1.0
           S_mu_quad_e: 1.0
           S_vx_quad: 3.0
@@ -46,15 +46,17 @@
       soft:
         lb_n: -1.0
         ub_n: 1.0
-        lb_mu: -1.0
-        ub_mu: 1.0
+        lb_mu: -1.5
+        ub_mu: 1.5
         lb_vx: -0.1
-        ub_vx: 6.0
+        ub_vx: 15.0
         lb_vy: -2.0
         ub_vy: 2.0
         lb_dpsi: -3.0
         ub_dpsi: 3.0
       hard:
+        lb_s: -0.1
+        ub_s: 100.0
         lb_Fxm: -2000.0
         ub_Fxm: 2000.0
         lb_dels: -1.5
@@ -67,11 +69,11 @@
       nlp_solver_max_iter: 100
       qp_solver_iter_max: 50
       qp_solver_warm_start: 1
-      regularize_method: 'PROJECT'
-      reg_epsilon: 0.0000001
-      alpha_min: 0.0000001
+      regularize_method: 'MIRROR'
+      reg_epsilon: 0.0000000001
+      alpha_min: 0.05
       alpha_reduction: 0.7
       hpipm_mode: 'BALANCE' #'BALANCE', 'ROBUST', 'SPEED'
       cost_discretization: 'EULER'
-      tol: 0.1
-      qp_tol: 0.001
+      tol: 0.01
+      qp_tol: 0.00001

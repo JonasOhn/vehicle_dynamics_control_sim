@@ -248,19 +248,21 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     # ---
     # State: [s, n, mu, vx, vy, dpsi]
     # State Constraints: lower bounds
-    ocp.constraints.lbx = np.array((constraints_params['soft']['lb_n'],
+    ocp.constraints.lbx = np.array((constraints_params['hard']['lb_s'],
+                                    constraints_params['soft']['lb_n'],
                                     constraints_params['soft']['lb_mu'],
                                     constraints_params['soft']['lb_vx'],
                                     constraints_params['soft']['lb_vy'],
                                     constraints_params['soft']['lb_dpsi']))
     # State Constraints: upper bounds
-    ocp.constraints.ubx = np.array((constraints_params['soft']['ub_n'],
+    ocp.constraints.ubx = np.array((constraints_params['hard']['ub_s'],
+                                    constraints_params['soft']['ub_n'],
                                     constraints_params['soft']['ub_mu'],
                                     constraints_params['soft']['ub_vx'],
                                     constraints_params['soft']['ub_vy'],
                                     constraints_params['soft']['ub_dpsi']))
     # State Constraints: indices of lb and ub in State vector
-    ocp.constraints.idxbx = np.array((1, 2, 3, 4, 5))
+    ocp.constraints.idxbx = np.array((0, 1, 2, 3, 4, 5))
 
     """ ========= CONSTRAINTS: STAGE INPUT ======== """
     # ---
@@ -279,19 +281,21 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     # ---
     # Terminal State: [s, n, mu, vx, vy, dpsi]
     # Terminal State Constraints: lower bounds
-    ocp.constraints.lbx_e = np.array((constraints_params['soft']['lb_n'],
+    ocp.constraints.lbx_e = np.array((constraints_params['hard']['lb_s'],
+                                      constraints_params['soft']['lb_n'],
                                       constraints_params['soft']['lb_mu'],
                                       constraints_params['soft']['lb_vx'],
                                       constraints_params['soft']['lb_vy'],
                                       constraints_params['soft']['lb_dpsi']))
     # Terminal State Constraints: upper bounds
-    ocp.constraints.ubx_e = np.array((constraints_params['soft']['ub_n'],
+    ocp.constraints.ubx_e = np.array((constraints_params['hard']['ub_s'],
+                                      constraints_params['soft']['ub_n'],
                                       constraints_params['soft']['ub_mu'],
                                       constraints_params['soft']['ub_vx'],
                                       constraints_params['soft']['ub_vy'],
                                       constraints_params['soft']['ub_dpsi']))
     # Terminal State Constraints: indices of lb and ub in State vector
-    ocp.constraints.idxbx_e = np.array((1, 2, 3, 4, 5))
+    ocp.constraints.idxbx_e = np.array((0, 1, 2, 3, 4, 5))
     
     """ ========= COST =========== """
     # (model cost inside ocp.model) --> cost type external
@@ -334,7 +338,7 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
                             S_dpsi_lin))
 
     # Indices of slack variables in stage linear constraints
-    ocp.constraints.idxsbx = np.array((0, 1, 2, 3, 4))
+    ocp.constraints.idxsbx = np.array((1, 2, 3, 4, 5))
 
     """ ======== TERMINAL SLACK COST ========== """
     # Slack Weights
@@ -373,7 +377,7 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
                               S_dpsi_lin_e))
 
     # Indices of slack variables in stage linear constraints
-    ocp.constraints.idxsbx_e = np.array((0, 1, 2, 3, 4))
+    ocp.constraints.idxsbx_e = np.array((1, 2, 3, 4, 5))
 
 
     """ ============ SOLVER OPTIONS ================== """
@@ -522,7 +526,7 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
             """  Solve OCP """
             init_state = np.copy(simX[i, :])
             init_state[0] = 0.0
-            simU[i,:] = ocp_solver.solve_for_x0(x0_bar = init_state)
+            simU[i,:] = ocp_solver.solve_for_x0(x0_bar = init_state, fail_on_nonzero_status=False)
 
             # get elapsed solve time
             t_qp[i] = ocp_init_solver.get_stats('time_tot')
