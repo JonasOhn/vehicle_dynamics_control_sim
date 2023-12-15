@@ -13,6 +13,8 @@ import os
 import scipy.linalg
 import random
 
+CONST_CURV = 0.2
+
 def load_mpc_initializer_yaml_params():
     yaml_path = join(dirname(abspath(__file__)), "../config/mpc_initializer.yaml")
     with open(yaml_path, 'r') as file:
@@ -429,7 +431,7 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     C_d = model_params['C_d'] # effective drag coefficient
     C_r = model_params['C_r'] # const. rolling resistance
     kappa_ref = model_params['kappa_ref'] * np.ones(horizon_params['n_s']) # reference curvature along s
-    kappa_ref = 0.2 * np.ones(horizon_params['n_s']) # reference curvature along s
+    kappa_ref = CONST_CURV * np.ones(horizon_params['n_s']) # reference curvature along s
 
     paramvec = np.array((m, g, l_f, l_r, Iz, 
                          B_tire, C_tire, D_tire, C_d, C_r))

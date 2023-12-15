@@ -79,15 +79,17 @@ def export_vehicle_ode_model(testing : bool = False,
     eps = 1e-3
 
     # Slip Angles
-    alpha_f = - del_s + atan2((vy + dpsi * l_f), ca.fmax(vx, eps))
-    alpha_r = atan2((vy - dpsi * l_r), ca.fmax(vx, eps))
+    # alpha_f = - del_s + atan2((vy + dpsi * l_f), ca.fmax(vx, eps))
+    # alpha_r = atan2((vy - dpsi * l_r), ca.fmax(vx, eps))
+    alpha_f = - del_s + (vy + l_f * dpsi) / ca.fmax(vx, eps)
+    alpha_r = (vy - l_r * dpsi) / ca.fmax(vx, eps)
     # lateral forces
     Fz_f = m * g * l_r / (l_r + l_f)
     Fz_r = m * g * l_f / (l_r + l_f)
-    Fy_f = Fz_f * D_tire * sin(C_tire * atan(B_tire * alpha_f))
-    Fy_r = Fz_r * D_tire * sin(C_tire * atan(B_tire * alpha_r))
-    # Fy_f = Fz_f * D_tire * C_tire * B_tire * alpha_f
-    # Fy_r = Fz_r * D_tire * C_tire * B_tire * alpha_r
+    # Fy_f = Fz_f * D_tire * sin(C_tire * atan(B_tire * alpha_f))
+    # Fy_r = Fz_r * D_tire * sin(C_tire * atan(B_tire * alpha_r))
+    Fy_f = Fz_f * D_tire * C_tire * B_tire * alpha_f
+    Fy_r = Fz_r * D_tire * C_tire * B_tire * alpha_r
 
     # derivative of state w.r.t time
     s_dot_expl_dyn = (vx * cos(mu) - vy * sin(mu)) / ((1 - n * kappa_ref_algebraic))
@@ -119,7 +121,7 @@ def export_vehicle_ode_model(testing : bool = False,
     stage_cost = cost_sd
 
     """ Constraints """
-    h = vertcat(kappa_bspline * n - 0.99)
+    h = vertcat(kappa_bspline * n - 0.95)
 
     # ============= ACADOS ===============
     # Acados Model Creation from CasADi symbolic expressions

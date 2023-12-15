@@ -108,12 +108,12 @@ class DynamicsSimulator : public rclcpp::Node
             x_[0] = 0.0;
             x_[1] = 0.0;
             x_[2] = 0.0;
-            x_[3] = 1.0;
+            x_[3] = 2.0;
             x_[4] = 0.0;
             x_[5] = 0.0;
-            x_[6] = 0.0;
+            x_[6] = 200.0;
             x_[7] = 0.0;
-            x_[8] = 0.0;
+            x_[8] = 200.0;
             x_[9] = 0.0;
             start_time_ns_ = (double)(this->now().nanoseconds());  // [ns]
             initial_idx_refloop_ = 0;

@@ -148,7 +148,7 @@ int8_t MpcController::set_state(double psi, double vx_local, double vy_local, do
 
     // vx, vy: velocities in local frame
     this->x_[3] = vx_local; // vx
-    this->vx_const_qp_ = fmax(vx_local, 1.0);
+    this->vx_const_qp_ = fmax(vx_local, 0.5);
 
     this->x_[4] = vy_local; // vy
     this->x_qp_[3] = vy_local; // vy
@@ -371,7 +371,7 @@ int8_t MpcController::get_input(double (&u)[2])
         || this->solver_out_.nlp_solver_status == 2){
         // evaluate u at stage
         ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, stage_to_eval, "u", &u);
-        this->Fxm_const_qp_ = fmax(u[0], 100.0);
+        this->Fxm_const_qp_ = fmax(u[0], 10.0);
     // If solver failed
     }else{
         u[0] = 0.0;
