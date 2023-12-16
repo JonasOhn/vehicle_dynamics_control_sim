@@ -52,6 +52,25 @@ double MpcGeometry::get_initial_heading_difference(double psi)
                  dx_car_heading * dx_path + dy_car_heading * dy_path);
 }
 
+double MpcGeometry::get_initial_lateral_deviation(double x_c, double y_c)
+{
+    // if(this->dxy_ref_spline_.size() > 1){
+    //     // projection onto path normal vector to get n
+    //     // https://en.wikipedia.org/wiki/Vector_projection
+    //     // vector from path start point to CoG of car, vector a
+    //     double x_delta_vector = x_c - this->xy_ref_spline_[0][0];
+    //     double y_delta_vector = y_c - this->xy_ref_spline_[0][1];
+
+    //     // unit normal vector on path, e_n, vector b_hat
+    //     double b_hat_x = - dy_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
+    //     double b_hat_y = dx_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
+
+    //     // projection: a_1 = b_hat dot a
+    //     a_1 = x_delta_vector * b_hat_x + y_delta_vector * b_hat_y;
+    // }
+    return 0.0;
+}
+
 /**
  * Initialize the Curvature Horizon (s, kappa) that is used in the MPC
  *

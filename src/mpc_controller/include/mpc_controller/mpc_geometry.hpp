@@ -69,6 +69,8 @@ class MpcGeometry {
 
         double get_initial_heading_difference(double psi);
 
+        double get_initial_lateral_deviation(double x_c, double y_c);
+
         int8_t get_s_ref_spline(std::vector<double> &vec);
 
         int8_t get_s_ref_mpc(std::vector<double> &vec);

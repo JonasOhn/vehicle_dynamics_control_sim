@@ -140,7 +140,9 @@ int8_t MpcController::set_state(double psi, double vx_local, double vy_local, do
 
     // n: Lateral deviation coordinate
     this->x_[1] = 0.0; // n
+    // this->x_[1] = this->mpc_geometry_obj_.get_initial_lateral_deviation(x_c, y_c);
     this->x_qp_[1] = 0.0; // n
+    // this->x_qp_[1] = this->x_[1];
 
     // mu: Heading difference from path
     this->x_[2] = this->mpc_geometry_obj_.get_initial_heading_difference(psi); // mu
