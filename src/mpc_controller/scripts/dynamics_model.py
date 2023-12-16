@@ -79,24 +79,24 @@ def export_vehicle_ode_model(testing : bool = False,
     eps = 1e-3
 
     # Slip Angles
-    # alpha_f = - del_s + atan2((vy + dpsi * l_f), ca.fmax(vx, eps))
-    # alpha_r = atan2((vy - dpsi * l_r), ca.fmax(vx, eps))
-    alpha_f = - del_s + (vy + l_f * dpsi) / ca.fmax(vx, eps)
-    alpha_r = (vy - l_r * dpsi) / ca.fmax(vx, eps)
+    alpha_f = - del_s + atan2((vy + dpsi * l_f), vx + eps)
+    alpha_r = atan2((vy - dpsi * l_r), vx + eps)
+    # alpha_f = - del_s + (vy + l_f * dpsi) / ca.fmax(vx, eps)
+    # alpha_r = (vy - l_r * dpsi) / ca.fmax(vx, eps)
     # lateral forces
     Fz_f = m * g * l_r / (l_r + l_f)
     Fz_r = m * g * l_f / (l_r + l_f)
-    # Fy_f = Fz_f * D_tire * sin(C_tire * atan(B_tire * alpha_f))
-    # Fy_r = Fz_r * D_tire * sin(C_tire * atan(B_tire * alpha_r))
-    Fy_f = Fz_f * D_tire * C_tire * B_tire * alpha_f
-    Fy_r = Fz_r * D_tire * C_tire * B_tire * alpha_r
+    Fy_f = Fz_f * D_tire * sin(C_tire * atan(B_tire * alpha_f))
+    Fy_r = Fz_r * D_tire * sin(C_tire * atan(B_tire * alpha_r))
+    # Fy_f = Fz_f * D_tire * C_tire * B_tire * alpha_f
+    # Fy_r = Fz_r * D_tire * C_tire * B_tire * alpha_r
 
     # derivative of state w.r.t time
     s_dot_expl_dyn = (vx * cos(mu) - vy * sin(mu)) / ((1 - n * kappa_ref_algebraic))
     n_dot_expl_dyn =  vx * sin(mu) + vy * cos(mu)
     mu_dot_expl_dyn = dpsi - kappa_ref_algebraic * (vx * cos(mu) - vy * sin(mu)) / ((1 - n * kappa_ref_algebraic))
-    # vx_dot_expl_dyn = 1/m * (Fx_m / 2.0 * (1 + cos(del_s)) - Fy_f * sin(del_s) - (C_r + C_d * vx**2)) + vy * dpsi
-    vx_dot_expl_dyn = 1/m * (Fx_m / 2.0 * (1 + cos(del_s)) - Fy_f * sin(del_s) - (C_r)) + vy * dpsi
+    vx_dot_expl_dyn = 1/m * (Fx_m / 2.0 * (1 + cos(del_s)) - Fy_f * sin(del_s) - (C_r + C_d * vx**2)) + vy * dpsi
+    # vx_dot_expl_dyn = 1/m * (Fx_m / 2.0 * (1 + cos(del_s)) - Fy_f * sin(del_s) - (C_r)) + vy * dpsi
     vy_dot_expl_dyn = 1/m * (Fy_r + Fx_m / 2.0 * sin(del_s) + Fy_f * cos(del_s)) - vx * dpsi
     dpsi_dot_expl_dyn = 1/Iz * (l_f * (Fx_m / 2.0 * sin(del_s) + Fy_f * cos(del_s)) - Fy_r * l_r)
     kappa_ref_algebraic_expl_dyn = kappa_bspline
@@ -116,9 +116,15 @@ def export_vehicle_ode_model(testing : bool = False,
     """ STAGE Cost (model-based, slack is defined on the solver) """
     # Progress Rate Cost
     cost_sd = - model_cost_parameters['q_sd'] * s_dot_expl_dyn
+    cost_n = model_cost_parameters['q_n'] * n**2
+    cost_mu =  model_cost_parameters['q_mu'] * mu**2
+    cost_vy =  model_cost_parameters['q_vy'] * vy**2
+    cost_dpsi =  model_cost_parameters['q_dpsi'] * dpsi**2
+    cost_dels = model_cost_parameters['r_dels'] * del_s**2
+    cost_fx = model_cost_parameters['r_fx'] * Fx_m**2
 
     # Stage Cost
-    stage_cost = cost_sd
+    stage_cost = cost_sd + cost_n + cost_mu + cost_vy + cost_dpsi + cost_dels + cost_fx
 
     """ Constraints """
     h = vertcat(kappa_bspline * n - 0.95)

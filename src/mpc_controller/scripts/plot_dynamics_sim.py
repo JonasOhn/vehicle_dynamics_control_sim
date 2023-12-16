@@ -69,7 +69,7 @@ def plot_dynamics(shooting_nodes, idx_b_x, lb_x, ub_x, idx_b_u, lb_u, ub_u, U, X
                 plt.ylim([-1.2*np.abs(lb_x[idx_x]), 1.2*ub_x[idx_x]])
                 idx_x += 1
         plt.grid('both')
-        plt.legend(loc=1)
+        #plt.legend(loc=1)
         plt.xlim(t[0], t[-1])
 
         plotting_idx += 1

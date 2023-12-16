@@ -13,7 +13,7 @@ import os
 import scipy.linalg
 import random
 
-CONST_CURV = 0.2
+CONST_CURV = 0.0
 
 def load_mpc_initializer_yaml_params():
     yaml_path = join(dirname(abspath(__file__)), "../config/mpc_initializer.yaml")
@@ -226,6 +226,13 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     model_cost_parameters = {}
     # cost weight: progress rate
     model_cost_parameters['q_sd'] = cost_params['q_sd']
+    model_cost_parameters['q_n'] = cost_params['q_n']
+    model_cost_parameters['q_mu'] = cost_params['q_mu']
+    model_cost_parameters['q_vy'] = cost_params['q_vy']
+    model_cost_parameters['q_dpsi'] = cost_params['q_dpsi']
+    model_cost_parameters['r_dels'] = cost_params['r_dels']
+    model_cost_parameters['r_fx'] = cost_params['r_fx']
+
 
     # Get AcadosModel form other python file
     model = export_vehicle_ode_model(mpc_horizon_parameters=mpc_horizon_parameters,
@@ -318,8 +325,6 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     S_n_quad = cost_params['slack_penalties']['quadratic']['S_n_quad']
     S_mu_lin = cost_params['slack_penalties']['linear']['S_mu_lin']
     S_mu_quad = cost_params['slack_penalties']['quadratic']['S_mu_quad']
-    S_vx_lin = cost_params['slack_penalties']['linear']['S_vx_lin']
-    S_vx_quad = cost_params['slack_penalties']['quadratic']['S_vx_quad']
     S_vy_lin = cost_params['slack_penalties']['linear']['S_vy_lin']
     S_vy_quad = cost_params['slack_penalties']['quadratic']['S_vy_quad']
     S_dpsi_lin = cost_params['slack_penalties']['linear']['S_dpsi_lin']
@@ -328,28 +333,24 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     # Quadratic Slack Cost weights
     ocp.cost.Zu = np.diag(np.array((S_n_quad,
                                     S_mu_quad,
-                                    S_vx_quad,
                                     S_vy_quad,
                                     S_dpsi_quad)))
     ocp.cost.Zl = np.diag(np.array((S_n_quad,
                                     S_mu_quad,
-                                    S_vx_quad,
                                     S_vy_quad,
                                     S_dpsi_quad)))
     # Linear Slack Cost Weights
     ocp.cost.zu = np.array((S_n_lin,
                             S_mu_lin,
-                            S_vx_lin,
                             S_vy_lin,
                             S_dpsi_lin))
     ocp.cost.zl = np.array((S_n_lin,
                             S_mu_lin,
-                            S_vx_lin,
                             S_vy_lin,
                             S_dpsi_lin))
 
     # Indices of slack variables in stage linear constraints
-    ocp.constraints.idxsbx = np.array((1, 2, 3, 4, 5))
+    ocp.constraints.idxsbx = np.array((1, 2, 4, 5))
 
     """ ======== TERMINAL SLACK COST ========== """
     # Slack Weights
@@ -357,8 +358,6 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     S_n_quad_e = cost_params['slack_penalties']['quadratic']['S_n_quad_e']
     S_mu_lin_e = cost_params['slack_penalties']['linear']['S_mu_lin_e']
     S_mu_quad_e = cost_params['slack_penalties']['quadratic']['S_mu_quad_e']
-    S_vx_lin_e = cost_params['slack_penalties']['linear']['S_vx_lin_e']
-    S_vx_quad_e = cost_params['slack_penalties']['quadratic']['S_vx_quad_e']
     S_vy_lin_e = cost_params['slack_penalties']['linear']['S_vy_lin_e']
     S_vy_quad_e = cost_params['slack_penalties']['quadratic']['S_vy_quad_e']
     S_dpsi_lin_e = cost_params['slack_penalties']['linear']['S_dpsi_lin_e']
@@ -367,28 +366,24 @@ def setup_ocp_and_sim(x0, RTI:bool=False, simulate_ocp:bool=False):
     # Quadratic Slack Cost weights
     ocp.cost.Zu_e = np.diag(np.array((S_n_quad_e,
                                       S_mu_quad_e,
-                                      S_vx_quad_e,
                                       S_vy_quad_e,
                                       S_dpsi_quad_e)))
     ocp.cost.Zl_e = np.diag(np.array((S_n_quad_e,
                                       S_mu_quad_e,
-                                      S_vx_quad_e,
                                       S_vy_quad_e,
                                       S_dpsi_quad_e)))
     # Linear Slack Cost Weights
     ocp.cost.zu_e = np.array((S_n_lin_e,
                               S_mu_lin_e,
-                              S_vx_lin_e,
                               S_vy_lin_e,
                               S_dpsi_lin_e))
     ocp.cost.zl_e = np.array((S_n_lin_e,
                               S_mu_lin_e,
-                              S_vx_lin_e,
                               S_vy_lin_e,
                               S_dpsi_lin_e))
 
     # Indices of slack variables in stage linear constraints
-    ocp.constraints.idxsbx_e = np.array((1, 2, 3, 4, 5))
+    ocp.constraints.idxsbx_e = np.array((1, 2, 4, 5))
 
 
     """ ============ SOLVER OPTIONS ================== """
@@ -481,7 +476,7 @@ def main(use_RTI:bool=False, simulate_ocp:bool=True):
         nu_initializer = ocp_init_solver.acados_ocp.dims.nu
 
         """ =========== SET SIMULATION PARAMS ============ """
-        Nsim = 100
+        Nsim = 200
         simX = np.ndarray((Nsim+1, nx))
         simU = np.ndarray((Nsim, nu))
         stagesX_initializer = np.ndarray((horizon_params["N_horizon"], nx_initializer))

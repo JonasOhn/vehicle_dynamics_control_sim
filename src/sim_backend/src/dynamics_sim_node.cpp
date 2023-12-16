@@ -462,6 +462,7 @@ class DynamicsSimulator : public rclcpp::Node
             ref_path_marker_msg.markers.push_back(marker_i);
 
             size_t idx = 0;
+            int id_marker = 1;
             bool first_visited = false;
 
             for (size_t i = initial_idx_refloop_; i < (ref_points_global_.size() + initial_idx_refloop_); i++)
@@ -483,7 +484,7 @@ class DynamicsSimulator : public rclcpp::Node
                     marker_i.header.stamp = this->now();
                     // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
                     marker_i.type = 2;
-                    marker_i.id = (int) idx + 1;
+                    marker_i.id = (int) id_marker;
                     // Set the scale of the marker
                     marker_i.scale.x = 0.12;
                     marker_i.scale.y = 0.12;
@@ -505,6 +506,8 @@ class DynamicsSimulator : public rclcpp::Node
 
                     // append to marker array
                     ref_path_marker_msg.markers.push_back(marker_i);
+
+                    id_marker ++;
                     
                     if (!first_visited){
                         first_visited = true;
