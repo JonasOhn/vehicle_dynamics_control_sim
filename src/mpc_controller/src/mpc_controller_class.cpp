@@ -284,7 +284,7 @@ int8_t MpcController::init_mpc_horizon()
     
 
     this->x_stage_to_fill_[3] = this->vx_const_qp_; // vx constant
-    this->u_stage_to_fill_[0] = this->Fxm_const_qp_; // Fxm constant
+    this->u_stage_to_fill_[0] = this->axm_const_qp_; // axm constant
     // initialize solution with QP predicted solution
     for (this->i_ = 0; this->i_ < this->horizon_params_.N_horizon_mpc; this->i_++)
     {
@@ -373,12 +373,14 @@ int8_t MpcController::get_input(double (&u)[2])
         || this->solver_out_.nlp_solver_status == 2){
         // evaluate u at stage
         ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, stage_to_eval, "u", &u);
-        this->Fxm_const_qp_ = fmax(u[0], 10.0);
+        this->axm_const_qp_ = fmax(u[0], 0.01);
+        // scale optimization output by m to get Force back
+        u[0] = this->model_params_.m * u[0];
     // If solver failed
     }else{
         u[0] = 0.0;
         u[1] = 0.0;
-        this->Fxm_const_qp_ = 0.0;
+        this->axm_const_qp_ = 0.0;
     }
 
     return 0;
@@ -390,7 +392,7 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
                                      std::vector<double> &vx_predict,
                                      std::vector<double> &vy_predict,
                                      std::vector<double> &dpsi_predict,
-                                     std::vector<double> &fxm_predict,
+                                     std::vector<double> &axm_predict,
                                      std::vector<double> &dels_predict,
                                      std::vector<double> &s_traj_mpc,
                                      std::vector<double> &kappa_traj_mpc,
@@ -407,7 +409,7 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
     vx_predict.clear();
     vy_predict.clear();
     dpsi_predict.clear();
-    fxm_predict.clear();
+    axm_predict.clear();
     dels_predict.clear();
     s_traj_mpc.clear();
     kappa_traj_mpc.clear();
@@ -431,7 +433,7 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
         vy_predict.push_back(this->x_traj_[i][4]);
         dpsi_predict.push_back(this->x_traj_[i][5]);
 
-        fxm_predict.push_back(this->u_traj_[i][0]);
+        axm_predict.push_back(this->u_traj_[i][0]);
         dels_predict.push_back(this->u_traj_[i][1]);
 
         kappa_traj_mpc.push_back(this->z_traj_[i]);

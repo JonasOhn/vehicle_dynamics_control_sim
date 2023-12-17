@@ -255,7 +255,7 @@ class MPCControllerNode : public rclcpp::Node
                                                   state_traj_msg.vx_c,
                                                   state_traj_msg.vy_c,
                                                   state_traj_msg.dpsi,
-                                                  input_traj_msg.fx_m,
+                                                  input_traj_msg.ax_m,
                                                   input_traj_msg.del_s,
                                                   kappa_traj_msg.s_traj_mpc,
                                                   kappa_traj_msg.kappa_traj_mpc,

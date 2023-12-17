@@ -25,8 +25,8 @@
       q_mu: 0.5
       q_vy: 0.01
       q_dpsi: 0.01
-      r_dels: 0.0001
-      r_fx: 0.000001
+      r_dels: 0.001
+      r_ax: 0.0001
       slack_penalties:
         linear:
           S_n_lin: 1.0
@@ -61,16 +61,16 @@
       hard:
         lb_s: -0.1
         ub_s: 40.0
-        lb_Fxm: -2000.0
-        ub_Fxm: 2000.0
-        lb_dels: -0.5
-        ub_dels: 0.5
+        lb_axm: -10.0
+        ub_axm: 10.0
+        lb_dels: -0.6
+        ub_dels: 0.6
     solver_options:
       qp_solver: 'PARTIAL_CONDENSING_HPIPM' #'FULL_CONDENSING_HPIPM' #'FULL_CONDENSING_QPOASES' #'PARTIAL_CONDENSING_HPIPM'
       hessian_approx: 'EXACT' #'GAUSS_NEWTON' #'EXACT' #
       integrator_type: 'IRK'
       sim_method_newton_iter: 20
-      nlp_solver_max_iter: 2
+      nlp_solver_max_iter: 10
       qp_solver_iter_max: 50
       qp_solver_warm_start: 1
       regularize_method: 'PROJECT'
@@ -82,5 +82,5 @@
       globalization: 'FIXED_STEP' # MERIT_BACKTRACKING  FIXED_STEP
       levenberg_marquardt: 0.0
       nlp_solver_step_length: 1.0
-      tol: 0.1
+      tol: 0.001
       qp_tol: 0.00001
