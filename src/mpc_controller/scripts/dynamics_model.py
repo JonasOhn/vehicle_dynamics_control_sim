@@ -1,5 +1,5 @@
 from acados_template import AcadosModel
-from casadi import MX, vertcat, sin, cos, atan, tanh, atan2
+from casadi import SX, vertcat, sin, cos, atan, tanh, atan2
 import numpy as np
 import casadi as ca
 import matplotlib.pyplot as plt
@@ -14,91 +14,63 @@ def export_vehicle_ode_model(testing : bool = False,
 
     # ============== Symbolics in CasADi ===========
     # Symbolic Parameters
-    m = MX.sym("m")
-    g = MX.sym("g")
-    l_f = MX.sym("l_f")
-    l_r = MX.sym("l_r")
-    Iz = MX.sym("Iz")
-    B_tire = MX.sym("B_tire")
-    C_tire = MX.sym("C_tire")
-    D_tire = MX.sym("D_tire")
-    C_d = MX.sym("C_d")
-    C_r = MX.sym("C_r")
-    kappa_ref = MX.sym("kappa_ref", mpc_horizon_parameters['n_s'], 1)
+    m = SX.sym("m")
+    g = SX.sym("g")
+    l_f = SX.sym("l_f")
+    l_r = SX.sym("l_r")
+    Iz = SX.sym("Iz")
+    B_tire = SX.sym("B_tire")
+    C_tire = SX.sym("C_tire")
+    D_tire = SX.sym("D_tire")
+    C_d = SX.sym("C_d")
+    C_r = SX.sym("C_r")
+    kappa_ref = SX.sym("kappa_ref")
     p = vertcat(m, g, l_f, l_r, Iz, B_tire, C_tire, D_tire, C_d, C_r, kappa_ref)
 
     # Symbolic States
-    s       = MX.sym('s')
-    n      = MX.sym('n')
-    mu   = MX.sym('mu')
-    vx      = MX.sym('vx')
-    vy      = MX.sym('vy')
-    dpsi  = MX.sym('dpsi')
+    s       = SX.sym('s')
+    n      = SX.sym('n')
+    mu   = SX.sym('mu')
+    vx      = SX.sym('vx')
+    vy      = SX.sym('vy')
+    dpsi  = SX.sym('dpsi')
     x = vertcat(s, n, mu, vx, vy, dpsi)
 
     # Symbolic Inputs
-    ax_m = MX.sym('ax_m')
-    del_s = MX.sym('del_s')
+    ax_m = SX.sym('ax_m')
+    del_s = SX.sym('del_s')
     u = vertcat(ax_m, del_s)
 
-    # Algebraic states
-    kappa_ref_algebraic = MX.sym('kappa_ref_algebraic')
-    z = vertcat(kappa_ref_algebraic)
-
     # Symbolic State Derivative f(x,u)
-    s_dot       = MX.sym('s_dot')
-    n_dot      = MX.sym('n_dot')
-    mu_dot   = MX.sym('mu_dot')
-    vx_dot      = MX.sym('vx_dot')
-    vy_dot      = MX.sym('vy_dot')
-    dpsi_dot  = MX.sym('dpsi_dot')
+    s_dot       = SX.sym('s_dot')
+    n_dot      = SX.sym('n_dot')
+    mu_dot   = SX.sym('mu_dot')
+    vx_dot      = SX.sym('vx_dot')
+    vy_dot      = SX.sym('vy_dot')
+    dpsi_dot  = SX.sym('dpsi_dot')
     xdot = vertcat(s_dot, n_dot, mu_dot, vx_dot, vy_dot, dpsi_dot)
-
-    # Symbolic Spline Interpolation for kappa(s)
-    s_sym_lut = MX.sym('s_sym_lut')
-    ref_path_s = np.linspace(0, mpc_horizon_parameters['s_max'], mpc_horizon_parameters['n_s'])
-    interpolant_s2k = ca.interpolant("interpol_spline_kappa", "bspline", [ref_path_s])
-    interp_exp = interpolant_s2k(s_sym_lut, kappa_ref)
-    interp_fun = ca.Function('interp_fun', [s_sym_lut, kappa_ref], [interp_exp])
-    kappa_bspline = interp_fun(s, kappa_ref)
-
-    # ====== If the spline fit should be tested =====
-    if testing:
-        kappa_fit = kappa_test_gt(ref_path_s)
-        plt.plot(ref_path_s, kappa_fit)
-        s_test = np.linspace(0.1, mpc_horizon_parameters['s_max'] - 0.1, 10)
-        kappa_test = np.zeros_like(s_test)
-        for i in range(s_test.shape[0]):
-             kappa_test[i] = interp_fun(s_test[i], kappa_fit)
-        plt.scatter(s_test, kappa_test)
-        plt.grid()
-        plt.show()
 
     # =============== dynamics ========================
     # numerical approximation factor
     eps = 1e-3
 
     # Slip Angles
-    alpha_f = - del_s + atan2((vy + dpsi * l_f), vx + eps)
-    alpha_r = atan2((vy - dpsi * l_r), vx + eps)
-    # alpha_f = - del_s + (vy + l_f * dpsi) / ca.fmax(vx, eps)
-    # alpha_r = (vy - l_r * dpsi) / ca.fmax(vx, eps)
+    alpha_f = - del_s + (vy + l_f * dpsi) / (vx + eps)
+    alpha_r = (vy - l_r * dpsi) / (vx + eps)
+
     # lateral forces
     Fz_f = m * g * l_r / (l_r + l_f)
     Fz_r = m * g * l_f / (l_r + l_f)
-    Fy_f = Fz_f * D_tire * sin(C_tire * atan(B_tire * alpha_f))
-    Fy_r = Fz_r * D_tire * sin(C_tire * atan(B_tire * alpha_r))
-    # Fy_f = Fz_f * D_tire * C_tire * B_tire * alpha_f
-    # Fy_r = Fz_r * D_tire * C_tire * B_tire * alpha_r
+    Fy_f = Fz_f * D_tire * C_tire * B_tire * alpha_f
+    Fy_r = Fz_r * D_tire * C_tire * B_tire * alpha_r
 
     # derivative of state w.r.t time
-    s_dot_expl_dyn = (vx * cos(mu) - vy * sin(mu)) / ((1 - n * kappa_ref_algebraic))
+    s_dot_expl_dyn = (vx * cos(mu) - vy * sin(mu)) / ((1 - n * kappa_ref))
     n_dot_expl_dyn =  vx * sin(mu) + vy * cos(mu)
-    mu_dot_expl_dyn = dpsi - kappa_ref_algebraic * (vx * cos(mu) - vy * sin(mu)) / ((1 - n * kappa_ref_algebraic))
+    mu_dot_expl_dyn = dpsi - kappa_ref * (vx * cos(mu) - vy * sin(mu)) / ((1 - n * kappa_ref))
     vx_dot_expl_dyn = 1/m * (m * ax_m / 2.0 * (1 + cos(del_s)) - Fy_f * sin(del_s) - (C_r + C_d * vx**2)) + vy * dpsi
     vy_dot_expl_dyn = 1/m * (Fy_r + m * ax_m / 2.0 * sin(del_s) + Fy_f * cos(del_s)) - vx * dpsi
     dpsi_dot_expl_dyn = 1/Iz * (l_f * (m * ax_m / 2.0 * sin(del_s) + Fy_f * cos(del_s)) - Fy_r * l_r)
-    kappa_ref_algebraic_expl_dyn = kappa_bspline
 
     # Explicit expression
     f_expl_time = vertcat(s_dot_expl_dyn,
@@ -106,15 +78,15 @@ def export_vehicle_ode_model(testing : bool = False,
                           mu_dot_expl_dyn, 
                           vx_dot_expl_dyn,
                           vy_dot_expl_dyn,
-                          dpsi_dot_expl_dyn,
-                          kappa_ref_algebraic_expl_dyn)
+                          dpsi_dot_expl_dyn)
 
     # Implicit expression
-    f_impl_time = vertcat(xdot, z) - f_expl_time # = 0
+    f_impl_time = vertcat(xdot) - f_expl_time # = 0
 
     """ STAGE Cost (model-based, slack is defined on the solver) """
     # Progress Rate Cost
-    cost_sd = - model_cost_parameters['q_sd'] * s_dot_expl_dyn
+    # cost_sd = - model_cost_parameters['q_sd'] * s_dot_expl_dyn
+    cost_sd = model_cost_parameters['q_sd'] * (vx - 10.0)**2
     cost_n = model_cost_parameters['q_n'] * n**2
     cost_mu =  model_cost_parameters['q_mu'] * mu**2
     cost_vy =  model_cost_parameters['q_vy'] * vy**2
@@ -125,8 +97,6 @@ def export_vehicle_ode_model(testing : bool = False,
     # Stage Cost
     stage_cost = cost_sd + cost_n + cost_mu + cost_vy + cost_dpsi + cost_dels + cost_ax
 
-    """ Constraints """
-    h = vertcat(kappa_bspline * n - 0.95)
 
     # ============= ACADOS ===============
     # Acados Model Creation from CasADi symbolic expressions
@@ -134,15 +104,11 @@ def export_vehicle_ode_model(testing : bool = False,
 
     model.f_impl_expr = f_impl_time
     model.x = x
-    model.z = z
     model.xdot = xdot
     model.u = u
     model.p = p
     model.name = model_name
     model.cost_expr_ext_cost = stage_cost
-    model.con_h_expr = h
-    model.con_h_expr_e = h
-    model.con_h_expr_0 = h
 
     return model
 

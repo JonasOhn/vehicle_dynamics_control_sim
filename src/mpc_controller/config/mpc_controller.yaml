@@ -20,61 +20,49 @@
       n_s: 30
       s_max: 15.0
     cost:
-      q_sd: 1.0
-      q_n: 1.0
-      q_mu: 0.5
-      q_vy: 0.01
-      q_dpsi: 0.01
-      r_dels: 0.001
-      r_ax: 0.0001
+      q_sd: 10.0
+      q_n: 10.0
+      q_mu: 0.1
+      q_vy: 0.1
+      q_dpsi: 0.1
+      r_dels: 0.1
+      r_ax: 0.05
       slack_penalties:
         linear:
-          S_n_lin: 1.0
-          S_n_lin_e: 1.0
-          S_mu_lin: 0.1
-          S_mu_lin_e: 0.0
-          S_vy_lin: 0.1
-          S_vy_lin_e: 0.0
-          S_dpsi_lin: 0.1
-          S_dpsi_lin_e: 0.0
+          S_n_lin: 100000.0
+          S_n_lin_e: 100000.0
         quadratic:
-          S_n_quad: 5.0
-          S_n_quad_e: 5.0
-          S_mu_quad: 2.0
-          S_mu_quad_e: 2.0
-          S_vy_quad: 1.0
-          S_vy_quad_e: 1.0
-          S_dpsi_quad: 1.0
-          S_dpsi_quad_e: 1.0
+          S_n_quad: 100000.0
+          S_n_quad_e: 100000.0
     constraints:
       soft:
-        lb_n: -1.0
-        ub_n: 1.0
+        lb_n: -0.2
+        ub_n: 0.2
+      hard:
+        lb_s: 0.0
+        ub_s: 15.0
         lb_mu: -0.7
         ub_mu: 0.7
         lb_vx: 0.0
-        ub_vx: 10.0
+        ub_vx: 20.0
         lb_vy: -4.0
         ub_vy: 4.0
-        lb_dpsi: -2.0
-        ub_dpsi: 2.0
-      hard:
-        lb_s: -0.1
-        ub_s: 40.0
+        lb_dpsi: -4.0
+        ub_dpsi: 4.0
         lb_axm: -10.0
         ub_axm: 10.0
-        lb_dels: -0.6
-        ub_dels: 0.6
+        lb_dels: -0.5
+        ub_dels: 0.5
     solver_options:
       qp_solver: 'PARTIAL_CONDENSING_HPIPM' #'FULL_CONDENSING_HPIPM' #'FULL_CONDENSING_QPOASES' #'PARTIAL_CONDENSING_HPIPM'
       hessian_approx: 'EXACT' #'GAUSS_NEWTON' #'EXACT' #
       integrator_type: 'IRK'
       sim_method_newton_iter: 20
-      nlp_solver_max_iter: 10
+      nlp_solver_max_iter: 5
       qp_solver_iter_max: 50
       qp_solver_warm_start: 1
       regularize_method: 'PROJECT'
-      reg_epsilon: 0.000000001
+      reg_epsilon: 0.0000000001
       alpha_min: 0.0001
       alpha_reduction: 0.7
       hpipm_mode: 'BALANCE' #'BALANCE', 'ROBUST', 'SPEED'
@@ -82,5 +70,5 @@
       globalization: 'FIXED_STEP' # MERIT_BACKTRACKING  FIXED_STEP
       levenberg_marquardt: 0.0
       nlp_solver_step_length: 1.0
-      tol: 0.001
+      tol: 0.01
       qp_tol: 0.00001
