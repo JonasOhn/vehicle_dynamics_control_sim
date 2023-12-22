@@ -131,7 +131,7 @@ int8_t MpcController::init_solver()
     return 0;
 }
 
-int8_t MpcController::set_state(double psi, double vx_local, double vy_local, double dpsi)
+int8_t MpcController::set_state(double x_c, double y_c, double psi, double vx_local, double vy_local, double dpsi)
 {
     std::cout << "Setting state." << std::endl;
     // s: Progress coordinate
@@ -139,10 +139,8 @@ int8_t MpcController::set_state(double psi, double vx_local, double vy_local, do
     this->x_qp_[0] = 0.000001; // s
 
     // n: Lateral deviation coordinate
-    this->x_[1] = 0.0; // n
-    // this->x_[1] = this->mpc_geometry_obj_.get_initial_lateral_deviation(x_c, y_c);
-    this->x_qp_[1] = 0.0; // n
-    // this->x_qp_[1] = this->x_[1];
+    this->x_[1] = this->mpc_geometry_obj_.get_initial_lateral_deviation(x_c, y_c);
+    this->x_qp_[1] = this->x_[1];
 
     // mu: Heading difference from path
     this->x_[2] = this->mpc_geometry_obj_.get_initial_heading_difference(psi); // mu
@@ -227,16 +225,11 @@ int8_t MpcController::init_mpc_parameters()
     p[8] = this->model_params_.C_d;
     p[9] = this->model_params_.C_r;
 
-    int last_idx = 9;
-
-    // Init curvature ref
-    for(this->j_ = last_idx + 1; this->j_<NP; this->j_++)
-    {
-        p[this->j_] = this->mpc_geometry_obj_.get_mpc_curvature(this->j_ - (last_idx + 1));
-    }
-
+    // Init curvature ref using the last predicted s-trajectory
     for (this->i_ = 0; this->i_ <= this->horizon_params_.N_horizon_mpc; this->i_++)
     {
+        // curvature value at stage i_ from geometry object, given s
+        p[10] = this->mpc_geometry_obj_.get_mpc_curvature(this->x_traj_[this->i_][0]);
         veh_dynamics_ode_acados_update_params(this->acados_ocp_capsule_, this->i_, p, NP);
     }
 
@@ -283,28 +276,40 @@ int8_t MpcController::init_mpc_horizon()
     ocp_nlp_out_get(this->qp_config_, this->qp_dims_, this->qp_out_, VEH_KINEMATICS_ODE_INIT_N, "x", &this->x_traj_qp_[VEH_KINEMATICS_ODE_INIT_N]);
     
 
-    this->x_stage_to_fill_[3] = this->vx_const_qp_; // vx constant
-    this->u_stage_to_fill_[0] = this->axm_const_qp_; // axm constant
+    // this->x_stage_to_fill_[3] = this->vx_const_qp_; // vx constant
+    // this->u_stage_to_fill_[0] = this->axm_const_qp_; // axm constant
+
     // initialize solution with QP predicted solution
     for (this->i_ = 0; this->i_ < this->horizon_params_.N_horizon_mpc; this->i_++)
     {
-        this->x_stage_to_fill_[0] = this->x_traj_qp_[this->i_][0]; // s
-        this->x_stage_to_fill_[1] = this->x_traj_qp_[this->i_][1]; // n
-        this->x_stage_to_fill_[2] = this->x_traj_qp_[this->i_][2]; // mu
-        this->x_stage_to_fill_[4] = this->x_traj_qp_[this->i_][3]; // vy
-        this->x_stage_to_fill_[5] = this->x_traj_qp_[this->i_][4]; // dpsi
+        // this->x_stage_to_fill_[0] = this->x_traj_qp_[this->i_][0]; // s
+        // this->x_stage_to_fill_[1] = this->x_traj_qp_[this->i_][1]; // n
+        // this->x_stage_to_fill_[2] = this->x_traj_qp_[this->i_][2]; // mu
+        // this->x_stage_to_fill_[4] = this->x_traj_qp_[this->i_][3]; // vy
+        // this->x_stage_to_fill_[5] = this->x_traj_qp_[this->i_][4]; // dpsi
 
-        this->u_stage_to_fill_[1] = this->u_traj_qp_[this->i_][0]; // del_s
+        // this->u_stage_to_fill_[1] = this->u_traj_qp_[this->i_][0]; // del_s
+
+        this->x_stage_to_fill_[0] = this->x_traj_[this->i_][0]; // s
+        this->x_stage_to_fill_[1] = this->x_traj_[this->i_][1]; // n
+        this->x_stage_to_fill_[2] = this->x_traj_[this->i_][2]; // mu
+        this->x_stage_to_fill_[3] = this->x_traj_[this->i_][3]; // vx
+        this->x_stage_to_fill_[4] = this->x_traj_[this->i_][4]; // vy
+        this->x_stage_to_fill_[5] = this->x_traj_[this->i_][5]; // dpsi
+
+        this->u_stage_to_fill_[0] = this->u_traj_[this->i_][0]; // ax_m
+        this->u_stage_to_fill_[1] = this->u_traj_[this->i_][1]; // del_s
 
         ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "x", this->x_stage_to_fill_);
         ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "u", this->u_stage_to_fill_);
-        ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "z", &this->curv_qp_[this->i_]);
+        // ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "z", &this->curv_qp_[this->i_]);
     }
-    this->x_stage_to_fill_[0] = this->x_traj_qp_[VEH_KINEMATICS_ODE_INIT_N][0]; // s
-    this->x_stage_to_fill_[1] = this->x_traj_qp_[VEH_KINEMATICS_ODE_INIT_N][1]; // n
-    this->x_stage_to_fill_[2] = this->x_traj_qp_[VEH_KINEMATICS_ODE_INIT_N][2]; // mu
-    this->x_stage_to_fill_[4] = this->x_traj_qp_[VEH_KINEMATICS_ODE_INIT_N][3]; // vy
-    this->x_stage_to_fill_[5] = this->x_traj_qp_[VEH_KINEMATICS_ODE_INIT_N][4]; // dpsi
+    this->x_stage_to_fill_[0] = this->x_traj_[VEH_KINEMATICS_ODE_INIT_N][0]; // s
+    this->x_stage_to_fill_[1] = this->x_traj_[VEH_KINEMATICS_ODE_INIT_N][1]; // n
+    this->x_stage_to_fill_[2] = this->x_traj_[VEH_KINEMATICS_ODE_INIT_N][2]; // mu
+    this->x_stage_to_fill_[3] = this->x_traj_[VEH_KINEMATICS_ODE_INIT_N][3]; // vx
+    this->x_stage_to_fill_[4] = this->x_traj_[VEH_KINEMATICS_ODE_INIT_N][4]; // vy
+    this->x_stage_to_fill_[5] = this->x_traj_[VEH_KINEMATICS_ODE_INIT_N][5]; // dpsi
 
     ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->horizon_params_.N_horizon_mpc, "x", this->x_stage_to_fill_);
     

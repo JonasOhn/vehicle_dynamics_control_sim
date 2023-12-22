@@ -97,7 +97,7 @@ class MpcController {
 
         int qp_init_max_iter_ = 5;
         double vx_const_qp_ = 0.2;
-        double Fxm_const_qp_ = 300.0;
+        double axm_const_qp_ = 1.0;
         double curv_qp_[VEH_DYNAMICS_ODE_N + 1] = {0.0};
 
         // NLP Prediction trajectories
@@ -170,7 +170,7 @@ class MpcController {
 
         int8_t set_reference_path(std::vector<std::vector<double>> &path);
 
-        int8_t set_state(double psi, double vx_local, double vy_local, double dpsi);
+        int8_t set_state(double x_c, double y_c, double psi, double vx_local, double vy_local, double dpsi);
 
         int8_t set_initial_state();
 
