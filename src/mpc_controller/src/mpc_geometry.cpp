@@ -282,15 +282,35 @@ int8_t MpcGeometry::set_mpc_curvature(int s_max_mpc, int n_s_mpc)
 }
 
 /**
- * Get the curvature parameter for the MPC by index
+ * Get the curvature parameter for the MPC by s-value
  *
- * @param mpc_curv_param_vec_idx index for curvature vector
+ * @param s_to_eval progress value where to evaluate curvature
  * @return the curvature at given index
  */
-double MpcGeometry::get_mpc_curvature(int mpc_curv_param_vec_idx)
+double MpcGeometry::get_mpc_curvature(double s_to_eval)
 {
-    std::cout << "Getting MPC curvature at idx " << mpc_curv_param_vec_idx << "." << std::endl;
-    return this->curv_ref_mpc_[mpc_curv_param_vec_idx];
+    double curv_ref_return = 0.0;
+    std::cout << "Getting MPC curvature at s= " << s_to_eval << "." << std::endl;
+
+    int idx_next_s = 0;
+    // Iterate through the previously calculated s_ref vector (spline) and go 
+    // for first entry that is larger than in mpc s ref, interpolate between this and the previous point
+    for(this->j_ = 0; this->j_ < (int)this->s_ref_spline_.size(); this->j_++){
+        // As soon as s_to_eval (input) is larger than s_ref from spline, calculate curvature as 
+        // linear interpolation and break out
+        if (s_to_eval <= this->s_ref_spline_[this->j_]){
+            idx_next_s = this->j_;
+            // Linearly interpolate between given s_ref values on the spline to get curvature
+            curv_ref_return = this->curv_ref_spline_[idx_next_s - 1] + 
+                (s_to_eval - this->s_ref_spline_[idx_next_s - 1])/
+                (this->s_ref_spline_[idx_next_s] - this->s_ref_spline_[idx_next_s - 1]) 
+                * (this->curv_ref_spline_[idx_next_s] - this->curv_ref_spline_[idx_next_s - 1]);
+
+            break;
+        }
+    }
+
+    return curv_ref_return;
 }
 
 /**

@@ -63,7 +63,7 @@ class MpcGeometry {
 
         int8_t init_mpc_curvature_horizon(int n_s, double ds);
 
-        double get_mpc_curvature(int mpc_curv_param_vec_idx);
+        double get_mpc_curvature(double s_to_eval);
 
         int get_number_of_spline_evaluations();
 
