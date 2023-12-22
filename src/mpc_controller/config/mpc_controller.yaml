@@ -7,44 +7,43 @@
       m: 220.0 # kg
       Iz: 100.0 # kg m m
       g: 9.81 # m s-2
-      D_tire: -3.0
-      C_tire: 1.0
+      D_tire: -1.0
+      C_tire: 1.2
       B_tire: 9.0
       C_d: 1.133 # 0.5 * rho * CdA
-      C_l: 3.0
       C_r: 0.5 # -
-      kappa_ref: 0.0
+      kappa_ref: 0.2
     horizon:
       T_final: 1.0
       N_horizon: 40
       n_s: 30
       s_max: 15.0
     cost:
-      q_sd: 10.0
-      q_n: 10.0
-      q_mu: 0.1
-      q_vy: 0.1
-      q_dpsi: 0.1
+      q_sd: 2.0
+      q_n: 1.0
+      q_mu: 0.5
+      q_vy: 0.5
+      q_dpsi: 0.5
       r_dels: 0.1
-      r_ax: 0.05
+      r_ax: 0.1
       slack_penalties:
         linear:
-          S_n_lin: 100000.0
-          S_n_lin_e: 100000.0
+          S_n_lin: 100.0
+          S_n_lin_e: 1000.0
         quadratic:
-          S_n_quad: 100000.0
-          S_n_quad_e: 100000.0
+          S_n_quad: 100.0
+          S_n_quad_e: 1000.0
     constraints:
       soft:
-        lb_n: -0.2
-        ub_n: 0.2
+        lb_n: -0.5
+        ub_n: 0.5
       hard:
         lb_s: 0.0
         ub_s: 15.0
-        lb_mu: -0.7
-        ub_mu: 0.7
+        lb_mu: -0.5
+        ub_mu: 0.5
         lb_vx: 0.0
-        ub_vx: 20.0
+        ub_vx: 5.0
         lb_vy: -4.0
         ub_vy: 4.0
         lb_dpsi: -4.0
@@ -62,7 +61,7 @@
       qp_solver_iter_max: 50
       qp_solver_warm_start: 1
       regularize_method: 'PROJECT'
-      reg_epsilon: 0.0000000001
+      reg_epsilon: 0.01
       alpha_min: 0.0001
       alpha_reduction: 0.7
       hpipm_mode: 'BALANCE' #'BALANCE', 'ROBUST', 'SPEED'
