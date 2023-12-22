@@ -368,7 +368,9 @@ class MPCControllerNode : public rclcpp::Node
 
     void state_update(const sim_backend::msg::VehicleState & state_msg)
     {
-        this->mpc_controller_obj_.set_state(state_msg.psi,
+        this->mpc_controller_obj_.set_state(state_msg.x_c,
+                                            state_msg.y_c,
+                                            state_msg.psi,
                                             state_msg.dx_c_v,
                                             state_msg.dy_c_v,
                                             state_msg.dpsi);
