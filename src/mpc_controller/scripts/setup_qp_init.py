@@ -21,7 +21,7 @@ def load_mpc_initializer_yaml_params():
     solver_options_params = yaml_params['solver_options']
     return model_params, horizon_params, cost_params, solver_options_params
 
-def setup_ocp_init(x0):
+def setup_ocp_init(x0, simulate_ocp:bool = False):
     
     """ Load .yaml file parameters """
     model_params, horizon_params, cost_params, solver_options_params = load_mpc_initializer_yaml_params()
@@ -147,11 +147,21 @@ def setup_ocp_init(x0):
     ocp.parameter_values = paramvec
 
     """ ====== CREATE OCP AND SIM SOLVERS =========== """
-    cmake_builder = ocp_get_default_cmake_builder()
+    if not simulate_ocp:
+        cmake_builder = ocp_get_default_cmake_builder()
+    else:
+        cmake_builder = None
     acados_ocp_solver = AcadosOcpSolver(ocp, json_file = ocp_solver_json_path,
                                         cmake_builder=cmake_builder)
 
-    return acados_ocp_solver
+    # create an integrator with the same settings as used in the OCP solver.
+    if simulate_ocp:
+        acados_integrator = AcadosSimSolver(ocp, json_file = ocp_solver_json_path,
+                                            cmake_builder=cmake_builder)
+    else:
+        acados_integrator = None
+
+    return acados_ocp_solver, acados_integrator
 
 if __name__ == '__main__':
     # x =         [s,   n,   mu,  vy,  dpsi]
