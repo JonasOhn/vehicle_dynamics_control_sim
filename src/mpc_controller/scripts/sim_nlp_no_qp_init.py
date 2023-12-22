@@ -30,7 +30,7 @@ def main(use_stepped_sim:bool=False):
     ub_u = ocp_solver.acados_ocp.constraints.ubu
 
     """ =========== SET SIMULATION PARAMS ============ """
-    Nsim = 300
+    Nsim = 200
     stepping_start_idx = 50
     simX = np.ndarray((Nsim+1, nx))
     simU = np.ndarray((Nsim, nu))
@@ -61,6 +61,7 @@ def main(use_stepped_sim:bool=False):
                         B_tire, C_tire, D_tire, C_d, C_r, kappa_ref))
     for j in range(horizon_params["N_horizon"]):
         ocp_solver.set(j, 'p', paramvec)
+    integrator.set('p', paramvec)
     
     # Vectors that contain the solve times at each simulation step
     t_ocp = np.zeros((Nsim))
