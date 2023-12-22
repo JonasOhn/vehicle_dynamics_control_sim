@@ -2,8 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 D_tire = -1.0
-C_tire = 1.4
-B_tire = 9.5
+C_tire = 1.2
+B_tire = 9.0
 
 # Parameters used in controllers??
 # D_tire = -3.3663
