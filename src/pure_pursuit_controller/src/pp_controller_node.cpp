@@ -7,7 +7,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sim_backend/msg/sys_input.hpp"
 #include "sim_backend/msg/vehicle_state.hpp"
-#include "sim_backend/msg/ref_path.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
+#include "visualization_msgs/msg/marker.hpp"
 
 using namespace std::chrono_literals;
 
@@ -64,8 +65,8 @@ class PPController : public rclcpp::Node
             "vehicle_state", 1, std::bind(&PPController::state_update, this, std::placeholders::_1));
         
         // Init reference path subscriber
-        ref_path_subscriber_ = this->create_subscription<sim_backend::msg::RefPath>(
-            "reference_path", 1, std::bind(&PPController::ref_path_update, this, std::placeholders::_1));
+        ref_path_subscriber_ = this->create_subscription<visualization_msgs::msg::MarkerArray>(
+            "reference_path_pcl", 1, std::bind(&PPController::ref_path_update, this, std::placeholders::_1));
 
         // Init Control Command Publisher and corresponding Timer with respecitve callback
         control_cmd_publisher_ = this->create_publisher<sim_backend::msg::SysInput>("vehicle_input", 10);
@@ -124,16 +125,22 @@ class PPController : public rclcpp::Node
         // v_act_ = state_msg.dx_c * cos(current_pose_.psi) + state_msg.dy_c * sin(current_pose_.psi);
     }
 
-    void ref_path_update(const sim_backend::msg::RefPath & refpath_msg){
+    void ref_path_update(const visualization_msgs::msg::MarkerArray & refpath_msg){
+        
         this->ref_points_.clear();
-        auto path_pos = sim_backend::msg::Point2D();
+        
+        auto path_pos_marker = visualization_msgs::msg::Marker();
+        
         std::vector<double> ref_point = {0.0, 0.0};
-        for (size_t i=0; i<refpath_msg.ref_path.size(); i++){
-            path_pos = refpath_msg.ref_path[i];
-            ref_point[0] = path_pos.point_2d[0];
-            ref_point[1] = path_pos.point_2d[1];
+
+        for (size_t i = 0; i < refpath_msg.markers.size(); i++){
+            
+            path_pos_marker = refpath_msg.markers[i];
+            
+            ref_point[0] = path_pos_marker.pose.position.x;
+            ref_point[1] = path_pos_marker.pose.position.y;
             this->ref_points_.push_back(ref_point);
-            // RCLCPP_INFO_STREAM(this->get_logger(), "Adding: x=" << ref_point[0] << ", y=" << ref_point[1]);
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Adding: x=" << ref_point[0] << ", y=" << ref_point[1]);
         }
     }
 
@@ -242,7 +249,7 @@ class PPController : public rclcpp::Node
     rclcpp::Subscription<sim_backend::msg::VehicleState>::SharedPtr state_subscriber_;
     
     // Subscriber to ref path provided by "perception"
-    rclcpp::Subscription<sim_backend::msg::RefPath>::SharedPtr ref_path_subscriber_;
+    rclcpp::Subscription<visualization_msgs::msg::MarkerArray>::SharedPtr ref_path_subscriber_;
 
     // Timer for control command publishing
     rclcpp::TimerBase::SharedPtr control_cmd_timer_;

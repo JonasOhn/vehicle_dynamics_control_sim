@@ -17,7 +17,6 @@
 #include "acados_c/ocp_nlp_interface.h"
 #include "acados_c/external_function_interface.h"
 #include "acados_solver_veh_dynamics_ode.h"
-#include "acados_solver_veh_kinematics_ode_init.h"
 
 // blasfeo
 #include "blasfeo/include/blasfeo_d_aux_ext_dep.h"
@@ -30,12 +29,6 @@
 #define NU     VEH_DYNAMICS_ODE_NU
 #define NP     VEH_DYNAMICS_ODE_NP
 #define NBX0   VEH_DYNAMICS_ODE_NBX0
-
-#define NX_QP     VEH_KINEMATICS_ODE_INIT_NX
-#define NZ_QP     VEH_KINEMATICS_ODE_INIT_NZ
-#define NU_QP     VEH_KINEMATICS_ODE_INIT_NU
-#define NP_QP     VEH_KINEMATICS_ODE_INIT_NP
-#define NBX0_QP   VEH_KINEMATICS_ODE_INIT_NBX0
 
 typedef struct{
     int sqp_max_iter;
@@ -52,11 +45,8 @@ typedef struct{
 } solver_output;
 
 typedef struct{
-    int n_s_mpc;
     int N_horizon_mpc;
     double T_final_mpc;
-    double s_max_mpc;
-    double ds_mpc;
     double dt_mpc;
 } horizon_parameters;
 
@@ -93,24 +83,17 @@ class MpcController {
         // Current State for MPC
         // [s:0, n:1, mu:2, vx:3, vy:4, dpsi:5]
         double x_[6] = {0.0};
-        double x_qp_[5] = {0.0};
-
-        int qp_init_max_iter_ = 5;
-        double vx_const_qp_ = 0.2;
-        double axm_const_qp_ = 1.0;
-        double curv_qp_[VEH_DYNAMICS_ODE_N + 1] = {0.0};
 
         // NLP Prediction trajectories
         double x_traj_[VEH_DYNAMICS_ODE_N + 1][NX];
         double u_traj_[VEH_DYNAMICS_ODE_N][NU];
-        double z_traj_[VEH_DYNAMICS_ODE_N] = {0.0};
 
-        // QP Prediction trajectories
-        double x_traj_qp_[VEH_KINEMATICS_ODE_INIT_N + 1][NX_QP];
-        double u_traj_qp_[VEH_KINEMATICS_ODE_INIT_N][NU_QP];
+        double curv_ref_mpc_[VEH_DYNAMICS_ODE_N] = {0.0};
+        double s_ref_mpc_[VEH_DYNAMICS_ODE_N] = {0.0};
+
+        // Initialization container vectors
         double x_stage_to_fill_[NX];
         double u_stage_to_fill_[NU];
-
         // NLP: Solver variables
         ocp_nlp_config *nlp_config_;
         ocp_nlp_dims *nlp_dims_;
@@ -119,15 +102,6 @@ class MpcController {
         ocp_nlp_solver *nlp_solver_;
         void *nlp_opts_;
         veh_dynamics_ode_solver_capsule *acados_ocp_capsule_;
-
-        // QP: Solver variables
-        ocp_nlp_config *qp_config_;
-        ocp_nlp_dims *qp_dims_;
-        ocp_nlp_in *qp_in_;
-        ocp_nlp_out *qp_out_;
-        ocp_nlp_solver *qp_solver_;
-        void *qp_opts_;
-        veh_kinematics_ode_init_solver_capsule *acados_qp_capsule_;
 
     public:
         MpcController();
@@ -170,7 +144,15 @@ class MpcController {
 
         int8_t set_reference_path(std::vector<std::vector<double>> &path);
 
-        int8_t set_state(double x_c, double y_c, double psi, double vx_local, double vy_local, double dpsi);
+        int8_t set_state(double x_c, 
+                         double y_c, 
+                         double psi, 
+                         double vx_local, 
+                         double vy_local, 
+                         double dpsi,
+                         double &s,
+                         double &n,
+                         double &mu);
 
         int8_t set_initial_state();
 
@@ -187,7 +169,7 @@ class MpcController {
                                     double C_d, // 0.5 * rho * CdA
                                     double C_r);
 
-        int8_t set_horizon_parameters(int n_s, int N, double T_f, double s_max);
+        int8_t set_horizon_parameters(int N, double T_f);
 
         int8_t set_solver_parameters(int sqp_max_iter, int rti_phase, bool warm_start_first_qp);
 

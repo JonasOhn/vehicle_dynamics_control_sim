@@ -69,10 +69,6 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
     mpc_horizon_parameters['T_final'] = horizon_params['T_final']
     # number of steps along horizon
     mpc_horizon_parameters['N_horizon'] = horizon_params['N_horizon']
-    # number of samples along reference path
-    mpc_horizon_parameters['n_s'] = horizon_params['n_s']
-    # maximum distance along reference path
-    mpc_horizon_parameters['s_max'] = horizon_params['s_max']
 
     # external cost is defined inside the model
     model_cost_parameters = {}
@@ -108,14 +104,14 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
     # State Constraints: lower bounds
     ocp.constraints.lbx = np.array((constraints_params['hard']['lb_s'],
                                     constraints_params['soft']['lb_n'],
-                                    constraints_params['hard']['lb_mu'],
+                                    constraints_params['soft']['lb_mu'],
                                     constraints_params['hard']['lb_vx'],
                                     constraints_params['hard']['lb_vy'],
                                     constraints_params['hard']['lb_dpsi']))
     # State Constraints: upper bounds
     ocp.constraints.ubx = np.array((constraints_params['hard']['ub_s'],
                                     constraints_params['soft']['ub_n'],
-                                    constraints_params['hard']['ub_mu'],
+                                    constraints_params['soft']['ub_mu'],
                                     constraints_params['hard']['ub_vx'],
                                     constraints_params['hard']['ub_vy'],
                                     constraints_params['hard']['ub_dpsi']))
@@ -142,14 +138,14 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
     # Terminal State Constraints: lower bounds
     ocp.constraints.lbx_e = np.array((constraints_params['hard']['lb_s'],
                                       constraints_params['soft']['lb_n'],
-                                      constraints_params['hard']['lb_mu'],
+                                      constraints_params['soft']['lb_mu'],
                                       constraints_params['hard']['lb_vx'],
                                       constraints_params['hard']['lb_vy'],
                                       constraints_params['hard']['lb_dpsi']))
     # Terminal State Constraints: upper bounds
     ocp.constraints.ubx_e = np.array((constraints_params['hard']['ub_s'],
                                       constraints_params['soft']['ub_n'],
-                                      constraints_params['hard']['ub_mu'],
+                                      constraints_params['soft']['ub_mu'],
                                       constraints_params['hard']['ub_vx'],
                                       constraints_params['hard']['ub_vy'],
                                       constraints_params['hard']['ub_dpsi']))
@@ -164,31 +160,35 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
     # Slack Weights
     S_n_lin = cost_params['slack_penalties']['linear']['S_n_lin']
     S_n_quad = cost_params['slack_penalties']['quadratic']['S_n_quad']
+    S_mu_lin = cost_params['slack_penalties']['linear']['S_mu_lin']
+    S_mu_quad = cost_params['slack_penalties']['quadratic']['S_mu_quad']
 
     # Quadratic Slack Cost weights
-    ocp.cost.Zu = np.diag(np.array((S_n_quad,)))
-    ocp.cost.Zl = np.diag(np.array((S_n_quad,)))
+    ocp.cost.Zu = np.diag(np.array((S_n_quad, S_mu_quad,)))
+    ocp.cost.Zl = np.diag(np.array((S_n_quad, S_mu_quad,)))
     # Linear Slack Cost Weights
-    ocp.cost.zu = np.array((S_n_lin,))
-    ocp.cost.zl = np.array((S_n_lin,))
+    ocp.cost.zu = np.array((S_n_lin, S_mu_lin,))
+    ocp.cost.zl = np.array((S_n_lin, S_mu_lin,))
 
     # Indices of slack variables in stage linear constraints
-    ocp.constraints.idxsbx = np.array((1,))
+    ocp.constraints.idxsbx = np.array((1, 2,))
 
     """ ======== TERMINAL SLACK COST ========== """
     # Slack Weights
     S_n_lin_e = cost_params['slack_penalties']['linear']['S_n_lin_e']
     S_n_quad_e = cost_params['slack_penalties']['quadratic']['S_n_quad_e']
+    S_mu_lin_e = cost_params['slack_penalties']['linear']['S_mu_lin_e']
+    S_mu_quad_e = cost_params['slack_penalties']['quadratic']['S_mu_quad_e']
 
     # Quadratic Slack Cost weights
-    ocp.cost.Zu_e = np.diag(np.array((S_n_quad_e,)))
-    ocp.cost.Zl_e = np.diag(np.array((S_n_quad_e,)))
+    ocp.cost.Zu_e = np.diag(np.array((S_n_quad_e, S_mu_quad_e,)))
+    ocp.cost.Zl_e = np.diag(np.array((S_n_quad_e, S_mu_quad_e,)))
     # Linear Slack Cost Weights
-    ocp.cost.zu_e = np.array((S_n_lin_e,))
-    ocp.cost.zl_e = np.array((S_n_lin_e,))
+    ocp.cost.zu_e = np.array((S_n_lin_e, S_mu_lin_e,))
+    ocp.cost.zl_e = np.array((S_n_lin_e, S_mu_lin_e,))
 
     # Indices of slack variables in stage linear constraints
-    ocp.constraints.idxsbx_e = np.array((1,))
+    ocp.constraints.idxsbx_e = np.array((1, 2,))
 
 
     """ ============ SOLVER OPTIONS ================== """

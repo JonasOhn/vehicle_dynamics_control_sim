@@ -3,7 +3,26 @@
 
 MpcController::MpcController(){
     std::cout << "Initializing Controller Class." << std::endl;
+
     this->mpc_geometry_obj_ = MpcGeometry();
+
+    for (this->i_ = 0; this->i_ <= this->horizon_params_.N_horizon_mpc; this->i_++)
+    {
+        this->x_traj_[this->i_][0] = 0.0; // s
+        this->x_traj_[this->i_][1] = 0.0; // n
+        this->x_traj_[this->i_][2] = 0.0; // mu
+        this->x_traj_[this->i_][3] = 0.0; // vx
+        this->x_traj_[this->i_][4] = 0.0; // vy
+        this->x_traj_[this->i_][5] = 0.0; // dpsi
+
+        if (this->i_ < this->horizon_params_.N_horizon_mpc)
+        {
+            this->u_traj_[this->i_][0] = 0.0; // ax_m
+            this->u_traj_[this->i_][1] = 0.0; // del_s
+        }
+    }
+
+
     std::cout << "Controller Class Initialized." << std::endl;
 }
 
@@ -61,18 +80,13 @@ int8_t MpcController::set_solver_parameters(int sqp_max_iter, int rti_phase, boo
     return 0;
 }
 
-int8_t MpcController::set_horizon_parameters(int n_s, int N, double T_f, double s_max)
+int8_t MpcController::set_horizon_parameters(int N, double T_f)
 {
     std::cout << "Setting horizon parameters." << std::endl;
-    this->horizon_params_.n_s_mpc = n_s;
     this->horizon_params_.N_horizon_mpc = N;
     this->horizon_params_.T_final_mpc = T_f;
-    this->horizon_params_.s_max_mpc = s_max;
-    this->horizon_params_.ds_mpc = s_max / (n_s - 1);
     this->horizon_params_.dt_mpc = (T_f / N);
 
-    this->mpc_geometry_obj_.init_mpc_curvature_horizon(this->horizon_params_.n_s_mpc,
-                                                       this->horizon_params_.ds_mpc);
     return 0;
 }
 
@@ -103,59 +117,43 @@ int8_t MpcController::init_solver()
     ocp_nlp_solver_opts_set(this->nlp_config_, this->nlp_opts_, "max_iter", &(this->solver_params_.sqp_max_iter));
     ocp_nlp_solver_opts_set(this->nlp_config_, this->nlp_opts_, "warm_start_first_qp", &(this->solver_params_.warm_start_first_qp));
 
-    std::cout << "Initializing QP solver capsule etc." << std::endl;
-    // allocate memory and get empty QP OCP capsule
-    this->acados_qp_capsule_ = veh_kinematics_ode_init_acados_create_capsule();
-
-    // allocate the array and fill it accordingly
-    creation_status = veh_kinematics_ode_init_acados_create_with_discretization(this->acados_qp_capsule_, 
-                                                                                    this->horizon_params_.N_horizon_mpc,
-                                                                                    NULL);
-    if (creation_status)
-    {
-        std::cout << "Initializing QP solver capsule failed." << std::endl;
-        return 1;
-    }
-    this->qp_config_ = veh_kinematics_ode_init_acados_get_nlp_config(this->acados_qp_capsule_);
-    this->qp_dims_ = veh_kinematics_ode_init_acados_get_nlp_dims(this->acados_qp_capsule_);
-    this->qp_in_ = veh_kinematics_ode_init_acados_get_nlp_in(this->acados_qp_capsule_);
-    this->qp_out_ = veh_kinematics_ode_init_acados_get_nlp_out(this->acados_qp_capsule_);
-    this->qp_solver_ = veh_kinematics_ode_init_acados_get_nlp_solver(this->acados_qp_capsule_);
-    this->qp_opts_ = veh_kinematics_ode_init_acados_get_nlp_opts(this->acados_qp_capsule_);
-
-    // Solver options set
-    ocp_nlp_solver_opts_set(this->qp_config_, this->qp_opts_, "rti_phase", &(this->solver_params_.rti_phase));
-    ocp_nlp_solver_opts_set(this->qp_config_, this->qp_opts_, "max_iter", &(this->qp_init_max_iter_));
-    ocp_nlp_solver_opts_set(this->qp_config_, this->qp_opts_, "warm_start_first_qp", &(this->solver_params_.warm_start_first_qp));
-
     return 0;
 }
 
-int8_t MpcController::set_state(double x_c, double y_c, double psi, double vx_local, double vy_local, double dpsi)
+int8_t MpcController::set_state(double x_c,
+                                double y_c, 
+                                double psi, 
+                                double vx_local, 
+                                double vy_local, 
+                                double dpsi,
+                                double &s,
+                                double &n,
+                                double &mu)
 {
     std::cout << "Setting state." << std::endl;
     // s: Progress coordinate
-    this->x_[0] = 0.000001; // s
-    this->x_qp_[0] = 0.000001; // s
+    this->x_[0] = this->mpc_geometry_obj_.get_initial_progress(x_c, y_c);; // s
+    s = this->x_[0];
+    std::cout << "Setting s = " << s << std::endl;
 
     // n: Lateral deviation coordinate
-    this->x_[1] = this->mpc_geometry_obj_.get_initial_lateral_deviation(x_c, y_c);
-    this->x_qp_[1] = this->x_[1];
+    this->x_[1] = this->mpc_geometry_obj_.get_initial_lateral_deviation(x_c, y_c); // n
+    n = this->x_[1];
+    std::cout << "Setting n = " << n << std::endl;
 
     // mu: Heading difference from path
     this->x_[2] = this->mpc_geometry_obj_.get_initial_heading_difference(psi); // mu
-    this->x_qp_[2] = this->x_[2]; // mu
+    mu = this->x_[2];
+    std::cout << "Setting mu = " << mu << std::endl;
 
-    // vx, vy: velocities in local frame
+    // vx: velocity in local frame
     this->x_[3] = vx_local; // vx
-    this->vx_const_qp_ = fmax(vx_local, 0.5);
 
+    // vy: velocity in local frame
     this->x_[4] = vy_local; // vy
-    this->x_qp_[3] = vy_local; // vy
 
     // dpsi: yaw rate
     this->x_[5] = dpsi; // r or dpsi
-    this->x_qp_[4] = dpsi; // r or dpsi
 
     return 0;
 }
@@ -183,29 +181,6 @@ int8_t MpcController::set_initial_state()
     ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "lbx", bx0);
     ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "ubx", bx0);
 
-    // ==== QP:
-
-    std::cout << "Setting initial state x0 for QP solver." << std::endl;
-    int idxbx0_qp[NBX0_QP];
-    idxbx0_qp[0] = 0;
-    idxbx0_qp[1] = 1;
-    idxbx0_qp[2] = 2;
-    idxbx0_qp[3] = 3;
-    idxbx0_qp[4] = 4;
-    idxbx0_qp[5] = 5;
-
-    double bx0_qp[NBX0_QP];
-    bx0_qp[0] = this->x_qp_[0];
-    bx0_qp[1] = this->x_qp_[1];
-    bx0_qp[2] = this->x_qp_[2];
-    bx0_qp[3] = this->x_qp_[3];
-    bx0_qp[4] = this->x_qp_[4];
-    bx0_qp[5] = this->x_qp_[5];
-
-    ocp_nlp_constraints_model_set(this->qp_config_, this->qp_dims_, this->qp_in_, 0, "idxbx", idxbx0_qp);
-    ocp_nlp_constraints_model_set(this->qp_config_, this->qp_dims_, this->qp_in_, 0, "lbx", bx0_qp);
-    ocp_nlp_constraints_model_set(this->qp_config_, this->qp_dims_, this->qp_in_, 0, "ubx", bx0_qp);
-
     return 0;
 }
 
@@ -226,31 +201,23 @@ int8_t MpcController::init_mpc_parameters()
     p[9] = this->model_params_.C_r;
 
     // Init curvature ref using the last predicted s-trajectory
-    for (this->i_ = 0; this->i_ <= this->horizon_params_.N_horizon_mpc; this->i_++)
+    for (this->i_ = 0; this->i_ < this->horizon_params_.N_horizon_mpc; this->i_++)
     {
+        std::cout << "Setting kappa at stage i = " << this->i_ << " based on s = " << this->x_traj_[this->i_][0] << std::endl;
         // curvature value at stage i_ from geometry object, given s
-        p[10] = this->mpc_geometry_obj_.get_mpc_curvature(this->x_traj_[this->i_][0]);
+        this->curv_ref_mpc_[this->i_] = this->mpc_geometry_obj_.get_mpc_curvature(this->x_traj_[this->i_][0]);
+
+        std::cout << "Got kappa_ref form goemetry object." << std::endl;
+
+        p[10] = this->curv_ref_mpc_[this->i_];
+
+        std::cout << "Set p[10]." << std::endl;
+
+        this->s_ref_mpc_[this->i_] = this->x_traj_[this->i_][0];
+
+        std::cout << "Model parameter kappa = " << this->curv_ref_mpc_[this->i_] << " at s = " << this->x_traj_[this->i_][0]<< std::endl;
+
         veh_dynamics_ode_acados_update_params(this->acados_ocp_capsule_, this->i_, p, NP);
-    }
-
-    std::cout << "Initializing QP model parameters for all stages." << std::endl;
-    // set QP parameters
-    double p_qp[NP_QP];
-    p_qp[0] = this->model_params_.m;
-    p_qp[1] = this->model_params_.g;
-    p_qp[2] = this->model_params_.l_f;
-    p_qp[3] = this->model_params_.l_r;
-    p_qp[4] = this->model_params_.Iz;
-    p_qp[5] = this->model_params_.B_tire;
-    p_qp[6] = this->model_params_.C_tire;
-    p_qp[7] = this->model_params_.D_tire;
-    p_qp[8] = this->vx_const_qp_;
-
-    // Init curvature ref as previous solution for curvature
-    for (this->i_ = 0; this->i_ <= this->horizon_params_.N_horizon_mpc; this->i_++)
-    {
-        p_qp[9] = this->curv_qp_[this->i_];
-        veh_kinematics_ode_init_acados_update_params(this->acados_qp_capsule_, this->i_, p_qp, NP_QP);
     }
 
     return 0;
@@ -260,57 +227,39 @@ int8_t MpcController::init_mpc_horizon()
 {
     std::cout << "Initializing state and input for all stages." << std::endl;
 
-    // Solve QP for initialization
-    double qp_time = 0.0;
-    int qp_init_status = veh_kinematics_ode_init_acados_solve(this->acados_qp_capsule_);
-    ocp_nlp_get(this->qp_config_, this->qp_solver_, "time_tot", &qp_time);
-    std::cout << "Solving QP for init took " << qp_time*1000 << "ms." << std::endl;
-    std::cout << "QP init status is " << qp_init_status << "." << std::endl;
-
-    // Get QP predicted solution
-    for (this->i_ = 0; this->i_ < VEH_KINEMATICS_ODE_INIT_N; this->i_++)
+    // initialize solution with previous solution shifted
+    for (this->i_ = 0; this->i_ <= this->horizon_params_.N_horizon_mpc - 2; this->i_++)
     {
-        ocp_nlp_out_get(this->qp_config_, this->qp_dims_, this->qp_out_, i_, "x", &this->x_traj_qp_[this->i_]);
-        ocp_nlp_out_get(this->qp_config_, this->qp_dims_, this->qp_out_, i_, "u", &this->u_traj_qp_[this->i_]);
-    }
-    ocp_nlp_out_get(this->qp_config_, this->qp_dims_, this->qp_out_, VEH_KINEMATICS_ODE_INIT_N, "x", &this->x_traj_qp_[VEH_KINEMATICS_ODE_INIT_N]);
-    
+        this->x_stage_to_fill_[0] = this->x_traj_[this->i_ + 1][0]; // s
+        this->x_stage_to_fill_[1] = this->x_traj_[this->i_ + 1][1]; // n
+        this->x_stage_to_fill_[2] = this->x_traj_[this->i_ + 1][2]; // mu
+        this->x_stage_to_fill_[3] = this->x_traj_[this->i_ + 1][3]; // vx
+        this->x_stage_to_fill_[4] = this->x_traj_[this->i_ + 1][4]; // vy
+        this->x_stage_to_fill_[5] = this->x_traj_[this->i_ + 1][5]; // dpsi
 
-    // this->x_stage_to_fill_[3] = this->vx_const_qp_; // vx constant
-    // this->u_stage_to_fill_[0] = this->axm_const_qp_; // axm constant
-
-    // initialize solution with QP predicted solution
-    for (this->i_ = 0; this->i_ < this->horizon_params_.N_horizon_mpc; this->i_++)
-    {
-        // this->x_stage_to_fill_[0] = this->x_traj_qp_[this->i_][0]; // s
-        // this->x_stage_to_fill_[1] = this->x_traj_qp_[this->i_][1]; // n
-        // this->x_stage_to_fill_[2] = this->x_traj_qp_[this->i_][2]; // mu
-        // this->x_stage_to_fill_[4] = this->x_traj_qp_[this->i_][3]; // vy
-        // this->x_stage_to_fill_[5] = this->x_traj_qp_[this->i_][4]; // dpsi
-
-        // this->u_stage_to_fill_[1] = this->u_traj_qp_[this->i_][0]; // del_s
-
-        this->x_stage_to_fill_[0] = this->x_traj_[this->i_][0]; // s
-        this->x_stage_to_fill_[1] = this->x_traj_[this->i_][1]; // n
-        this->x_stage_to_fill_[2] = this->x_traj_[this->i_][2]; // mu
-        this->x_stage_to_fill_[3] = this->x_traj_[this->i_][3]; // vx
-        this->x_stage_to_fill_[4] = this->x_traj_[this->i_][4]; // vy
-        this->x_stage_to_fill_[5] = this->x_traj_[this->i_][5]; // dpsi
-
-        this->u_stage_to_fill_[0] = this->u_traj_[this->i_][0]; // ax_m
-        this->u_stage_to_fill_[1] = this->u_traj_[this->i_][1]; // del_s
-
+        // fill x_(k) with x_(k+1) for k in [0, N - 2]
         ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "x", this->x_stage_to_fill_);
-        ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "u", this->u_stage_to_fill_);
-        // ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "z", &this->curv_qp_[this->i_]);
-    }
-    this->x_stage_to_fill_[0] = this->x_traj_[VEH_KINEMATICS_ODE_INIT_N][0]; // s
-    this->x_stage_to_fill_[1] = this->x_traj_[VEH_KINEMATICS_ODE_INIT_N][1]; // n
-    this->x_stage_to_fill_[2] = this->x_traj_[VEH_KINEMATICS_ODE_INIT_N][2]; // mu
-    this->x_stage_to_fill_[3] = this->x_traj_[VEH_KINEMATICS_ODE_INIT_N][3]; // vx
-    this->x_stage_to_fill_[4] = this->x_traj_[VEH_KINEMATICS_ODE_INIT_N][4]; // vy
-    this->x_stage_to_fill_[5] = this->x_traj_[VEH_KINEMATICS_ODE_INIT_N][5]; // dpsi
 
+        this->u_stage_to_fill_[0] = this->u_traj_[this->i_ + 1][0]; // ax_m
+        this->u_stage_to_fill_[1] = this->u_traj_[this->i_ + 1][1]; // del_s
+
+        // fill u_(k) with u_(k+1) for k in [0, N - 2]
+        ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "u", this->u_stage_to_fill_);
+    }
+
+    // take u_previous_(N - 1) from last iteration to also fill u_new_(N - 1)
+    ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->horizon_params_.N_horizon_mpc - 1, "u", this->u_stage_to_fill_);
+
+    // Get last values of previous x-trajectories
+    this->x_stage_to_fill_[0] = this->x_traj_[VEH_DYNAMICS_ODE_N][0]; // s
+    this->x_stage_to_fill_[1] = this->x_traj_[VEH_DYNAMICS_ODE_N][1]; // n
+    this->x_stage_to_fill_[2] = this->x_traj_[VEH_DYNAMICS_ODE_N][2]; // mu
+    this->x_stage_to_fill_[3] = this->x_traj_[VEH_DYNAMICS_ODE_N][3]; // vx
+    this->x_stage_to_fill_[4] = this->x_traj_[VEH_DYNAMICS_ODE_N][4]; // vy
+    this->x_stage_to_fill_[5] = this->x_traj_[VEH_DYNAMICS_ODE_N][5]; // dpsi
+
+    // take x_previous_(N) from last prediction to fill x_new_(N - 1) and x_new_(N)
+    ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->horizon_params_.N_horizon_mpc - 1, "x", this->x_stage_to_fill_);
     ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->horizon_params_.N_horizon_mpc, "x", this->x_stage_to_fill_);
     
     return 0;
@@ -375,17 +324,18 @@ int8_t MpcController::get_input(double (&u)[2])
     // If solver successful
     if(this->solver_out_.nlp_solver_status == 0
         || this->solver_out_.nlp_solver_status == 5
-        || this->solver_out_.nlp_solver_status == 2){
-        // evaluate u at stage
+        || this->solver_out_.nlp_solver_status == 2)
+    {
+        // evaluate u at initial stage
         ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, stage_to_eval, "u", &u);
-        this->axm_const_qp_ = fmax(u[0], 0.01);
-        // scale optimization output by m to get Force back
+        // scale optimization output by mass to get force
         u[0] = this->model_params_.m * u[0];
+        std::cout << "ax_m = " << u[0] << std::endl;
+        std::cout << "del_s = " << u[1] << std::endl;
     // If solver failed
-    }else{
+    } else {
         u[0] = 0.0;
         u[1] = 0.0;
-        this->axm_const_qp_ = 0.0;
     }
 
     return 0;
@@ -428,8 +378,6 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
     {
         ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i, "x", &this->x_traj_[i]);
         ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i, "u", &this->u_traj_[i]);
-        ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i, "z", &this->z_traj_[i]);
-        ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i, "z", &this->curv_qp_[i]);
 
         s_predict.push_back(this->x_traj_[i][0]);
         n_predict.push_back(this->x_traj_[i][1]);
@@ -441,9 +389,14 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
         axm_predict.push_back(this->u_traj_[i][0]);
         dels_predict.push_back(this->u_traj_[i][1]);
 
-        kappa_traj_mpc.push_back(this->z_traj_[i]);
+        kappa_traj_mpc.push_back(this->mpc_geometry_obj_.get_mpc_curvature(this->x_traj_[i][0]));
         s_traj_mpc.push_back(this->x_traj_[i][0]);
+
+        // Get message vectors for MPC predictions
+        s_ref_mpc.push_back(this->s_ref_mpc_[i]);
+        kappa_ref_mpc.push_back(this->curv_ref_mpc_[i]);
     }
+
     // get terminal state
     ocp_nlp_out_get(this->nlp_config_,
                     this->nlp_dims_, 
@@ -451,12 +404,6 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
                     this->nlp_dims_->N, 
                     "x", 
                     &this->x_traj_[this->nlp_dims_->N]);
-    ocp_nlp_out_get(this->nlp_config_,
-                    this->nlp_dims_,
-                    this->nlp_out_, 
-                    this->nlp_dims_->N,
-                    "z", 
-                    &this->curv_qp_[this->nlp_dims_->N]);
 
     s_predict.push_back(x_traj_[this->nlp_dims_->N][0]);
     n_predict.push_back(x_traj_[this->nlp_dims_->N][1]);
@@ -466,9 +413,7 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
     dpsi_predict.push_back(x_traj_[this->nlp_dims_->N][5]);
 
     this->mpc_geometry_obj_.get_s_ref_spline(s_ref_spline);
-    this->mpc_geometry_obj_.get_s_ref_mpc(s_ref_mpc);
     this->mpc_geometry_obj_.get_kappa_ref_spline(kappa_ref_spline);
-    this->mpc_geometry_obj_.get_kappa_ref_mpc(kappa_ref_mpc);
 
     return 0;
 }
@@ -528,7 +473,6 @@ int8_t MpcController::set_reference_path(std::vector<std::vector<double>> &path)
 
     this->mpc_geometry_obj_.set_control_points(path);
     this->mpc_geometry_obj_.fit_bspline_to_waypoint_path();
-    this->mpc_geometry_obj_.set_mpc_curvature(this->horizon_params_.s_max_mpc, this->horizon_params_.n_s_mpc);
 
     return 0;
 }

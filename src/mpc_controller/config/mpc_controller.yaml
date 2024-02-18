@@ -16,11 +16,9 @@
     horizon:
       T_final: 1.0
       N_horizon: 40
-      n_s: 30
-      s_max: 15.0
     cost:
       q_sd: 2.0
-      q_n: 1.0
+      q_n: 5.0
       q_mu: 0.5
       q_vy: 0.5
       q_dpsi: 0.5
@@ -28,22 +26,26 @@
       r_ax: 0.1
       slack_penalties:
         linear:
-          S_n_lin: 100.0
-          S_n_lin_e: 1000.0
+          S_n_lin: 10.0
+          S_n_lin_e: 10.0
+          S_mu_lin: 10.0
+          S_mu_lin_e: 10.0
         quadratic:
           S_n_quad: 100.0
-          S_n_quad_e: 1000.0
+          S_n_quad_e: 100.0
+          S_mu_quad: 100.0
+          S_mu_quad_e: 100.0
     constraints:
       soft:
         lb_n: -0.5
         ub_n: 0.5
-      hard:
-        lb_s: 0.0
-        ub_s: 15.0
         lb_mu: -0.5
         ub_mu: 0.5
+      hard:
+        lb_s: -10.0
+        ub_s: 20.0
         lb_vx: 0.0
-        ub_vx: 5.0
+        ub_vx: 15.0
         lb_vy: -4.0
         ub_vy: 4.0
         lb_dpsi: -4.0
@@ -57,17 +59,17 @@
       hessian_approx: 'EXACT' #'GAUSS_NEWTON' #'EXACT' #
       integrator_type: 'IRK'
       sim_method_newton_iter: 20
-      nlp_solver_max_iter: 5
+      nlp_solver_max_iter: 10
       qp_solver_iter_max: 50
       qp_solver_warm_start: 1
       regularize_method: 'PROJECT'
-      reg_epsilon: 0.01
-      alpha_min: 0.0001
+      reg_epsilon: 0.0001
+      alpha_min: 0.000001
       alpha_reduction: 0.7
       hpipm_mode: 'BALANCE' #'BALANCE', 'ROBUST', 'SPEED'
       cost_discretization: 'EULER'
       globalization: 'FIXED_STEP' # MERIT_BACKTRACKING  FIXED_STEP
       levenberg_marquardt: 0.0
       nlp_solver_step_length: 1.0
-      tol: 0.01
+      tol: 0.001
       qp_tol: 0.00001

@@ -17,6 +17,6 @@ def generate_launch_description():
                 get_package_share_directory('mpc_controller'),
                 'config', 'mpc_controller.yaml')],
             output='log',
-            arguments=['--ros-args', '--log-level', 'info'],
+            arguments=['--ros-args', '--log-level', 'debug'],
         ),
     ])

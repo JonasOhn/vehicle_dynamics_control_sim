@@ -28,7 +28,7 @@ class MpcGeometry {
         int t_int_ = 0;
 
         // knot step (uniform spline)
-        double dt_spline_ = 0.5;
+        double dt_spline_ = 0.2;
         // knot vector for b-spline fit to ref path
         std::vector<double> t_ref_spline_;
         // s vector of spline
@@ -46,11 +46,6 @@ class MpcGeometry {
         int j_ = 0;
         int k_ = 0;
 
-        // s vector
-        std::vector<double> s_ref_mpc_;
-        // curvature vector
-        std::vector<double> curv_ref_mpc_;
-
     public:
 
         MpcGeometry();
@@ -58,10 +53,6 @@ class MpcGeometry {
         int8_t set_control_points(std::vector<std::vector<double>> &waypoints);
 
         int8_t fit_bspline_to_waypoint_path();
-
-        int8_t set_mpc_curvature(int s_max_mpc, int n_s_mpc);
-
-        int8_t init_mpc_curvature_horizon(int n_s, double ds);
 
         double get_mpc_curvature(double s_to_eval);
 
@@ -71,13 +62,11 @@ class MpcGeometry {
 
         double get_initial_lateral_deviation(double x_c, double y_c);
 
+        double get_initial_progress(double x_c, double y_c);
+
         int8_t get_s_ref_spline(std::vector<double> &vec);
 
-        int8_t get_s_ref_mpc(std::vector<double> &vec);
-
         int8_t get_kappa_ref_spline(std::vector<double> &vec);
-
-        int8_t get_kappa_ref_mpc(std::vector<double> &vec);
 
         int8_t get_spline_eval_waypoint(std::vector<double> &vec, int idx);
 

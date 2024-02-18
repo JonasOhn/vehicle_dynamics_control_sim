@@ -39,17 +39,13 @@ set(CMAKE_C_FLAGS "-fPIC -Wno-unused-parameter ")
 set(acados_include "${PROJECT_SOURCE_DIR}/../../acados/include")
 set(acados_lib "${PROJECT_SOURCE_DIR}/../../acados/lib")
 set(full_model_build ${PROJECT_SOURCE_DIR}/scripts/c_generated_solver_mpc)
-set(qp_model_build ${PROJECT_SOURCE_DIR}/scripts/c_generated_solver_mpc_qp_initializer)
 
 # object target names
 set(MODEL_OBJ model_veh_dynamics_ode)
 set(OCP_OBJ ocp_veh_dynamics_ode)
-set(QP_MODEL_OBJ model_veh_kinematics_ode_init)
-set(QP_OCP_OBJ ocp_veh_kinematics_ode_init)
 
 include_directories(include
 	${full_model_build}
-  ${qp_model_build}
 	${acados_include}
 	${acados_include}/blasfeo/include
 	${acados_include}/hpipm/include
@@ -75,28 +71,11 @@ set(OCP_SRC
 )
 add_library(${OCP_OBJ} OBJECT ${OCP_SRC})
 
-# ========================= QP ======================
-# QP model
-file(GLOB QP_MODEL_SRC_FILES ${qp_model_build}/veh_kinematics_ode_init_model/*.c)
-set(QP_MODEL_SRC
-  ${QP_MODEL_SRC_FILES}
-)
-add_library(${QP_MODEL_OBJ} OBJECT ${QP_MODEL_SRC} )
-
-# QP problem - mostly CasADi exports
-file(GLOB OCP_CONSTRAINTS_SRC_FILES ${full_model_build}/veh_dynamics_ode_constraints/*.c)
-set(QP_OCP_SRC
-  ${qp_model_build}/acados_solver_veh_kinematics_ode_init.c
-)
-add_library(${QP_OCP_OBJ} OBJECT ${QP_OCP_SRC})
-
-
 # ================ Link Directories ==================
 link_directories(include 
   ${acados_lib} 
   ${acados_include} 
   ${full_model_build}
-  ${qp_model_build}
 )
 
 link_libraries(acados hpipm blasfeo m )
@@ -108,8 +87,6 @@ add_executable(mpc_controller_node
   src/mpc_geometry.cpp
   $<TARGET_OBJECTS:${MODEL_OBJ}> 
   $<TARGET_OBJECTS:${OCP_OBJ}>
-  $<TARGET_OBJECTS:${QP_MODEL_OBJ}>
-  $<TARGET_OBJECTS:${QP_OCP_OBJ}>
 )
 
 ament_target_dependencies(mpc_controller_node

@@ -52,19 +52,15 @@ def export_vehicle_ode_model(testing : bool = False,
 
     # =============== dynamics ========================
     # numerical approximation factor
-    eps = 1e-2
+    eps = 1e-3
 
     # Slip Angles
-    # alpha_f = - del_s + (vy + l_f * dpsi) / (vx + eps)
-    # alpha_r = (vy - l_r * dpsi) / (vx + eps)
     alpha_f = - del_s + atan2((vy + dpsi * l_f), vx + eps)
     alpha_r = atan2((vy - dpsi * l_r), vx + eps)
 
     # lateral forces
     Fz_f = m * g * l_r / (l_r + l_f)
     Fz_r = m * g * l_f / (l_r + l_f)
-    # Fy_f = Fz_f * D_tire * C_tire * B_tire * alpha_f
-    # Fy_r = Fz_r * D_tire * C_tire * B_tire * alpha_r
     Fy_f = Fz_f * D_tire * sin(C_tire * atan(B_tire * alpha_f))
     Fy_r = Fz_r * D_tire * sin(C_tire * atan(B_tire * alpha_r))
 
@@ -90,7 +86,6 @@ def export_vehicle_ode_model(testing : bool = False,
     """ STAGE Cost (model-based, slack is defined on the solver) """
     # Progress Rate Cost
     cost_sd = - model_cost_parameters['q_sd'] * s_dot_expl_dyn
-    # cost_sd = model_cost_parameters['q_sd'] * (vx - 10.0)**2
     cost_n = model_cost_parameters['q_n'] * n**2
     cost_mu =  model_cost_parameters['q_mu'] * mu**2
     cost_vy =  model_cost_parameters['q_vy'] * vy**2

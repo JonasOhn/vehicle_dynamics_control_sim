@@ -13,17 +13,17 @@
 // message includes
 #include "sim_backend/msg/sys_input.hpp"
 #include "sim_backend/msg/vehicle_state.hpp"
-#include "sim_backend/msg/ref_path.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
+#include "visualization_msgs/msg/marker.hpp"
 #include "mpc_controller/msg/mpc_state_trajectory.hpp"
 #include "mpc_controller/msg/mpc_input_trajectory.hpp"
 #include "mpc_controller/msg/mpc_kappa_trajectory.hpp"
 #include "mpc_controller/msg/mpc_solver_state.hpp"
-#include "visualization_msgs/msg/marker_array.hpp"
 
 // controller class include
 #include "mpc_controller/mpc_controller_class.hpp"
 
-#define DT_MS 50
+#define DT_MS 100
 
 
 using namespace std::chrono_literals;
@@ -44,8 +44,8 @@ class MPCControllerNode : public rclcpp::Node
         this->state_subscriber_ = this->create_subscription<sim_backend::msg::VehicleState>(
             "vehicle_state", 1, std::bind(&MPCControllerNode::state_update, this, std::placeholders::_1));
         // Init reference path subscriber
-        this->ref_path_subscriber_ = this->create_subscription<sim_backend::msg::RefPath>(
-            "reference_path", 1, std::bind(&MPCControllerNode::ref_path_update, this, std::placeholders::_1));
+        this->ref_path_subscriber_ = this->create_subscription<visualization_msgs::msg::MarkerArray>(
+            "reference_path_pcl", 1, std::bind(&MPCControllerNode::ref_path_update, this, std::placeholders::_1));
 
 
         /* ========= PUBLISHER ============ */
@@ -72,10 +72,8 @@ class MPCControllerNode : public rclcpp::Node
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting up MPC.");
         /* ========= CONTROLLER ============ */
         RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Initializing Horizon parameters.");
-        this->mpc_controller_obj_.set_horizon_parameters(this->n_s_mpc_,
-                                                         this->N_horizon_mpc_,
-                                                         this->T_final_mpc_,
-                                                         this->s_max_mpc_);
+        this->mpc_controller_obj_.set_horizon_parameters(this->N_horizon_mpc_,
+                                                         this->T_final_mpc_);
         RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Initializing Solver parameters.");
         this->mpc_controller_obj_.set_solver_parameters(this->sqp_max_iter_,
                                                         this->rti_phase_,
@@ -107,15 +105,19 @@ class MPCControllerNode : public rclcpp::Node
 
   private:
 
-    void ref_path_update(const sim_backend::msg::RefPath & refpath_msg)
+    void ref_path_update(const visualization_msgs::msg::MarkerArray & refpath_msg)
     {
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Reference path update called.");
+        RCLCPP_INFO_STREAM(this->get_logger(), "Reference path update called with refpath message containing " << refpath_msg.markers.size() << " points.");
 
+        if (first_idx_previous_refpath_ != refpath_msg.markers[0].id)
+        {
+            
+        }
         // clear previous reference path
         this->reference_path_.clear();
 
         // Create container for single 2D point with data type from message
-        auto path_pos = sim_backend::msg::Point2D();
+        auto path_pos_marker = visualization_msgs::msg::Marker();
 
         // 2D point
         std::vector<double> ref_point{0.0, 0.0};
@@ -124,13 +126,15 @@ class MPCControllerNode : public rclcpp::Node
         double dist_to_prev_point = 0.0;
 
         // get all reference points
-        for (size_t i = 0; i < refpath_msg.ref_path.size(); i++){
+        for (size_t i = 0; i < refpath_msg.markers.size(); i++){
             // Get i-th point on published path
-            path_pos = refpath_msg.ref_path[i];
-            ref_point[0] = path_pos.point_2d[0];
-            ref_point[1] = path_pos.point_2d[1];
+            path_pos_marker = refpath_msg.markers[i];
+            ref_point[0] = path_pos_marker.pose.position.x;
+            ref_point[1] = path_pos_marker.pose.position.y;
 
-            // From second point on: Check if point too far from previous point
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "Candidate ref_point = (" << ref_point[0] << ", " << ref_point[1] << ")");
+
+            // From second point (i > 0) on: Check if point too far from previous point
             if(i > 0){
                 dist_to_prev_point = sqrt(pow(ref_point[0] - this->reference_path_[i-1][0], 2.0) 
                     + pow(ref_point[1] - this->reference_path_[i-1][1], 2.0));
@@ -145,7 +149,7 @@ class MPCControllerNode : public rclcpp::Node
             }
             this->reference_path_.push_back(ref_point);
             RCLCPP_DEBUG_STREAM(this->get_logger(),
-                                "Got: ref_point = (" << ref_point[0] << ", " << ref_point[1] << ")");
+                                "Added: ref_point = (" << ref_point[0] << ", " << ref_point[1] << ")");
         }
 
         // Check if we have enough points for a bspline fit
@@ -265,6 +269,11 @@ class MPCControllerNode : public rclcpp::Node
                                                   kappa_traj_msg.kappa_ref_mpc
                                                   );
 
+        for (int i = 0; i < (int)kappa_traj_msg.kappa_ref_mpc.size(); i ++ )
+        {
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "s = " << kappa_traj_msg.s_ref_mpc[i] << ", kappa = " << kappa_traj_msg.kappa_ref_mpc[i]);
+        }
+
         mpc_xtraj_publisher_->publish(state_traj_msg);
         mpc_utraj_publisher_->publish(input_traj_msg);
         mpc_kappa_traj_publisher_->publish(kappa_traj_msg);
@@ -288,14 +297,17 @@ class MPCControllerNode : public rclcpp::Node
         auto marker_i = visualization_msgs::msg::Marker();
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Filling Spline Fit Marker Array.");
-        int i = 0;
+
+        int i;
+        spline_fit_marker_id_ = 0;
+
         // iterate through all spline points
         for (i = 0; i < (int)this->xy_spline_points_.size(); i++){
             marker_i.header.frame_id = "world";
             marker_i.header.stamp = this->now();
             // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
             marker_i.type = 2;
-            marker_i.id = i;
+            marker_i.id = spline_fit_marker_id_;
 
             // Set the scale of the marker
             marker_i.scale.x = 0.2;
@@ -317,6 +329,8 @@ class MPCControllerNode : public rclcpp::Node
             marker_i.pose.orientation.z = 0;
             marker_i.pose.orientation.w = 1;
 
+            this->spline_fit_marker_id_++;
+
             // append to marker array
             bspline_fit_msg.markers.push_back(marker_i);
         }
@@ -328,13 +342,15 @@ class MPCControllerNode : public rclcpp::Node
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Filling XY-predictions Marker Array.");
 
+        path_predict_marker_id_ = 0;
+
         // iterate through all spline points
         for (i = 0; i < (int)this->xy_predict_points_.size(); i++){
             marker_i.header.frame_id = "vehicle_frame";
             marker_i.header.stamp = this->now();
             // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
             marker_i.type = 1;
-            marker_i.id = i;
+            marker_i.id = path_predict_marker_id_;
 
             // Set the scale of the marker
             marker_i.scale.x = 0.2;
@@ -356,6 +372,8 @@ class MPCControllerNode : public rclcpp::Node
             marker_i.pose.orientation.z = 0;
             marker_i.pose.orientation.w = 1;
 
+            this->path_predict_marker_id_++;
+
             // append to marker array
             path_predict_msg.markers.push_back(marker_i);
         }
@@ -368,12 +386,22 @@ class MPCControllerNode : public rclcpp::Node
 
     void state_update(const sim_backend::msg::VehicleState & state_msg)
     {
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Updating State for Controller.");
+
+        double s = 0.0;
+        double n = 0.0;
+        double mu = 0.0;
+
         this->mpc_controller_obj_.set_state(state_msg.x_c,
                                             state_msg.y_c,
                                             state_msg.psi,
                                             state_msg.dx_c_v,
                                             state_msg.dy_c_v,
-                                            state_msg.dpsi);
+                                            state_msg.dpsi,
+                                            s, n, mu);
+
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "s = " << s << ", n = " << n << ", mu = " << mu);
+
     }
 
     // Initialize Controller Object
@@ -383,7 +411,7 @@ class MPCControllerNode : public rclcpp::Node
     rclcpp::Subscription<sim_backend::msg::VehicleState>::SharedPtr state_subscriber_;
     
     // Subscriber to ref path provided by "perception"
-    rclcpp::Subscription<sim_backend::msg::RefPath>::SharedPtr ref_path_subscriber_;
+    rclcpp::Subscription<visualization_msgs::msg::MarkerArray>::SharedPtr ref_path_subscriber_;
 
     // Timer for control command publishing
     rclcpp::TimerBase::SharedPtr control_cmd_timer_;
@@ -408,9 +436,11 @@ class MPCControllerNode : public rclcpp::Node
     std::chrono::milliseconds dt_{std::chrono::milliseconds(DT_MS)};
     const double dt_seconds_ = dt_.count() / 1e3;
 
+    unsigned long int spline_fit_marker_id_ = 0;
+    unsigned long int path_predict_marker_id_ = 0;
+    int first_idx_previous_refpath_ = 0;
+
     // MPC horizon parameters
-    int n_s_mpc_ = this->get_parameter("horizon.n_s").as_int();
-    double s_max_mpc_ = this->get_parameter("horizon.s_max").as_double();
     double T_final_mpc_ = this->get_parameter("horizon.T_final").as_double();
     int N_horizon_mpc_ = this->get_parameter("horizon.N_horizon").as_int();
 

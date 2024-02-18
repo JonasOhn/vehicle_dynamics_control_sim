@@ -1,6 +1,5 @@
 import numpy as np
 from setup_nlp_ocp_and_sim import load_mpc_yaml_params, setup_nlp_ocp_and_sim
-from setup_qp_init import setup_ocp_init
 from plot_sim_ocp import plot_nlp_dynamics
 
 # constant curvature horizon for simulation
@@ -37,6 +36,7 @@ def main(use_stepped_sim:bool=False):
     # get s-state sim vector because it is reset
     # to 0 at the beginning of each prediction horizon
     s_values = np.zeros((Nsim+1, 1))
+    s_values[0, 0] = x0[0]
 
     # set initial simulation state
     simX[0,:] = x0

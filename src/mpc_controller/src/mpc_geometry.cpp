@@ -36,59 +36,77 @@ double MpcGeometry::get_initial_heading_difference(double psi)
 {
     std::cout << "Retrieving initial heading difference." << std::endl;
 
+    double angle = 0.0;
+
     double dx_car_heading = cos(psi);
     double dy_car_heading = sin(psi);
 
-    double dx_path = dx_car_heading;
-    double dy_path = dy_car_heading;
+    double dx_path = 0.0;
+    double dy_path = 0.0;
 
     if(this->dxy_ref_spline_.size() > 0){
         dx_path = this->dxy_ref_spline_[0][0];
         dy_path = this->dxy_ref_spline_[0][1];
+        // https://wumbo.net/formulas/angle-between-two-vectors-2d/
+        angle = atan2(dy_car_heading * dx_path - dx_car_heading * dy_path,
+                      dx_car_heading * dx_path + dy_car_heading * dy_path);
     }
 
-    // https://wumbo.net/formulas/angle-between-two-vectors-2d/
-    return atan2(dy_car_heading * dx_path - dx_car_heading * dy_path,
-                 dx_car_heading * dx_path + dy_car_heading * dy_path);
+    return angle;
+}
+
+double MpcGeometry::get_initial_progress(double x_c, double y_c)
+{
+    double s = 0.0;
+
+    if (this->dxy_ref_spline_.size() >= 1)
+    {
+        // projection onto initial path tangent vector to get n
+        // https://en.wikipedia.org/wiki/Vector_projection
+        // vector from path start point to CoG of car, vector a
+        double x_delta_vector = x_c - this->xy_ref_spline_[0][0];
+        double y_delta_vector = y_c - this->xy_ref_spline_[0][1];
+
+        // tangent initial path vector
+        double dx_path = this->dxy_ref_spline_[0][0];
+        double dy_path = this->dxy_ref_spline_[0][1];
+
+        // *unit* normal vector on path, e_n, vector b_hat
+        double b_hat_x = dx_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
+        double b_hat_y = dy_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
+
+        // projection: s = a_1 = b_hat dot a
+        s = x_delta_vector * b_hat_x + y_delta_vector * b_hat_y;
+    }
+
+    return s;
 }
 
 double MpcGeometry::get_initial_lateral_deviation(double x_c, double y_c)
 {
-    // if(this->dxy_ref_spline_.size() > 1){
-    //     // projection onto path normal vector to get n
-    //     // https://en.wikipedia.org/wiki/Vector_projection
-    //     // vector from path start point to CoG of car, vector a
-    //     double x_delta_vector = x_c - this->xy_ref_spline_[0][0];
-    //     double y_delta_vector = y_c - this->xy_ref_spline_[0][1];
+    double n = 0.0;
 
-    //     // unit normal vector on path, e_n, vector b_hat
-    //     double b_hat_x = - dy_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
-    //     double b_hat_y = dx_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
-
-    //     // projection: a_1 = b_hat dot a
-    //     a_1 = x_delta_vector * b_hat_x + y_delta_vector * b_hat_y;
-    // }
-    return 0.0;
-}
-
-/**
- * Initialize the Curvature Horizon (s, kappa) that is used in the MPC
- *
- * @param n_s number of progress points from 0 to s_max
- * @param ds progress increment
- * @return 0 if successful
- */
-int8_t MpcGeometry::init_mpc_curvature_horizon(int n_s, double ds)
-{
-    std::cout << "Initializing s vector and curvature to zero." << std::endl;
-
-    // Init s_ref_mpc and respective curvature values
-    for (int i = 0; i < n_s; i++)
+    if (this->dxy_ref_spline_.size() >= 1)
     {
-        this->s_ref_mpc_.push_back(i * ds);
-        this->curv_ref_mpc_.push_back(0.0);
+        // projection onto initial path normal vector to get n
+        // https://en.wikipedia.org/wiki/Vector_projection
+        // vector from path start point to CoG of car, vector a
+        double x_delta_vector = x_c - this->xy_ref_spline_[0][0];
+        double y_delta_vector = y_c - this->xy_ref_spline_[0][1];
+
+        // tangent initial path vector
+        double dx_path = this->dxy_ref_spline_[0][0];
+        double dy_path = this->dxy_ref_spline_[0][1];
+
+        // *unit* normal vector on path, e_n, vector b_hat
+        double b_hat_x = - dy_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
+        double b_hat_y = dx_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
+
+        // projection: n = a_1 = b_hat dot a
+        n = x_delta_vector * b_hat_x + y_delta_vector * b_hat_y;
     }
-    return 0;
+
+    return n;
 }
 
 /**
@@ -106,12 +124,6 @@ int8_t MpcGeometry::set_control_points(std::vector<std::vector<double>> &waypoin
 
     // Create container for single 2D point with internal data type
     Eigen::Vector2d ref_point;
-
-    // set curvature to zero
-    for(this->j_ = 0; this->j_ < (int)this->curv_ref_mpc_.size(); this->j_++)
-    {
-        this->curv_ref_mpc_[this->j_] = 0.0;
-    }
 
     for(this->i_ = 0; this->i_ < (int)waypoints.size(); this->i_++)
     {
@@ -238,50 +250,6 @@ int8_t MpcGeometry::fit_bspline_to_waypoint_path()
 }
 
 /**
- * Generate Curvature Parameter Array for the MPC.
- *
- * @return 1 if something went wrong, 0 otherwise
- */
-int8_t MpcGeometry::set_mpc_curvature(int s_max_mpc, int n_s_mpc)
-{
-    std::cout << "Setting MPC curvature." << std::endl;
-
-    for (this->j_ = 0; this->j_ < n_s_mpc; this->j_++)
-    {
-        this->curv_ref_mpc_[this->j_] = 0.0;
-    }
-
-    int idx_next_s = 0;
-    // - if s_max is larger than the integrated s_ref_length, need to fill curv_ref_mpc (with zeros?)
-    // - if s_max is smaller than the integrated s_ref_length, no need to take further steps 
-    //   since curv_ref_mpc is interpolated correctly
-    for (int i = 0; i < n_s_mpc; i++)
-    {
-        // Iterate through the previously calculated s_ref vector and go 
-        // for first entry that is larger than in mpc s ref, interpolate between this and the previous point
-        for(this->j_ = 0; this->j_ < (int)this->s_ref_spline_.size(); this->j_++){
-            // As soon as s_ref_mpc (constant) is larger than s_ref, calculate curvature as 
-            // linear interpolation and break out
-            if (this->s_ref_mpc_[i] < this->s_ref_spline_[this->j_]){
-                idx_next_s = this->j_;
-                // Linearly interpolate between given s_ref values on the spline to get curvature
-                this->curv_ref_mpc_[i] = this->curv_ref_spline_[idx_next_s - 1] + 
-                    (this->s_ref_mpc_[i] - this->s_ref_spline_[idx_next_s - 1])/
-                    (this->s_ref_spline_[idx_next_s] - this->s_ref_spline_[idx_next_s - 1]) 
-                    * (this->curv_ref_spline_[idx_next_s] - this->curv_ref_spline_[idx_next_s - 1]);
-                // go for next s_ref_mpc curvature
-                break;
-            }else if (s_max_mpc <= this->s_ref_spline_[this->j_]){
-                // Fill with previous value if the reference spline length is larger than the maximum s_ref_mpc
-                this->curv_ref_mpc_[i] = this->curv_ref_mpc_[i - 1];
-            }
-        }
-    }
-
-    return 0;
-}
-
-/**
  * Get the curvature parameter for the MPC by s-value
  *
  * @param s_to_eval progress value where to evaluate curvature
@@ -289,8 +257,14 @@ int8_t MpcGeometry::set_mpc_curvature(int s_max_mpc, int n_s_mpc)
  */
 double MpcGeometry::get_mpc_curvature(double s_to_eval)
 {
+    std::cout << "retrieving mpc curvature at s = " << s_to_eval << std::endl;
+
     double curv_ref_return = 0.0;
-    std::cout << "Getting MPC curvature at s= " << s_to_eval << "." << std::endl;
+
+    if (this->s_ref_spline_.size() < 1 || s_to_eval < this->s_ref_spline_[0])
+    {
+        return curv_ref_return;
+    }
 
     int idx_next_s = 0;
     // Iterate through the previously calculated s_ref vector (spline) and go 
@@ -309,6 +283,7 @@ double MpcGeometry::get_mpc_curvature(double s_to_eval)
             break;
         }
     }
+    std::cout << "Got MPC curvature at s = " << s_to_eval << " to be " << curv_ref_return << std::endl;
 
     return curv_ref_return;
 }
@@ -327,19 +302,6 @@ int8_t MpcGeometry::get_s_ref_spline(std::vector<double> &vec)
 }
 
 /**
- * Get the progress (s) vector for mpc interpolation
- *
- * @param vec pointer to vector to fill
- * @return 0
- */
-int8_t MpcGeometry::get_s_ref_mpc(std::vector<double> &vec)
-{
-    std::cout << "Getting MPC s vector." << std::endl;
-    vec = this->s_ref_mpc_;
-    return 0;
-}
-
-/**
  * Get the curvature (kappa) vector from spline fit
  *
  * @param vec pointer to vector to fill
@@ -349,19 +311,6 @@ int8_t MpcGeometry::get_kappa_ref_spline(std::vector<double> &vec)
 {
     std::cout << "Getting fitted spline curvature vector." << std::endl;
     vec = this->curv_ref_spline_;
-    return 0;
-}
-
-/**
- * Get the curvature (kappa) vector for mpc interpolation
- *
- * @param vec pointer to vector to fill
- * @return 0
- */
-int8_t MpcGeometry::get_kappa_ref_mpc(std::vector<double> &vec)
-{
-    std::cout << "Getting MPC curvature vector." << std::endl;
-    vec = this->curv_ref_mpc_;
     return 0;
 }
 

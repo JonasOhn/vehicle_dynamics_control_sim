@@ -26,7 +26,6 @@ find_package(rcutils REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SysInput.msg"
   "msg/VehicleState.msg"
-  "msg/RefPath.msg"
   "msg/Point2D.msg"
 )
 
