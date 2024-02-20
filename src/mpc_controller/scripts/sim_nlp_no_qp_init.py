@@ -3,7 +3,7 @@ from setup_nlp_ocp_and_sim import load_mpc_yaml_params, setup_nlp_ocp_and_sim
 from plot_sim_ocp import plot_nlp_dynamics
 
 # constant curvature horizon for simulation
-CONST_CURV = 0.2
+CONST_CURV = 0.1
 
 
 def main(use_stepped_sim:bool=False):

@@ -26,13 +26,77 @@ int MpcGeometry::get_number_of_spline_evaluations()
     return this->n_t_evals_;
 }
 
+double MpcGeometry::get_x_ref(int idx)
+{
+    if(this->dxy_ref_spline_.size() > 0){
+        return this->xy_ref_spline_[idx][0];
+    }
+    return 0.0;
+}
+
+double MpcGeometry::get_y_ref(int idx)
+{
+    if(this->dxy_ref_spline_.size() > 0){
+        return this->xy_ref_spline_[idx][1];
+    }
+    return 0.0;
+}
+
+double MpcGeometry::get_dx_ref(int idx)
+{
+    if(this->dxy_ref_spline_.size() > 0){
+        return this->dxy_ref_spline_[idx][0];
+    }
+    return 0.0;
+}
+
+double MpcGeometry::get_dy_ref(int idx)
+{
+    if(this->dxy_ref_spline_.size() > 0){
+        return this->dxy_ref_spline_[idx][1];
+    }
+    return 0.0;
+}
+
+/**
+ * Getter for the idx of the initial path reference point
+ *
+ * @return idx of initial path reference point
+ */
+int MpcGeometry::get_initial_path_reference_idx(double x_c, double y_c)
+{
+    int idx_path = 0;
+
+    for (this->i_ = 0; this->i_ < (int)this->xy_ref_spline_.size(); this->i_++)
+    {
+        double x_delta_vector = x_c - this->xy_ref_spline_[this->i_][0];
+        double y_delta_vector = y_c - this->xy_ref_spline_[this->i_][1];
+
+        if(x_delta_vector * this->dxy_ref_spline_[this->i_][0] + y_delta_vector * this->dxy_ref_spline_[this->i_][1] <= 0)
+        {
+            if (this->i_ > 0)
+            {
+                idx_path = this->i_ - 1;
+            }else
+            {
+                idx_path = 0;
+            }
+
+            break;
+        }
+    }
+
+    return idx_path;
+}
+
 /**
  * Get the initial heading difference from a heading of the car
  *
  * @param psi current heading of the car
+ * @param path_idx index of the path reference point
  * @return mu, the heading difference state (initial) for MPC
  */
-double MpcGeometry::get_initial_heading_difference(double psi)
+double MpcGeometry::get_initial_heading_difference(double psi, int path_idx)
 {
     std::cout << "Retrieving initial heading difference." << std::endl;
 
@@ -45,8 +109,8 @@ double MpcGeometry::get_initial_heading_difference(double psi)
     double dy_path = 0.0;
 
     if(this->dxy_ref_spline_.size() > 0){
-        dx_path = this->dxy_ref_spline_[0][0];
-        dy_path = this->dxy_ref_spline_[0][1];
+        dx_path = this->dxy_ref_spline_[path_idx][0];
+        dy_path = this->dxy_ref_spline_[path_idx][1];
         // https://wumbo.net/formulas/angle-between-two-vectors-2d/
         angle = atan2(dy_car_heading * dx_path - dx_car_heading * dy_path,
                       dx_car_heading * dx_path + dy_car_heading * dy_path);
@@ -55,34 +119,50 @@ double MpcGeometry::get_initial_heading_difference(double psi)
     return angle;
 }
 
-double MpcGeometry::get_initial_progress(double x_c, double y_c)
+/**
+ * Get the initial progress from the car's position
+ *
+ * @param x_c current x-coordinate of the car
+ * @param y_c current y-coordinate of the car
+ * @param path_idx index of the path reference point
+ * @return s, the progress state (initial) for MPC
+ */
+double MpcGeometry::get_initial_progress(double x_c, double y_c, int path_idx)
 {
     double s = 0.0;
 
     if (this->dxy_ref_spline_.size() >= 1)
     {
-        // projection onto initial path tangent vector to get n
-        // https://en.wikipedia.org/wiki/Vector_projection
-        // vector from path start point to CoG of car, vector a
-        double x_delta_vector = x_c - this->xy_ref_spline_[0][0];
-        double y_delta_vector = y_c - this->xy_ref_spline_[0][1];
+            // projection onto initial path tangent vector to get n
+            // https://en.wikipedia.org/wiki/Vector_projection
+            // vector from path start point to CoG of car, vector a
+            double x_delta_vector = x_c - this->xy_ref_spline_[path_idx][0];
+            double y_delta_vector = y_c - this->xy_ref_spline_[path_idx][1];
 
-        // tangent initial path vector
-        double dx_path = this->dxy_ref_spline_[0][0];
-        double dy_path = this->dxy_ref_spline_[0][1];
+            // tangent initial path vector
+            double dx_path = this->dxy_ref_spline_[path_idx][0];
+            double dy_path = this->dxy_ref_spline_[path_idx][1];
 
-        // *unit* normal vector on path, e_n, vector b_hat
-        double b_hat_x = dx_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
-        double b_hat_y = dy_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
+            // *unit* normal vector on path, e_n, vector b_hat
+            double b_hat_x = dx_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
+            double b_hat_y = dy_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
 
-        // projection: s = a_1 = b_hat dot a
-        s = x_delta_vector * b_hat_x + y_delta_vector * b_hat_y;
+            // projection: s = a_1 = b_hat dot a
+            s = x_delta_vector * b_hat_x + y_delta_vector * b_hat_y;
     }
 
     return s;
 }
 
-double MpcGeometry::get_initial_lateral_deviation(double x_c, double y_c)
+/**
+ * Get the initial lateral deviation of the car
+ *
+ * @param x_c current x-coordinate of the car
+ * @param y_c current y-coordinate of the car
+ * @param path_idx index of the path reference point
+ * @return n, the lateral deviation state (initial) for MPC
+ */
+double MpcGeometry::get_initial_lateral_deviation(double x_c, double y_c, int path_idx)
 {
     double n = 0.0;
 
@@ -91,12 +171,12 @@ double MpcGeometry::get_initial_lateral_deviation(double x_c, double y_c)
         // projection onto initial path normal vector to get n
         // https://en.wikipedia.org/wiki/Vector_projection
         // vector from path start point to CoG of car, vector a
-        double x_delta_vector = x_c - this->xy_ref_spline_[0][0];
-        double y_delta_vector = y_c - this->xy_ref_spline_[0][1];
+        double x_delta_vector = x_c - this->xy_ref_spline_[path_idx][0];
+        double y_delta_vector = y_c - this->xy_ref_spline_[path_idx][1];
 
         // tangent initial path vector
-        double dx_path = this->dxy_ref_spline_[0][0];
-        double dy_path = this->dxy_ref_spline_[0][1];
+        double dx_path = this->dxy_ref_spline_[path_idx][0];
+        double dy_path = this->dxy_ref_spline_[path_idx][1];
 
         // *unit* normal vector on path, e_n, vector b_hat
         double b_hat_x = - dy_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
@@ -193,8 +273,8 @@ int8_t MpcGeometry::fit_bspline_to_waypoint_path()
     double s_ref_length = 0.0;
     // instant curvature
     double curv_instant = 0.0;
-    for(size_t i = 0; i < (size_t)this->t_ref_spline_.size(); i++){
-
+    for(size_t i = 0; i < (size_t)this->t_ref_spline_.size(); i++)
+    {
         // get integer value of knot vector
         this->t_int_ = (int) t_ref_spline_[i];
 

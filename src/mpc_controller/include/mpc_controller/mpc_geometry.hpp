@@ -58,11 +58,21 @@ class MpcGeometry {
 
         int get_number_of_spline_evaluations();
 
-        double get_initial_heading_difference(double psi);
+        int get_initial_path_reference_idx(double x_c, double y_c);
 
-        double get_initial_lateral_deviation(double x_c, double y_c);
+        double get_x_ref(int idx);
 
-        double get_initial_progress(double x_c, double y_c);
+        double get_y_ref(int idx);
+
+        double get_dx_ref(int idx);
+
+        double get_dy_ref(int idx);
+
+        double get_initial_heading_difference(double psi, int path_idx);
+
+        double get_initial_lateral_deviation(double x_c, double y_c, int path_idx);
+
+        double get_initial_progress(double x_c, double y_c, int path_idx);
 
         int8_t get_s_ref_spline(std::vector<double> &vec);
 

@@ -76,9 +76,7 @@ class MpcController {
 
         double dt_ctrl_callback_;
 
-        int i_ = 0;
-        int j_ = 0;
-        int k_ = 0;
+        int i_ = 0, j_ = 0, k_ = 0;
 
         // Current State for MPC
         // [s:0, n:1, mu:2, vx:3, vy:4, dpsi:5]
@@ -152,7 +150,9 @@ class MpcController {
                          double dpsi,
                          double &s,
                          double &n,
-                         double &mu);
+                         double &mu,
+                         double &x_path,
+                         double &y_path);
 
         int8_t set_initial_state();
 

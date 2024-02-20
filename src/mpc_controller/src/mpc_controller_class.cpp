@@ -128,21 +128,28 @@ int8_t MpcController::set_state(double x_c,
                                 double dpsi,
                                 double &s,
                                 double &n,
-                                double &mu)
+                                double &mu,
+                                double &x_path,
+                                double &y_path)
 {
+    int path_idx = this->mpc_geometry_obj_.get_initial_path_reference_idx(x_c, y_c);
+
+    x_path = this->mpc_geometry_obj_.get_x_ref(path_idx);
+    y_path = this->mpc_geometry_obj_.get_y_ref(path_idx);
+
     std::cout << "Setting state." << std::endl;
     // s: Progress coordinate
-    this->x_[0] = this->mpc_geometry_obj_.get_initial_progress(x_c, y_c);; // s
+    this->x_[0] = this->mpc_geometry_obj_.get_initial_progress(x_c, y_c, path_idx); // s
     s = this->x_[0];
     std::cout << "Setting s = " << s << std::endl;
 
     // n: Lateral deviation coordinate
-    this->x_[1] = this->mpc_geometry_obj_.get_initial_lateral_deviation(x_c, y_c); // n
+    this->x_[1] = this->mpc_geometry_obj_.get_initial_lateral_deviation(x_c, y_c, path_idx); // n
     n = this->x_[1];
     std::cout << "Setting n = " << n << std::endl;
 
     // mu: Heading difference from path
-    this->x_[2] = this->mpc_geometry_obj_.get_initial_heading_difference(psi); // mu
+    this->x_[2] = this->mpc_geometry_obj_.get_initial_heading_difference(psi, path_idx); // mu
     mu = this->x_[2];
     std::cout << "Setting mu = " << mu << std::endl;
 

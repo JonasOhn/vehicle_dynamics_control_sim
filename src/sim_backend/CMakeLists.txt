@@ -27,6 +27,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SysInput.msg"
   "msg/VehicleState.msg"
   "msg/Point2D.msg"
+  "msg/Point2DArray.msg"
 )
 
 ament_export_dependencies(rosidl_default_runtime)

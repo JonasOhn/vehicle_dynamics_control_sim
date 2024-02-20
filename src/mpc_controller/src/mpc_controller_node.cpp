@@ -23,8 +23,6 @@
 // controller class include
 #include "mpc_controller/mpc_controller_class.hpp"
 
-#define DT_MS 100
-
 
 using namespace std::chrono_literals;
 
@@ -39,7 +37,9 @@ class MPCControllerNode : public rclcpp::Node
                 .automatically_declare_parameters_from_overrides(true))
     {
 
-        /* ========= SUBSCRIBER ============ */
+        /* ===== NODE INIT ====== */
+
+        /* ========= SUBSCRIBERS ============ */
         // Init State Subscriber
         this->state_subscriber_ = this->create_subscription<sim_backend::msg::VehicleState>(
             "vehicle_state", 1, std::bind(&MPCControllerNode::state_update, this, std::placeholders::_1));
@@ -48,8 +48,8 @@ class MPCControllerNode : public rclcpp::Node
             "reference_path_pcl", 1, std::bind(&MPCControllerNode::ref_path_update, this, std::placeholders::_1));
 
 
-        /* ========= PUBLISHER ============ */
-        // Init MPC <Numerical> Prediction Horizon Publishers
+        /* ========= PUBLISHERS ============ */
+        // Init MPC <Functional> Prediction Horizon Publishers
         this->mpc_xtraj_publisher_ = this->create_publisher<mpc_controller::msg::MpcStateTrajectory>(
             "mpc_state_trajectory", 10);
         this->mpc_utraj_publisher_ = this->create_publisher<mpc_controller::msg::MpcInputTrajectory>(
@@ -69,15 +69,18 @@ class MPCControllerNode : public rclcpp::Node
         this->control_cmd_publisher_ = this->create_publisher<sim_backend::msg::SysInput>("vehicle_input", 10);
         this->control_cmd_timer_ = rclcpp::create_timer(this, this->get_clock(), this->dt_, std::bind(&MPCControllerNode::control_callback, this));
 
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting up MPC.");
         /* ========= CONTROLLER ============ */
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting up MPC.");
+
         RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Initializing Horizon parameters.");
         this->mpc_controller_obj_.set_horizon_parameters(this->N_horizon_mpc_,
                                                          this->T_final_mpc_);
+
         RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Initializing Solver parameters.");
         this->mpc_controller_obj_.set_solver_parameters(this->sqp_max_iter_,
                                                         this->rti_phase_,
                                                         this->warm_start_first_qp_);
+
         RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Initializing Model parameters.");
         this->mpc_controller_obj_.set_model_parameters(this->l_f_,
                                                        this->l_r_,
@@ -89,17 +92,19 @@ class MPCControllerNode : public rclcpp::Node
                                                        this->B_tire_,
                                                        this->C_d_,
                                                        this->C_r_);
+
         RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Sending control loop time step to MPC.");
         this->mpc_controller_obj_.set_dt_control_feedback(this->dt_seconds_);
         
         RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Initializing MPC Solver.");
+
         if(this->mpc_controller_obj_.init_solver() != 0){
             RCLCPP_INFO_STREAM(this->get_logger(), "Solver initialization failed. Node being shut down.");
             rclcpp::shutdown();
         }
 
-
         /* ========= SUCCESS MESSAGE ============ */
+
         RCLCPP_INFO_STREAM(this->get_logger(), "Node " << this->get_name() << " initialized.");
     }
 
@@ -107,12 +112,8 @@ class MPCControllerNode : public rclcpp::Node
 
     void ref_path_update(const visualization_msgs::msg::MarkerArray & refpath_msg)
     {
-        RCLCPP_INFO_STREAM(this->get_logger(), "Reference path update called with refpath message containing " << refpath_msg.markers.size() << " points.");
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Reference path update called with refpath message containing " << refpath_msg.markers.size() << " points.");
 
-        if (first_idx_previous_refpath_ != refpath_msg.markers[0].id)
-        {
-            
-        }
         // clear previous reference path
         this->reference_path_.clear();
 
@@ -140,9 +141,7 @@ class MPCControllerNode : public rclcpp::Node
                     + pow(ref_point[1] - this->reference_path_[i-1][1], 2.0));
 
                 if(dist_to_prev_point > this->max_dist_to_prev_path_point_){
-                    RCLCPP_DEBUG_STREAM(this->get_logger(), 
-                                        "Breaking out because: ref_point = (" 
-                                        << ref_point[0] << ", " 
+                    RCLCPP_DEBUG_STREAM(this->get_logger(), "Breaking out because: ref_point = (" << ref_point[0] << ", " 
                                         << ref_point[1] << ") too far from last point.");
                     break;
                 }
@@ -180,7 +179,7 @@ class MPCControllerNode : public rclcpp::Node
 
 
         // =================== Initial State for MPC ========================
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting x0");
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting x0 ...");
         this->mpc_controller_obj_.set_initial_state();
 
 
@@ -190,7 +189,7 @@ class MPCControllerNode : public rclcpp::Node
 
 
         // ============== State and Input Trajectory Initialization for MPC ==============
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Initializing solution (x, u, x_N)");
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Initializing solution (X, U, x_N) ...");
         this->mpc_controller_obj_.init_mpc_horizon();
 
 
@@ -230,7 +229,7 @@ class MPCControllerNode : public rclcpp::Node
 
 
         // =================== Get Input for Plant from MPC Solver ========================
-        /* Get solver outputs and publish message asap */
+        /* Get solver outputs and publish message */
         double u_eval[2];
 
         this->mpc_controller_obj_.get_input(u_eval);
@@ -244,7 +243,37 @@ class MPCControllerNode : public rclcpp::Node
 
         RCLCPP_INFO_STREAM(this->get_logger(), "Published Input message.");
 
+        // =================== Publish MPC Predictions ========================
+        this->publish_predictions();
 
+        // ===== FINISH Control Callback =========
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Control Callback ended.");
+    }
+
+    void state_update(const sim_backend::msg::VehicleState & state_msg)
+    {
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Updating State for Controller.");
+
+        double s = 0.0;
+        double n = 0.0;
+        double mu = 0.0;
+        double x_path = 0.0;
+        double y_path = 0.0;
+
+        this->mpc_controller_obj_.set_state(state_msg.x_c,
+                                            state_msg.y_c,
+                                            state_msg.psi,
+                                            state_msg.dx_c_v,
+                                            state_msg.dy_c_v,
+                                            state_msg.dpsi,
+                                            s, n, mu, x_path, y_path);
+
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "s = " << s << ", n = " << n << ", mu = " << mu);
+
+    }
+
+    void publish_predictions()
+    {
         // =================== Evaluate and Publish MPC Predictions ========================
         
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Evaluating MPC Predictions.");
@@ -269,9 +298,9 @@ class MPCControllerNode : public rclcpp::Node
                                                   kappa_traj_msg.kappa_ref_mpc
                                                   );
 
-        for (int i = 0; i < (int)kappa_traj_msg.kappa_ref_mpc.size(); i ++ )
+        for (i_ = 0; i_ < (int)kappa_traj_msg.kappa_ref_mpc.size(); i_ ++ )
         {
-            RCLCPP_DEBUG_STREAM(this->get_logger(), "s = " << kappa_traj_msg.s_ref_mpc[i] << ", kappa = " << kappa_traj_msg.kappa_ref_mpc[i]);
+            RCLCPP_DEBUG_STREAM(this->get_logger(), "s = " << kappa_traj_msg.s_ref_mpc[i_] << ", kappa = " << kappa_traj_msg.kappa_ref_mpc[i_]);
         }
 
         mpc_xtraj_publisher_->publish(state_traj_msg);
@@ -298,11 +327,10 @@ class MPCControllerNode : public rclcpp::Node
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Filling Spline Fit Marker Array.");
 
-        int i;
         spline_fit_marker_id_ = 0;
 
         // iterate through all spline points
-        for (i = 0; i < (int)this->xy_spline_points_.size(); i++){
+        for (i_ = 0; i_ < (int)this->xy_spline_points_.size(); i_++){
             marker_i.header.frame_id = "world";
             marker_i.header.stamp = this->now();
             // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
@@ -310,9 +338,9 @@ class MPCControllerNode : public rclcpp::Node
             marker_i.id = spline_fit_marker_id_;
 
             // Set the scale of the marker
-            marker_i.scale.x = 0.2;
-            marker_i.scale.y = 0.2;
-            marker_i.scale.z = 0.2;
+            marker_i.scale.x = 0.1;
+            marker_i.scale.y = 0.1;
+            marker_i.scale.z = 0.1;
 
             // Set the color
             marker_i.color.r = 0.0;
@@ -321,8 +349,8 @@ class MPCControllerNode : public rclcpp::Node
             marker_i.color.a = 1.0;
 
             // Set the pose of the marker
-            marker_i.pose.position.x = this->xy_spline_points_[i][0];
-            marker_i.pose.position.y = this->xy_spline_points_[i][1];
+            marker_i.pose.position.x = this->xy_spline_points_[i_][0];
+            marker_i.pose.position.y = this->xy_spline_points_[i_][1];
             marker_i.pose.position.z = 0;
             marker_i.pose.orientation.x = 0;
             marker_i.pose.orientation.y = 0;
@@ -345,7 +373,7 @@ class MPCControllerNode : public rclcpp::Node
         path_predict_marker_id_ = 0;
 
         // iterate through all spline points
-        for (i = 0; i < (int)this->xy_predict_points_.size(); i++){
+        for (i_ = 0; i_ < (int)this->xy_predict_points_.size(); i_++){
             marker_i.header.frame_id = "vehicle_frame";
             marker_i.header.stamp = this->now();
             // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
@@ -364,8 +392,8 @@ class MPCControllerNode : public rclcpp::Node
             marker_i.color.a = 1.0;
 
             // Set the pose of the marker
-            marker_i.pose.position.x = this->xy_predict_points_[i][0];
-            marker_i.pose.position.y = this->xy_predict_points_[i][1];
+            marker_i.pose.position.x = this->xy_predict_points_[i_][0];
+            marker_i.pose.position.y = this->xy_predict_points_[i_][1];
             marker_i.pose.position.z = 0;
             marker_i.pose.orientation.x = 0;
             marker_i.pose.orientation.y = 0;
@@ -379,29 +407,8 @@ class MPCControllerNode : public rclcpp::Node
         }
         xy_predict_traj_publisher_->publish(path_predict_msg);
 
-
-        // ===== FINISH Control Callback =========
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Control Callback ended.");
-    }
-
-    void state_update(const sim_backend::msg::VehicleState & state_msg)
-    {
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Updating State for Controller.");
-
-        double s = 0.0;
-        double n = 0.0;
-        double mu = 0.0;
-
-        this->mpc_controller_obj_.set_state(state_msg.x_c,
-                                            state_msg.y_c,
-                                            state_msg.psi,
-                                            state_msg.dx_c_v,
-                                            state_msg.dy_c_v,
-                                            state_msg.dpsi,
-                                            s, n, mu);
-
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "s = " << s << ", n = " << n << ", mu = " << mu);
-
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Published MPC Predictions.");
+    
     }
 
     // Initialize Controller Object
@@ -430,15 +437,15 @@ class MPCControllerNode : public rclcpp::Node
 
     // Reference Path to give to MPC
     std::vector<std::vector<double>> reference_path_;
-    const double max_dist_to_prev_path_point_ = 5.0;
+    const double max_dist_to_prev_path_point_ = this->get_parameter("max_distance_path_points").as_double();
 
     // Step Time for controller publisher
-    std::chrono::milliseconds dt_{std::chrono::milliseconds(DT_MS)};
+    int dt_ms = this->get_parameter("dt_ms").as_int();
+    std::chrono::milliseconds dt_{std::chrono::milliseconds(dt_ms)};
     const double dt_seconds_ = dt_.count() / 1e3;
 
     unsigned long int spline_fit_marker_id_ = 0;
     unsigned long int path_predict_marker_id_ = 0;
-    int first_idx_previous_refpath_ = 0;
 
     // MPC horizon parameters
     double T_final_mpc_ = this->get_parameter("horizon.T_final").as_double();
@@ -446,7 +453,7 @@ class MPCControllerNode : public rclcpp::Node
 
     // Solver parameters
     int sqp_max_iter_ = this->get_parameter("solver_options.nlp_solver_max_iter").as_int();
-    int rti_phase_ = 0;
+    int rti_phase_ = this->get_parameter("solver_options.init_rti_phase").as_int();
     int ws_first_qp = this->get_parameter("solver_options.qp_solver_warm_start").as_int();
     bool warm_start_first_qp_ = (bool) ws_first_qp;
 
@@ -465,6 +472,9 @@ class MPCControllerNode : public rclcpp::Node
     // For visualization
     std::vector<std::vector<double>> xy_spline_points_;
     std::vector<std::vector<double>> xy_predict_points_;
+
+    // Iterators
+    int i_ = 0;
 };
 
 int main(int argc, char * argv[])

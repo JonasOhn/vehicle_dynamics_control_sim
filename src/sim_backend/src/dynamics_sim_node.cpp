@@ -12,10 +12,9 @@
 #include "sim_backend/msg/vehicle_state.hpp"
 #include "sim_backend/msg/sys_input.hpp"
 #include "sim_backend/msg/point2_d.hpp"
+#include "sim_backend/msg/point2_d_array.hpp"
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include "tf2/LinearMath/Quaternion.h"
-#include "visualization_msgs/msg/marker_array.hpp"
-#include "visualization_msgs/msg/marker.hpp"
 
 #include "sim_backend/dynamic_system.hpp"
 
@@ -36,8 +35,10 @@ class DynamicsSimulator : public rclcpp::Node
             track_fpath_leftbound_ = this->get_parameter("track_filepath_leftbound").as_string();
             track_fpath_rightbound_ = this->get_parameter("track_filepath_rightbound").as_string();
 
-            if (!(this->get_csv_ref_track())){
-            RCLCPP_ERROR_STREAM(this->get_logger(), "Something went wrong reading CSV ref points file!");
+            if (!(this->get_csv_ref_track()))
+            {
+                RCLCPP_ERROR_STREAM(this->get_logger(), "Something went wrong reading CSV ref points file!");
+                rclcpp::shutdown();
             }
             print_global_refpoints();
 
@@ -79,12 +80,11 @@ class DynamicsSimulator : public rclcpp::Node
             start_time_ns_ = (double)(this->now().nanoseconds());  // [ns]
 
             state_publisher_ = this->create_publisher<sim_backend::msg::VehicleState>("vehicle_state", 10);
-            track_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("track_pcl2d", 10);
-            trackbounds_left_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("trackbounds_left_pcl2d", 10);
-            trackbounds_right_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("trackbounds_right_pcl2d", 10);
-            velocity_vector_publisher_ = this->create_publisher<visualization_msgs::msg::Marker>("car_cog_velocity_vector", 10);
-            ref_path_publisher_marker_array_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("reference_path_pcl", 10);
-
+            track_publisher_ = this->create_publisher<sim_backend::msg::Point2DArray>("track_points2d", 10);
+            trackbounds_left_publisher_ = this->create_publisher<sim_backend::msg::Point2DArray>("trackbounds_left_points2d", 10);
+            trackbounds_right_publisher_ = this->create_publisher<sim_backend::msg::Point2DArray>("trackbounds_right_points2d", 10);
+            velocity_vector_publisher_ = this->create_publisher<sim_backend::msg::Point2DArray>("car_cog_velocity_vector", 10);
+            ref_path_publisher_marker_array_ = this->create_publisher<sim_backend::msg::Point2DArray>("reference_path_points2d", 10);
 
             solve_timer_ = rclcpp::create_timer(this, this->get_clock(), this->dt_, std::bind(&DynamicsSimulator::solve_step, this));
             trackpub_timer_ = rclcpp::create_timer(this, this->get_clock(), this->dt_trackpub_, std::bind(&DynamicsSimulator::track_callback, this));
@@ -247,8 +247,8 @@ class DynamicsSimulator : public rclcpp::Node
 
             // Set the scale of the marker
             velvec_msg.scale.x = sqrt(pow(x_[3], 2.0) + pow(x_[4], 2.0));
-            velvec_msg.scale.y = 1.0;
-            velvec_msg.scale.z = 1.0;
+            velvec_msg.scale.y = 0.1;
+            velvec_msg.scale.z = 0.1;
 
             // Set the color
             velvec_msg.color.r = 0.0;
@@ -419,9 +419,9 @@ class DynamicsSimulator : public rclcpp::Node
             double y_c = x_[1];
             double psi = x_[2];
 
-            double a_1_neg = - sin(psi - gamma_);
-            double a_2_neg = cos(psi - gamma_);
-            double b_neg = a_1_neg * x_c + a_2_neg * y_c;
+            double a_1_neg = sin(psi - gamma_);
+            double a_2_neg = - cos(psi - gamma_);
+            double b_neg = - a_1_neg * x_c - a_2_neg * y_c;
 
             double a_1_pos = sin(psi + gamma_);
             double a_2_pos = - cos(psi + gamma_);
@@ -438,6 +438,7 @@ class DynamicsSimulator : public rclcpp::Node
 
             size_t idx = 0;
             bool first_visited = false;
+            int marker_id = 0;
 
             for (size_t i = this->initial_idx_refloop_; i < (ref_points_global_.size() + this->initial_idx_refloop_); i++)
             {
@@ -445,30 +446,29 @@ class DynamicsSimulator : public rclcpp::Node
                 path_pos.point_2d[0] = ref_points_global_[idx][0];
                 path_pos.point_2d[1] = ref_points_global_[idx][1];
 
-                //RCLCPP_DEBUG_STREAM(this->get_logger(), "Ref path callback at track index " << idx << " with point (" << path_pos.point_2d[0] << ", " << path_pos.point_2d[1] << ").");
+                RCLCPP_DEBUG_STREAM(this->get_logger(), "Ref path callback at track index " << idx << " with point (" << path_pos.point_2d[0] << ", " << path_pos.point_2d[1] << ").");
 
                 // Check if global candidate point lies in the cone defined by the two "perception" halfspaces
-                // And if global point lies inside (outside) a "perception circle"
-                if((a_1_neg * path_pos.point_2d[0] + a_2_neg * path_pos.point_2d[1] >= b_neg) && 
-                   (a_1_pos * path_pos.point_2d[0] + a_2_pos * path_pos.point_2d[1] >= b_pos) &&
-                   (sqrt(pow(path_pos.point_2d[0] - x_c, 2) + pow(path_pos.point_2d[1] - y_c, 2)) <= this->r_perception_max_) &&
-                   (sqrt(pow(path_pos.point_2d[0] - x_c, 2) + pow(path_pos.point_2d[1] - y_c, 2)) >= this->r_perception_min_))
+                // And if global point lies inside a "perception donut"
+                if(((a_1_neg * path_pos.point_2d[0] + a_2_neg * path_pos.point_2d[1] <= b_neg) && 
+                    (a_1_pos * path_pos.point_2d[0] + a_2_pos * path_pos.point_2d[1] >= b_pos) &&
+                    (sqrt(pow(path_pos.point_2d[0] - x_c, 2) + pow(path_pos.point_2d[1] - y_c, 2)) <= this->r_perception_max_)) ||
+                    (sqrt(pow(path_pos.point_2d[0] - x_c, 2) + pow(path_pos.point_2d[1] - y_c, 2)) <= this->r_perception_min_))
                 {
-
                     marker_i.header.frame_id = "world";
                     marker_i.header.stamp = this->now();
                     // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
                     marker_i.type = 2;
                     marker_i.id = (int) idx;
                     // Set the scale of the marker
-                    marker_i.scale.x = 0.12;
-                    marker_i.scale.y = 0.12;
-                    marker_i.scale.z = 0.12;
+                    marker_i.scale.x = 0.18;
+                    marker_i.scale.y = 0.18;
+                    marker_i.scale.z = 0.18;
                     // Set the color
                     marker_i.color.r = r_val_point;
                     marker_i.color.g = g_val_point;
                     marker_i.color.b = b_val_point;
-                    marker_i.color.a = 1.0;
+                    marker_i.color.a = 0.8;
 
                     // Set the pose of the marker
                     marker_i.pose.position.x = ref_points_global_[idx][0];
@@ -481,6 +481,8 @@ class DynamicsSimulator : public rclcpp::Node
 
                     // append to marker array
                     ref_path_marker_msg.markers.push_back(marker_i);
+
+                    marker_id++;
                     
                     if (!first_visited){
                         first_visited = true;
@@ -514,8 +516,8 @@ class DynamicsSimulator : public rclcpp::Node
         rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr reset_subscription_;
 
         // Cycle time of Simulation node
-        std::chrono::milliseconds dt_{std::chrono::milliseconds(10)};
-        std::chrono::milliseconds dt_trackpub_{std::chrono::milliseconds(100)};
+        std::chrono::milliseconds dt_{std::chrono::milliseconds(5)};
+        std::chrono::milliseconds dt_trackpub_{std::chrono::milliseconds(5)};
         double dt_seconds_;
 
         // Maximum step time for ODE solver
