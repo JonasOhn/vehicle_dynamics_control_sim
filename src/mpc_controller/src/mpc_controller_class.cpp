@@ -6,39 +6,30 @@ MpcController::MpcController(){
 
     this->mpc_geometry_obj_ = MpcGeometry();
 
+    this->reset_prediction_trajectories();
+
+    std::cout << "Controller Class Initialized." << std::endl;
+}
+
+void MpcController::reset_prediction_trajectories()
+{
     for (this->i_ = 0; this->i_ <= this->horizon_params_.N_horizon_mpc; this->i_++)
     {
         this->x_traj_[this->i_][0] = 0.0; // s
         this->x_traj_[this->i_][1] = 0.0; // n
         this->x_traj_[this->i_][2] = 0.0; // mu
         this->x_traj_[this->i_][3] = 0.0; // vx
-        this->x_traj_[this->i_][4] = 0.0; // vy
-        this->x_traj_[this->i_][5] = 0.0; // dpsi
 
+        // If it's not the end of the prediction horizon yet
         if (this->i_ < this->horizon_params_.N_horizon_mpc)
         {
             this->u_traj_[this->i_][0] = 0.0; // ax_m
             this->u_traj_[this->i_][1] = 0.0; // del_s
+
+            this->s_ref_mpc_[this->i_] = 0.0;
+            this->curv_ref_mpc_[this->i_] = 0.0;
         }
     }
-
-
-    std::cout << "Controller Class Initialized." << std::endl;
-}
-
-MpcController::~MpcController(){
-    std::cout << "Controller Class Destructor called." << std::endl;
-    // free solver
-    // int status = veh_dynamics_ode_acados_free(this->acados_ocp_capsule_);
-    // if (status) {
-    //     std::cout << "veh_dynamics_ode_acados_free() returned status " << status << std::endl;
-    // }
-    // // free solver capsule
-    // status = veh_dynamics_ode_acados_free_capsule(this->acados_ocp_capsule_);
-    // if (status) {
-    //     std::cout << "veh_dynamics_ode_acados_free_capsule() returned status " << status << std::endl;
-    // }
-    std::cout << "Destructor finished." << std::endl;
 }
 
 int MpcController::get_number_of_spline_evaluations(){
@@ -52,20 +43,12 @@ void MpcController::set_dt_control_feedback(double dt_ctrl_callback){
 }
 
 int8_t MpcController::set_model_parameters(double l_f, double l_r,
-                            double m, double Iz,
-                            double g, double D_tire,
-                            double C_tire, double B_tire,
-                            double C_d, double C_r)
+                            double m, double C_d, double C_r)
 {
     std::cout << "Setting model parameters." << std::endl;
     this->model_params_.l_f = l_f;
     this->model_params_.l_r = l_r;
     this->model_params_.m = m;
-    this->model_params_.Iz = Iz;
-    this->model_params_.g = g;
-    this->model_params_.B_tire = B_tire;
-    this->model_params_.C_tire = C_tire;
-    this->model_params_.D_tire = D_tire;
     this->model_params_.C_d = C_d;
     this->model_params_.C_r = C_r;
 
@@ -125,9 +108,7 @@ int8_t MpcController::init_solver()
 int8_t MpcController::set_state(double x_c,
                                 double y_c, 
                                 double psi, 
-                                double vx_local, 
-                                double vy_local, 
-                                double dpsi,
+                                double vx_local,
                                 double &s,
                                 double &n,
                                 double &mu)
@@ -152,12 +133,6 @@ int8_t MpcController::set_state(double x_c,
 
     // vx: velocity in local frame
     this->x_[3] = vx_local; // vx
-
-    // vy: velocity in local frame
-    this->x_[4] = vy_local; // vy
-
-    // dpsi: yaw rate
-    this->x_[5] = dpsi; // r or dpsi
 
     return 0;
 }
@@ -374,8 +349,8 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
         n_predict.push_back(this->x_traj_[i][1]);
         mu_predict.push_back(this->x_traj_[i][2]);
         vx_predict.push_back(this->x_traj_[i][3]);
-        vy_predict.push_back(this->x_traj_[i][4]);
-        dpsi_predict.push_back(this->x_traj_[i][5]);
+        vy_predict.push_back(tan(this->u_traj_[i][1]) * this->x_traj_[i][3]);
+        dpsi_predict.push_back(tan(this->u_traj_[i][1]) * this->x_traj_[i][3] / this->model_params_.l_r);
 
         axm_predict.push_back(this->u_traj_[i][0]);
         dels_predict.push_back(this->u_traj_[i][1]);
@@ -434,13 +409,19 @@ int8_t MpcController::get_visual_predictions(std::vector<std::vector<double>> &x
     double psi_predict = 0.0;
     double dx = 0.0;
     double dy = 0.0;
+
+    double vy = 0.0;
+    double dpsi = 0.0;
+
     for(i = 0; i < this->horizon_params_.N_horizon_mpc; i++)
     {
         // psi_k+1 = psi_k + dpsi_k * dt
-        psi_predict = psi_predict + this->x_traj_[i][5] * this->horizon_params_.dt_mpc;
+        vy = tan(this->u_traj_[i][1]) * this->x_traj_[i][3];
+        dpsi = vy / this->model_params_.l_r;
+        psi_predict = psi_predict + dpsi * this->horizon_params_.dt_mpc;
 
         dx = this->x_traj_[i][3] * this->horizon_params_.dt_mpc;
-        dy = this->x_traj_[i][4] * this->horizon_params_.dt_mpc;
+        dy = vy * this->horizon_params_.dt_mpc;
 
         xy_predicted_point[0] = xy_predicted_point[0] + (dx * cos(psi_predict) - dy * sin(psi_predict));
         xy_predicted_point[1] = xy_predicted_point[1] + (dy * cos(psi_predict) + dx * sin(psi_predict));

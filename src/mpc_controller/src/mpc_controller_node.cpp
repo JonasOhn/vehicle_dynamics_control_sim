@@ -85,11 +85,6 @@ class MPCControllerNode : public rclcpp::Node
         this->mpc_controller_obj_.set_model_parameters(this->l_f_,
                                                        this->l_r_,
                                                        this->m_,
-                                                       this->Iz_,
-                                                       this->g_,
-                                                       this->D_tire_,
-                                                       this->C_tire_,
-                                                       this->B_tire_,
                                                        this->C_d_,
                                                        this->C_r_);
 
@@ -266,8 +261,6 @@ class MPCControllerNode : public rclcpp::Node
                                             state_msg.y_c,
                                             state_msg.psi,
                                             state_msg.dx_c_v,
-                                            state_msg.dy_c_v,
-                                            state_msg.dpsi,
                                             s, n, mu);
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "s = " << s << ", n = " << n << ", mu = " << mu);
@@ -409,11 +402,6 @@ class MPCControllerNode : public rclcpp::Node
     double l_f_ = this->get_parameter("model.l_f").as_double();
     double l_r_ = this->get_parameter("model.l_r").as_double();
     double m_ = this->get_parameter("model.m").as_double();
-    double Iz_ = this->get_parameter("model.Iz").as_double();
-    double g_ = this->get_parameter("model.g").as_double();
-    double D_tire_ = this->get_parameter("model.D_tire").as_double();
-    double C_tire_ = this->get_parameter("model.C_tire").as_double();
-    double B_tire_ = this->get_parameter("model.B_tire").as_double();
     double C_d_ = this->get_parameter("model.C_d").as_double();
     double C_r_ = this->get_parameter("model.C_r").as_double();
 

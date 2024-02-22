@@ -57,9 +57,9 @@ class SimVisualization : public rclcpp::Node
         PUBLISHERS
       */
 
-      // === PointCloud2 Publishers ===
       // track/reference path (small black dots)
       track_publisher_PCL_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("track_pcl", 10);
+
       // reference points from path planning (red dots)
       ref_path_publisher_PCL_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("reference_path_pcl", 10);
 

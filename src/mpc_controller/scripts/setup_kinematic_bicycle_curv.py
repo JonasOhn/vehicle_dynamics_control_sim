@@ -76,8 +76,6 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
     model_cost_parameters['q_sd'] = cost_params['q_sd']
     model_cost_parameters['q_n'] = cost_params['q_n']
     model_cost_parameters['q_mu'] = cost_params['q_mu']
-    model_cost_parameters['q_vy'] = cost_params['q_vy']
-    model_cost_parameters['q_dpsi'] = cost_params['q_dpsi']
     model_cost_parameters['r_dels'] = cost_params['r_dels']
     model_cost_parameters['r_ax'] = cost_params['r_ax']
 

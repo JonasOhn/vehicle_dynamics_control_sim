@@ -54,11 +54,6 @@ typedef struct{
     double l_f; // m
     double l_r; // m
     double m; // kg
-    double Iz; // kg m m
-    double g; // m s-2
-    double D_tire;
-    double C_tire;
-    double B_tire;
     double C_d; // 0.5 * rho * CdA
     double C_r; // -
 } model_parameters;
@@ -79,8 +74,8 @@ class MpcController {
         int i_ = 0, j_ = 0, k_ = 0;
 
         // Current State for MPC
-        // [s:0, n:1, mu:2, vx:3, vy:4, dpsi:5]
-        double x_[6] = {0.0};
+        // [s:0, n:1, mu:2, vx:3]
+        double x_[4] = {0.0};
 
         // NLP Prediction trajectories
         double x_traj_[VEH_DYNAMICS_ODE_N + 1][NX];
@@ -104,7 +99,7 @@ class MpcController {
     public:
         MpcController();
 
-        ~MpcController();
+        void reset_prediction_trajectories();
 
         int8_t init_solver();
 
@@ -145,9 +140,7 @@ class MpcController {
         int8_t set_state(double x_c, 
                          double y_c, 
                          double psi, 
-                         double vx_local, 
-                         double vy_local, 
-                         double dpsi,
+                         double vx_local,
                          double &s,
                          double &n,
                          double &mu);
@@ -159,11 +152,6 @@ class MpcController {
         int8_t set_model_parameters(double l_f, // m
                                     double l_r, // m
                                     double m, // kg
-                                    double Iz, // kg m m
-                                    double g, // m s-2
-                                    double D_tire,
-                                    double C_tire,
-                                    double B_tire,
                                     double C_d, // 0.5 * rho * CdA
                                     double C_r);
 

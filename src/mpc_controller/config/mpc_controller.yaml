@@ -17,14 +17,12 @@
       q_sd: 0.2
       q_n: 0.4
       q_mu: 0.01
-      q_vy: 0.1
-      q_dpsi: 0.1
-      r_dels: 0.2
+      r_dels: 100.0
       r_ax: 0.01
       slack_penalties:
         linear:
           S_n_lin: 10.0
-          S_n_lin_e: 10.0
+          S_n_lin_e: 100.0
           S_mu_lin: 10.0
           S_mu_lin_e: 100.0
         quadratic:
@@ -40,13 +38,9 @@
         ub_mu: 0.5
       hard:
         lb_s: -10.0
-        ub_s: 20.0
+        ub_s: 15.0
         lb_vx: 0.0
         ub_vx: 10.0
-        lb_vy: -4.0
-        ub_vy: 4.0
-        lb_dpsi: -4.0
-        ub_dpsi: 4.0
         lb_axm: -9.0
         ub_axm: 9.0
         lb_dels: -0.5
@@ -60,7 +54,7 @@
       qp_solver_iter_max: 50
       qp_solver_warm_start: 1
       regularize_method: 'PROJECT'
-      reg_epsilon: 0.001
+      reg_epsilon: 0.00001
       alpha_min: 0.000001
       alpha_reduction: 0.7
       hpipm_mode: 'BALANCE' #'BALANCE', 'ROBUST', 'SPEED'
