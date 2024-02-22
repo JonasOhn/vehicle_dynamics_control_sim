@@ -28,7 +28,8 @@ int MpcGeometry::get_number_of_spline_evaluations()
 
 double MpcGeometry::get_x_ref(int idx)
 {
-    if(this->dxy_ref_spline_.size() > 0){
+    if(this->dxy_ref_spline_.size() > 0)
+    {
         return this->xy_ref_spline_[idx][0];
     }
     return 0.0;
@@ -36,7 +37,8 @@ double MpcGeometry::get_x_ref(int idx)
 
 double MpcGeometry::get_y_ref(int idx)
 {
-    if(this->dxy_ref_spline_.size() > 0){
+    if(this->dxy_ref_spline_.size() > 0)
+    {
         return this->xy_ref_spline_[idx][1];
     }
     return 0.0;
@@ -44,7 +46,8 @@ double MpcGeometry::get_y_ref(int idx)
 
 double MpcGeometry::get_dx_ref(int idx)
 {
-    if(this->dxy_ref_spline_.size() > 0){
+    if(this->dxy_ref_spline_.size() > 0)
+    {
         return this->dxy_ref_spline_[idx][0];
     }
     return 0.0;
@@ -52,7 +55,8 @@ double MpcGeometry::get_dx_ref(int idx)
 
 double MpcGeometry::get_dy_ref(int idx)
 {
-    if(this->dxy_ref_spline_.size() > 0){
+    if(this->dxy_ref_spline_.size() > 0)
+    {
         return this->dxy_ref_spline_[idx][1];
     }
     return 0.0;
@@ -66,25 +70,6 @@ double MpcGeometry::get_dy_ref(int idx)
 int MpcGeometry::get_initial_path_reference_idx(double x_c, double y_c)
 {
     int idx_path = 0;
-
-    for (this->i_ = 0; this->i_ < (int)this->xy_ref_spline_.size(); this->i_++)
-    {
-        double x_delta_vector = x_c - this->xy_ref_spline_[this->i_][0];
-        double y_delta_vector = y_c - this->xy_ref_spline_[this->i_][1];
-
-        if(x_delta_vector * this->dxy_ref_spline_[this->i_][0] + y_delta_vector * this->dxy_ref_spline_[this->i_][1] <= 0)
-        {
-            if (this->i_ > 0)
-            {
-                idx_path = this->i_ - 1;
-            }else
-            {
-                idx_path = 0;
-            }
-
-            break;
-        }
-    }
 
     return idx_path;
 }
@@ -131,26 +116,6 @@ double MpcGeometry::get_initial_progress(double x_c, double y_c, int path_idx)
 {
     double s = 0.0;
 
-    if (this->dxy_ref_spline_.size() >= 1)
-    {
-            // projection onto initial path tangent vector to get n
-            // https://en.wikipedia.org/wiki/Vector_projection
-            // vector from path start point to CoG of car, vector a
-            double x_delta_vector = x_c - this->xy_ref_spline_[path_idx][0];
-            double y_delta_vector = y_c - this->xy_ref_spline_[path_idx][1];
-
-            // tangent initial path vector
-            double dx_path = this->dxy_ref_spline_[path_idx][0];
-            double dy_path = this->dxy_ref_spline_[path_idx][1];
-
-            // *unit* normal vector on path, e_n, vector b_hat
-            double b_hat_x = dx_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
-            double b_hat_y = dy_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
-
-            // projection: s = a_1 = b_hat dot a
-            s = x_delta_vector * b_hat_x + y_delta_vector * b_hat_y;
-    }
-
     return s;
 }
 
@@ -165,26 +130,6 @@ double MpcGeometry::get_initial_progress(double x_c, double y_c, int path_idx)
 double MpcGeometry::get_initial_lateral_deviation(double x_c, double y_c, int path_idx)
 {
     double n = 0.0;
-
-    if (this->dxy_ref_spline_.size() >= 1)
-    {
-        // projection onto initial path normal vector to get n
-        // https://en.wikipedia.org/wiki/Vector_projection
-        // vector from path start point to CoG of car, vector a
-        double x_delta_vector = x_c - this->xy_ref_spline_[path_idx][0];
-        double y_delta_vector = y_c - this->xy_ref_spline_[path_idx][1];
-
-        // tangent initial path vector
-        double dx_path = this->dxy_ref_spline_[path_idx][0];
-        double dy_path = this->dxy_ref_spline_[path_idx][1];
-
-        // *unit* normal vector on path, e_n, vector b_hat
-        double b_hat_x = - dy_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
-        double b_hat_y = dx_path / sqrt(pow(dx_path, 2.0) + pow(dy_path, 2.0));
-
-        // projection: n = a_1 = b_hat dot a
-        n = x_delta_vector * b_hat_x + y_delta_vector * b_hat_y;
-    }
 
     return n;
 }

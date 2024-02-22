@@ -24,7 +24,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/MpcInputTrajectory.msg"
   "msg/MpcSolverState.msg"
   "msg/MpcKappaTrajectory.msg"
-  "msg/MpcAlgStateTrajectory.msg"
 )
 
 ament_export_dependencies(rosidl_default_runtime)

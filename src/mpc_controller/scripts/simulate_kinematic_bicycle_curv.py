@@ -1,5 +1,10 @@
+"""
+    Script to generate the solver C code for the NLP OCP problem
+    written for the ACADOS solver
+"""
+
 import numpy as np
-from setup_nlp_ocp_and_sim import load_mpc_yaml_params, setup_nlp_ocp_and_sim
+from setup_kinematic_bicycle_curv import load_mpc_yaml_params, setup_nlp_ocp_and_sim
 from plot_sim_ocp import plot_nlp_dynamics
 
 # constant curvature horizon for simulation
@@ -10,8 +15,8 @@ def main(use_stepped_sim:bool=False):
     model_params, horizon_params, _, _, _ = load_mpc_yaml_params()
 
     """ =========== INITIAL STATE FOR SIMULATION ============ """
-    # x0 =        [s,   n,   mu,  vx,  vy,  dpsi]
-    x0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # x0 =        [s,   n,   mu,  vx]
+    x0 = np.array([0.0, 0.0, 0.0, 0.0])
 
     """ =========== GET SOLVER AND INTEGRATOR ============ """
     ocp_solver, integrator = setup_nlp_ocp_and_sim(x0, simulate_ocp=True)
@@ -33,6 +38,7 @@ def main(use_stepped_sim:bool=False):
     stepping_start_idx = 50
     simX = np.ndarray((Nsim+1, nx))
     simU = np.ndarray((Nsim, nu))
+
     # get s-state sim vector because it is reset
     # to 0 at the beginning of each prediction horizon
     s_values = np.zeros((Nsim+1, 1))
@@ -47,18 +53,13 @@ def main(use_stepped_sim:bool=False):
 
     # parameterize the problem
     m = model_params['m'] # mass
-    g = model_params['g'] # gravity
     l_f = model_params['l_f']
     l_r = model_params['l_r']
-    Iz = model_params['Iz'] # yaw moment of inertia
-    B_tire = model_params['B_tire'] # pacejka
-    C_tire = model_params['C_tire'] # pacejka
-    D_tire = model_params['D_tire'] # pacejka
     C_d = model_params['C_d'] # effective drag coefficient
     C_r = model_params['C_r'] # const. rolling resistance
     kappa_ref = CONST_CURV # reference curvature
-    paramvec = np.array((m, g, l_f, l_r, Iz, 
-                        B_tire, C_tire, D_tire, C_d, C_r, kappa_ref))
+
+    paramvec = np.array((m, l_f, l_r, C_d, C_r, kappa_ref))
     for j in range(horizon_params["N_horizon"]):
         ocp_solver.set(j, 'p', paramvec)
     integrator.set('p', paramvec)
@@ -68,11 +69,6 @@ def main(use_stepped_sim:bool=False):
 
     # closed loop sim (may be stepped)
     for i in range(Nsim):
-        # """  Initialize OCP with previous solution shifted by one step """
-        # for j in range(horizon_params["N_horizon"]-1):
-        #     ocp_solver.set(j, "x", ocp_solver.get(j+1, 'x'))
-        #     ocp_solver.set(j, "u", ocp_solver.get(j+1, 'u'))
-        # ocp_solver.set(horizon_params["N_horizon"]-1, "x", ocp_solver.get(horizon_params["N_horizon"], 'x'))
 
         """  Solve OCP """
         init_state = np.copy(simX[i, :])

@@ -23,12 +23,13 @@ public:
     frame_name_ = this->get_parameter("frame_name").as_string();
 
     // Initialize the transform broadcaster
-    tf_broadcaster_ =
-      std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+    tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
     subscription_ = this->create_subscription<sim_backend::msg::VehicleState>(
       "vehicle_state", 10,
       std::bind(&VehicleFramePublisher::handle_vehicle_state, this, std::placeholders::_1));
+
+    RCLCPP_INFO_STREAM(this->get_logger(), "Node " << this->get_name() << " initialized.");
   }
 
 private:

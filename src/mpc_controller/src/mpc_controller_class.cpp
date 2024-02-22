@@ -68,6 +68,7 @@ int8_t MpcController::set_model_parameters(double l_f, double l_r,
     this->model_params_.D_tire = D_tire;
     this->model_params_.C_d = C_d;
     this->model_params_.C_r = C_r;
+
     return 0;
 }
 
@@ -77,6 +78,7 @@ int8_t MpcController::set_solver_parameters(int sqp_max_iter, int rti_phase, boo
     this->solver_params_.sqp_max_iter = sqp_max_iter;
     this->solver_params_.rti_phase = rti_phase;
     this->solver_params_.warm_start_first_qp = warm_start_first_qp;
+
     return 0;
 }
 
@@ -128,14 +130,9 @@ int8_t MpcController::set_state(double x_c,
                                 double dpsi,
                                 double &s,
                                 double &n,
-                                double &mu,
-                                double &x_path,
-                                double &y_path)
+                                double &mu)
 {
     int path_idx = this->mpc_geometry_obj_.get_initial_path_reference_idx(x_c, y_c);
-
-    x_path = this->mpc_geometry_obj_.get_x_ref(path_idx);
-    y_path = this->mpc_geometry_obj_.get_y_ref(path_idx);
 
     std::cout << "Setting state." << std::endl;
     // s: Progress coordinate
@@ -173,16 +170,12 @@ int8_t MpcController::set_initial_state()
     idxbx0[1] = 1;
     idxbx0[2] = 2;
     idxbx0[3] = 3;
-    idxbx0[4] = 4;
-    idxbx0[5] = 5;
 
     double bx0[NBX0];
     bx0[0] = this->x_[0];
     bx0[1] = this->x_[1];
     bx0[2] = this->x_[2];
     bx0[3] = this->x_[3];
-    bx0[4] = this->x_[4];
-    bx0[5] = this->x_[5];
 
     ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "idxbx", idxbx0);
     ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "lbx", bx0);
@@ -197,15 +190,10 @@ int8_t MpcController::init_mpc_parameters()
     // set parameters
     double p[NP];
     p[0] = this->model_params_.m;
-    p[1] = this->model_params_.g;
-    p[2] = this->model_params_.l_f;
-    p[3] = this->model_params_.l_r;
-    p[4] = this->model_params_.Iz;
-    p[5] = this->model_params_.B_tire;
-    p[6] = this->model_params_.C_tire;
-    p[7] = this->model_params_.D_tire;
-    p[8] = this->model_params_.C_d;
-    p[9] = this->model_params_.C_r;
+    p[1] = this->model_params_.l_f;
+    p[2] = this->model_params_.l_r;
+    p[3] = this->model_params_.C_d;
+    p[4] = this->model_params_.C_r;
 
     // Init curvature ref using the last predicted s-trajectory
     for (this->i_ = 0; this->i_ < this->horizon_params_.N_horizon_mpc; this->i_++)
@@ -216,7 +204,7 @@ int8_t MpcController::init_mpc_parameters()
 
         std::cout << "Got kappa_ref form goemetry object." << std::endl;
 
-        p[10] = this->curv_ref_mpc_[this->i_];
+        p[5] = this->curv_ref_mpc_[this->i_];
 
         std::cout << "Set p[10]." << std::endl;
 
@@ -241,8 +229,6 @@ int8_t MpcController::init_mpc_horizon()
         this->x_stage_to_fill_[1] = this->x_traj_[this->i_ + 1][1]; // n
         this->x_stage_to_fill_[2] = this->x_traj_[this->i_ + 1][2]; // mu
         this->x_stage_to_fill_[3] = this->x_traj_[this->i_ + 1][3]; // vx
-        this->x_stage_to_fill_[4] = this->x_traj_[this->i_ + 1][4]; // vy
-        this->x_stage_to_fill_[5] = this->x_traj_[this->i_ + 1][5]; // dpsi
 
         // fill x_(k) with x_(k+1) for k in [0, N - 2]
         ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "x", this->x_stage_to_fill_);
@@ -262,8 +248,6 @@ int8_t MpcController::init_mpc_horizon()
     this->x_stage_to_fill_[1] = this->x_traj_[VEH_DYNAMICS_ODE_N][1]; // n
     this->x_stage_to_fill_[2] = this->x_traj_[VEH_DYNAMICS_ODE_N][2]; // mu
     this->x_stage_to_fill_[3] = this->x_traj_[VEH_DYNAMICS_ODE_N][3]; // vx
-    this->x_stage_to_fill_[4] = this->x_traj_[VEH_DYNAMICS_ODE_N][4]; // vy
-    this->x_stage_to_fill_[5] = this->x_traj_[VEH_DYNAMICS_ODE_N][5]; // dpsi
 
     // take x_previous_(N) from last prediction to fill x_new_(N - 1) and x_new_(N)
     ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->horizon_params_.N_horizon_mpc - 1, "x", this->x_stage_to_fill_);
@@ -406,7 +390,7 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
 
     // get terminal state
     ocp_nlp_out_get(this->nlp_config_,
-                    this->nlp_dims_, 
+                    this->nlp_dims_,
                     this->nlp_out_, 
                     this->nlp_dims_->N, 
                     "x", 
@@ -471,7 +455,7 @@ int8_t MpcController::get_visual_predictions(std::vector<std::vector<double>> &x
  * Setter function for the reference path that also invokes b-spline fit
  * and setter for curvature parameter vector of MPC
  *
- * @param path refpath points ahead of the car including the CoG of the car
+ * @param path refpath points
  * @return 0 if successful
  */
 int8_t MpcController::set_reference_path(std::vector<std::vector<double>> &path)

@@ -13,8 +13,8 @@
 // message includes
 #include "sim_backend/msg/sys_input.hpp"
 #include "sim_backend/msg/vehicle_state.hpp"
-#include "visualization_msgs/msg/marker_array.hpp"
-#include "visualization_msgs/msg/marker.hpp"
+#include "sim_backend/msg/point2_d.hpp"
+#include "sim_backend/msg/point2_d_array.hpp"
 #include "mpc_controller/msg/mpc_state_trajectory.hpp"
 #include "mpc_controller/msg/mpc_input_trajectory.hpp"
 #include "mpc_controller/msg/mpc_kappa_trajectory.hpp"
@@ -44,8 +44,8 @@ class MPCControllerNode : public rclcpp::Node
         this->state_subscriber_ = this->create_subscription<sim_backend::msg::VehicleState>(
             "vehicle_state", 1, std::bind(&MPCControllerNode::state_update, this, std::placeholders::_1));
         // Init reference path subscriber
-        this->ref_path_subscriber_ = this->create_subscription<visualization_msgs::msg::MarkerArray>(
-            "reference_path_pcl", 1, std::bind(&MPCControllerNode::ref_path_update, this, std::placeholders::_1));
+        this->ref_path_subscriber_ = this->create_subscription<sim_backend::msg::Point2DArray>(
+            "reference_path_points2d", 1, std::bind(&MPCControllerNode::ref_path_update, this, std::placeholders::_1));
 
 
         /* ========= PUBLISHERS ============ */
@@ -60,9 +60,9 @@ class MPCControllerNode : public rclcpp::Node
             "mpc_kappa_trajectory", 10);
 
         // Init MPC <Visual> Prediction Horizon Publishers
-        this->spline_fit_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
-            "mpc_spline_fit", 10);
-        this->xy_predict_traj_publisher_ = this->create_publisher<visualization_msgs::msg::MarkerArray>(
+        this->spline_fit_publisher_ = this->create_publisher<sim_backend::msg::Point2DArray>(
+            "mpc_spline_points2d", 10);
+        this->xy_predict_traj_publisher_ = this->create_publisher<sim_backend::msg::Point2DArray>(
             "mpc_xy_predict_trajectory", 10);
 
         // Init Control Command Publisher and corresponding Timer with respecitve callback
@@ -110,35 +110,35 @@ class MPCControllerNode : public rclcpp::Node
 
   private:
 
-    void ref_path_update(const visualization_msgs::msg::MarkerArray & refpath_msg)
+    void ref_path_update(const sim_backend::msg::Point2DArray & refpath_msg)
     {
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Reference path update called with refpath message containing " << refpath_msg.markers.size() << " points.");
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Reference path update called with refpath message containing " << refpath_msg.points.size() << " points.");
 
         // clear previous reference path
         this->reference_path_.clear();
 
         // Create container for single 2D point with data type from message
-        auto path_pos_marker = visualization_msgs::msg::Marker();
-
-        // 2D point
-        std::vector<double> ref_point{0.0, 0.0};
+        auto point2d = sim_backend::msg::Point2D();
 
         // variable to store distance between points on the path
         double dist_to_prev_point = 0.0;
 
         // get all reference points
-        for (size_t i = 0; i < refpath_msg.markers.size(); i++){
+        for (size_t i = 0; i < refpath_msg.points.size(); i++){
             // Get i-th point on published path
-            path_pos_marker = refpath_msg.markers[i];
-            ref_point[0] = path_pos_marker.pose.position.x;
-            ref_point[1] = path_pos_marker.pose.position.y;
+            point2d = refpath_msg.points[i];
+
+            // 2D point
+            std::vector<double> ref_point {0.0, 0.0};
+            ref_point[0] = point2d.x;
+            ref_point[1] = point2d.y;
 
             RCLCPP_DEBUG_STREAM(this->get_logger(), "Candidate ref_point = (" << ref_point[0] << ", " << ref_point[1] << ")");
 
             // From second point (i > 0) on: Check if point too far from previous point
             if(i > 0){
-                dist_to_prev_point = sqrt(pow(ref_point[0] - this->reference_path_[i-1][0], 2.0) 
-                    + pow(ref_point[1] - this->reference_path_[i-1][1], 2.0));
+                dist_to_prev_point = std::hypot(ref_point[0] - this->reference_path_[i-1][0],
+                                                ref_point[1] - this->reference_path_[i-1][1]);
 
                 if(dist_to_prev_point > this->max_dist_to_prev_path_point_){
                     RCLCPP_DEBUG_STREAM(this->get_logger(), "Breaking out because: ref_point = (" << ref_point[0] << ", " 
@@ -146,6 +146,8 @@ class MPCControllerNode : public rclcpp::Node
                     break;
                 }
             }
+
+            // Add point to reference path
             this->reference_path_.push_back(ref_point);
             RCLCPP_DEBUG_STREAM(this->get_logger(),
                                 "Added: ref_point = (" << ref_point[0] << ", " << ref_point[1] << ")");
@@ -266,7 +268,7 @@ class MPCControllerNode : public rclcpp::Node
                                             state_msg.dx_c_v,
                                             state_msg.dy_c_v,
                                             state_msg.dpsi,
-                                            s, n, mu, x_path, y_path);
+                                            s, n, mu);
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "s = " << s << ", n = " << n << ", mu = " << mu);
 
@@ -322,88 +324,37 @@ class MPCControllerNode : public rclcpp::Node
                                                          this->xy_predict_points_);
 
         // ------ SPLINE FIT
-        auto bspline_fit_msg = visualization_msgs::msg::MarkerArray();
-        auto marker_i = visualization_msgs::msg::Marker();
+        auto bspline_fit_msg = sim_backend::msg::Point2DArray();
+        auto point2d_i = sim_backend::msg::Point2D();
 
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Filling Spline Fit Marker Array.");
-
-        spline_fit_marker_id_ = 0;
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Filling Spline Fit Point2D Array.");
 
         // iterate through all spline points
         for (i_ = 0; i_ < (int)this->xy_spline_points_.size(); i_++){
-            marker_i.header.frame_id = "world";
-            marker_i.header.stamp = this->now();
-            // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
-            marker_i.type = 2;
-            marker_i.id = spline_fit_marker_id_;
+            point2d_i.id = i_;
 
-            // Set the scale of the marker
-            marker_i.scale.x = 0.1;
-            marker_i.scale.y = 0.1;
-            marker_i.scale.z = 0.1;
+            point2d_i.x = this->xy_spline_points_[i_][0];
+            point2d_i.y = this->xy_spline_points_[i_][1];
 
-            // Set the color
-            marker_i.color.r = 0.0;
-            marker_i.color.g = 1.0;
-            marker_i.color.b = 0.0;
-            marker_i.color.a = 1.0;
-
-            // Set the pose of the marker
-            marker_i.pose.position.x = this->xy_spline_points_[i_][0];
-            marker_i.pose.position.y = this->xy_spline_points_[i_][1];
-            marker_i.pose.position.z = 0;
-            marker_i.pose.orientation.x = 0;
-            marker_i.pose.orientation.y = 0;
-            marker_i.pose.orientation.z = 0;
-            marker_i.pose.orientation.w = 1;
-
-            this->spline_fit_marker_id_++;
-
-            // append to marker array
-            bspline_fit_msg.markers.push_back(marker_i);
+            // append to point2d array
+            bspline_fit_msg.points.push_back(point2d_i);
         }
         
         spline_fit_publisher_->publish(bspline_fit_msg);
 
         // ----- PATH PREDICTION MPC
-        auto path_predict_msg = visualization_msgs::msg::MarkerArray();
+        auto path_predict_msg = sim_backend::msg::Point2DArray();
 
-        RCLCPP_DEBUG_STREAM(this->get_logger(), "Filling XY-predictions Marker Array.");
-
-        path_predict_marker_id_ = 0;
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Filling XY-predictions Point2D Array.");
 
         // iterate through all spline points
         for (i_ = 0; i_ < (int)this->xy_predict_points_.size(); i_++){
-            marker_i.header.frame_id = "vehicle_frame";
-            marker_i.header.stamp = this->now();
-            // set shape, Arrow: 0; Cube: 1 ; Sphere: 2 ; Cylinder: 3
-            marker_i.type = 1;
-            marker_i.id = path_predict_marker_id_;
+            point2d_i.id = i_;
+            point2d_i.x = this->xy_predict_points_[i_][0];
+            point2d_i.y = this->xy_predict_points_[i_][1];
 
-            // Set the scale of the marker
-            marker_i.scale.x = 0.2;
-            marker_i.scale.y = 0.2;
-            marker_i.scale.z = 0.2;
-
-            // Set the color
-            marker_i.color.r = 0.8;
-            marker_i.color.g = 0.0;
-            marker_i.color.b = 0.8;
-            marker_i.color.a = 1.0;
-
-            // Set the pose of the marker
-            marker_i.pose.position.x = this->xy_predict_points_[i_][0];
-            marker_i.pose.position.y = this->xy_predict_points_[i_][1];
-            marker_i.pose.position.z = 0;
-            marker_i.pose.orientation.x = 0;
-            marker_i.pose.orientation.y = 0;
-            marker_i.pose.orientation.z = 0;
-            marker_i.pose.orientation.w = 1;
-
-            this->path_predict_marker_id_++;
-
-            // append to marker array
-            path_predict_msg.markers.push_back(marker_i);
+            // append to point2d array
+            path_predict_msg.points.push_back(point2d_i);
         }
         xy_predict_traj_publisher_->publish(path_predict_msg);
 
@@ -418,7 +369,7 @@ class MPCControllerNode : public rclcpp::Node
     rclcpp::Subscription<sim_backend::msg::VehicleState>::SharedPtr state_subscriber_;
     
     // Subscriber to ref path provided by "perception"
-    rclcpp::Subscription<visualization_msgs::msg::MarkerArray>::SharedPtr ref_path_subscriber_;
+    rclcpp::Subscription<sim_backend::msg::Point2DArray>::SharedPtr ref_path_subscriber_;
 
     // Timer for control command publishing
     rclcpp::TimerBase::SharedPtr control_cmd_timer_;
@@ -432,8 +383,8 @@ class MPCControllerNode : public rclcpp::Node
     rclcpp::Publisher<mpc_controller::msg::MpcKappaTrajectory>::SharedPtr mpc_kappa_traj_publisher_;
     rclcpp::Publisher<mpc_controller::msg::MpcSolverState>::SharedPtr mpc_solve_state_publisher_;
 
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr spline_fit_publisher_;
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr xy_predict_traj_publisher_;
+    rclcpp::Publisher<sim_backend::msg::Point2DArray>::SharedPtr spline_fit_publisher_;
+    rclcpp::Publisher<sim_backend::msg::Point2DArray>::SharedPtr xy_predict_traj_publisher_;
 
     // Reference Path to give to MPC
     std::vector<std::vector<double>> reference_path_;
@@ -443,9 +394,6 @@ class MPCControllerNode : public rclcpp::Node
     int dt_ms = this->get_parameter("dt_ms").as_int();
     std::chrono::milliseconds dt_{std::chrono::milliseconds(dt_ms)};
     const double dt_seconds_ = dt_.count() / 1e3;
-
-    unsigned long int spline_fit_marker_id_ = 0;
-    unsigned long int path_predict_marker_id_ = 0;
 
     // MPC horizon parameters
     double T_final_mpc_ = this->get_parameter("horizon.T_final").as_double();

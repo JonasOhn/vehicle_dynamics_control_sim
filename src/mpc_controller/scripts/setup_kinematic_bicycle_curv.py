@@ -1,6 +1,6 @@
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
 from acados_template.acados_ocp_solver import ocp_get_default_cmake_builder
-from dynamics_model import export_vehicle_ode_model
+from model_kinematic_bicycle_curv import export_vehicle_ode_model
 import numpy as np
 from os.path import dirname, join, abspath
 import yaml
@@ -100,23 +100,19 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
 
     """ ========= CONSTRAINTS: STAGE STATE ======== """
     # ---
-    # State: [s, n, mu, vx, vy, dpsi]
+    # State: [s, n, mu, vx]
     # State Constraints: lower bounds
     ocp.constraints.lbx = np.array((constraints_params['hard']['lb_s'],
                                     constraints_params['soft']['lb_n'],
                                     constraints_params['soft']['lb_mu'],
-                                    constraints_params['hard']['lb_vx'],
-                                    constraints_params['hard']['lb_vy'],
-                                    constraints_params['hard']['lb_dpsi']))
+                                    constraints_params['hard']['lb_vx']))
     # State Constraints: upper bounds
     ocp.constraints.ubx = np.array((constraints_params['hard']['ub_s'],
                                     constraints_params['soft']['ub_n'],
                                     constraints_params['soft']['ub_mu'],
-                                    constraints_params['hard']['ub_vx'],
-                                    constraints_params['hard']['ub_vy'],
-                                    constraints_params['hard']['ub_dpsi']))
+                                    constraints_params['hard']['ub_vx']))
     # State Constraints: indices of lb and ub in State vector
-    ocp.constraints.idxbx = np.array((0, 1, 2, 3, 4, 5))
+    ocp.constraints.idxbx = np.array((0, 1, 2, 3))
 
 
     """ ========= CONSTRAINTS: STAGE INPUT ======== """
@@ -134,23 +130,19 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
 
     """ ========= CONSTRAINTS: TERMINAL STATE ======== """
     # ---
-    # Terminal State: [s, n, mu, vx, vy, dpsi]
+    # Terminal State: [s, n, mu, vx]
     # Terminal State Constraints: lower bounds
     ocp.constraints.lbx_e = np.array((constraints_params['hard']['lb_s'],
                                       constraints_params['soft']['lb_n'],
                                       constraints_params['soft']['lb_mu'],
-                                      constraints_params['hard']['lb_vx'],
-                                      constraints_params['hard']['lb_vy'],
-                                      constraints_params['hard']['lb_dpsi']))
+                                      constraints_params['hard']['lb_vx']))
     # Terminal State Constraints: upper bounds
     ocp.constraints.ubx_e = np.array((constraints_params['hard']['ub_s'],
                                       constraints_params['soft']['ub_n'],
                                       constraints_params['soft']['ub_mu'],
-                                      constraints_params['hard']['ub_vx'],
-                                      constraints_params['hard']['ub_vy'],
-                                      constraints_params['hard']['ub_dpsi']))
+                                      constraints_params['hard']['ub_vx']))
     # Terminal State Constraints: indices of lb and ub in State vector
-    ocp.constraints.idxbx_e = np.array((0, 1, 2, 3, 4, 5))
+    ocp.constraints.idxbx_e = np.array((0, 1, 2, 3))
     
     """ ========= COST =========== """
     # (model cost inside ocp.model) --> cost type external
@@ -217,19 +209,13 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
 
     """ ============ INITIAL PARAMETER VALUES ================== """
     m = model_params['m'] # mass
-    g = model_params['g'] # gravity
     l_f = model_params['l_f']
     l_r = model_params['l_r']
-    Iz = model_params['Iz'] # yaw moment of inertia
-    B_tire = model_params['B_tire'] # pacejka
-    C_tire = model_params['C_tire'] # pacejka
-    D_tire = model_params['D_tire'] # pacejka
     C_d = model_params['C_d'] # effective drag coefficient
     C_r = model_params['C_r'] # const. rolling resistance
     kappa_ref = model_params['kappa_ref'] # reference curvature
 
-    paramvec = np.array((m, g, l_f, l_r, Iz, 
-                         B_tire, C_tire, D_tire, C_d, C_r, kappa_ref))
+    paramvec = np.array((m, l_f, l_r, C_d, C_r, kappa_ref))
     ocp.parameter_values = paramvec
 
     """ ====== CREATE OCP AND SIM SOLVERS =========== """
@@ -250,6 +236,6 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
     return acados_ocp_solver, acados_integrator
 
 if __name__ == '__main__':
-    # x =         [s,   n,   mu,  vx,  vy,  dpsi]
-    x0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # x =         [s,   n,   mu,  vx]
+    x0 = np.array([0.0, 0.0, 0.0, 0.0])
     setup_nlp_ocp_and_sim(x0, simulate_ocp=True)

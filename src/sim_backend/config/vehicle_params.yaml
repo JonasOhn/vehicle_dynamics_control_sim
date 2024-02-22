@@ -14,8 +14,8 @@
     C_r: 0.5 # -
     T_mot:  0.001 # s
     D_mot:  1.0 # -
-    gamma: 0.5 # rad  
-    r_perception_max: 30.0 # m
+    gamma: 0.8 # rad  
+    r_perception_max: 20.0 # m
     r_perception_min: 3.0 # m
     track_filepath_midline: "src/sim_backend/tracks/FSG_middle_path.csv"
     track_filepath_leftbound: "src/sim_backend/tracks/FSG_blue_cones.csv"

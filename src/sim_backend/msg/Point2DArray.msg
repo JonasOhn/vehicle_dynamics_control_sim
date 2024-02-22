@@ -1,1 +1,1 @@
-Point2D[] indexed_point
+Point2D[] points

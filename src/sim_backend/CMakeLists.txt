@@ -9,19 +9,14 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
 find_package(rosgraph_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(visualization_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
-find_package(rcl_interfaces REQUIRED)
-find_package(rcutils REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SysInput.msg"
@@ -54,23 +49,19 @@ ament_target_dependencies(sim_time_node
 
 ament_target_dependencies(vehicle_frame_publisher
   rclcpp
-  geometry_msgs
   builtin_interfaces
   tf2
   tf2_ros)
 
 ament_target_dependencies(dynamics_simulator
   rclcpp
-  geometry_msgs
   std_msgs
   builtin_interfaces
-  rcl_interfaces
-  sensor_msgs
-  visualization_msgs
   rcutils
   tf2
   tf2_ros
-  tf2_geometry_msgs)
+  tf2_geometry_msgs
+)
 
 # install such that ros2 run can find exe
 install(TARGETS

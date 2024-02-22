@@ -150,9 +150,7 @@ class MpcController {
                          double dpsi,
                          double &s,
                          double &n,
-                         double &mu,
-                         double &x_path,
-                         double &y_path);
+                         double &mu);
 
         int8_t set_initial_state();
 
