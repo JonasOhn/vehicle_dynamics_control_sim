@@ -358,12 +358,23 @@ class DynamicsSimulator : public rclcpp::Node
                 RCLCPP_DEBUG_STREAM(this->get_logger(), "Ref path callback at track index " 
                     << idx << " with point (" << x_pos << ", " << y_pos << ").");
 
-                // Check if global candidate point lies in the cone defined by the two "perception" halfspaces and within r_max
+                // ===
+                double angle = 0.0;
+
+                double dx_car_heading = cos(psi);
+                double dy_car_heading = sin(psi);
+
+                double dx_diffvec = x_pos - x_c;
+                double dy_diffvec = y_pos - y_c;
+
+                // https://wumbo.net/formulas/angle-between-two-vectors-2d/
+                // will be in the range [-pi, pi] by definition
+                angle = atan2(dy_car_heading * dx_diffvec - dx_car_heading * dy_diffvec,
+                            dx_car_heading * dx_diffvec + dy_car_heading * dy_diffvec);
+
                 if((
-                    // "negative halfspace"
-                    (a_1_neg * x_pos + a_2_neg * y_pos <= b_neg) && 
-                    // "positive halfspace"
-                    (a_1_pos * x_pos + a_2_pos * y_pos >= b_pos) &&
+                    // check if point lies in the perception cone
+                    abs(angle) <= this->gamma_ && 
                     // "maximum perception radius"
                     (sqrt(pow(x_pos - x_c, 2) + pow(y_pos - y_c, 2)) <= this->r_perception_max_) &&
                     // "minimum perception radius"
