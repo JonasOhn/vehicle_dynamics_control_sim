@@ -6,30 +6,31 @@ MpcController::MpcController(){
 
     this->mpc_geometry_obj_ = MpcGeometry();
 
-    this->reset_prediction_trajectories();
-
     std::cout << "Controller Class Initialized." << std::endl;
 }
 
 void MpcController::reset_prediction_trajectories()
 {
-    for (this->i_ = 0; this->i_ <= this->horizon_params_.N_horizon_mpc; this->i_++)
-    {
-        this->x_traj_[this->i_][0] = 0.0; // s
-        this->x_traj_[this->i_][1] = 0.0; // n
-        this->x_traj_[this->i_][2] = 0.0; // mu
-        this->x_traj_[this->i_][3] = 0.0; // vx
+  std::cout << "Resetting prediction trajectories." << std::endl;
+  for (this->i_ = 0; this->i_ <= this->horizon_params_.N_horizon_mpc; this->i_++)
+  {
+      this->x_traj_[this->i_][0] = 0.0; // s
+      this->x_traj_[this->i_][1] = 0.0; // n
+      this->x_traj_[this->i_][2] = 0.0; // mu
+      this->x_traj_[this->i_][3] = 0.0; // vx
 
-        // If it's not the end of the prediction horizon yet
-        if (this->i_ < this->horizon_params_.N_horizon_mpc)
-        {
-            this->u_traj_[this->i_][0] = 0.0; // ax_m
-            this->u_traj_[this->i_][1] = 0.0; // del_s
+      // If it's not the end of the prediction horizon yet
+      if (this->i_ < this->horizon_params_.N_horizon_mpc)
+      {
+          this->u_traj_[this->i_][0] = 0.0; // ax_m
+          this->u_traj_[this->i_][1] = 0.0; // del_s
 
-            this->s_ref_mpc_[this->i_] = 0.0;
-            this->curv_ref_mpc_[this->i_] = 0.0;
-        }
-    }
+          this->s_ref_mpc_[this->i_] = 0.0;
+          this->curv_ref_mpc_[this->i_] = 0.0;
+      }
+  }
+  std::cout << "Prediction trajectories reset." << std::endl;
+    
 }
 
 int MpcController::get_number_of_spline_evaluations(){
@@ -53,6 +54,18 @@ int8_t MpcController::set_model_parameters(double l_f, double l_r,
     this->model_params_.C_r = C_r;
 
     return 0;
+}
+
+int8_t MpcController::set_cost_parameters(double q_sd, double q_n, double q_mu, double r_dels, double r_axm){
+    std::cout << "Setting cost parameters." << std::endl;
+    this->cost_params_.q_sd = q_sd;
+    this->cost_params_.q_n = q_n;
+    this->cost_params_.q_mu = q_mu;
+    this->cost_params_.r_dels = r_dels;
+    this->cost_params_.r_axm = r_axm;
+
+    return 0;
+
 }
 
 int8_t MpcController::set_solver_parameters(int sqp_max_iter, int rti_phase, bool warm_start_first_qp)
@@ -169,6 +182,13 @@ int8_t MpcController::init_mpc_parameters()
     p[2] = this->model_params_.l_r;
     p[3] = this->model_params_.C_d;
     p[4] = this->model_params_.C_r;
+
+    p[5] = 0.0; // kappa_ref
+    p[6] = this->cost_params_.q_n;
+    p[7] = this->cost_params_.q_sd;
+    p[8] = this->cost_params_.q_mu;
+    p[9] = this->cost_params_.r_dels;
+    p[10] = this->cost_params_.r_axm;
 
     // Init curvature ref using the last predicted s-trajectory
     for (this->i_ = 0; this->i_ < this->horizon_params_.N_horizon_mpc; this->i_++)

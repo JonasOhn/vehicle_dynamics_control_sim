@@ -12,7 +12,7 @@ CONST_CURV = 0.1
 
 
 def main(use_stepped_sim:bool=False):
-    model_params, horizon_params, _, _, _ = load_mpc_yaml_params()
+    model_params, horizon_params, cost_params, _, _ = load_mpc_yaml_params()
 
     """ =========== INITIAL STATE FOR SIMULATION ============ """
     # x0 =        [s,   n,   mu,  vx]
@@ -58,8 +58,13 @@ def main(use_stepped_sim:bool=False):
     C_d = model_params['C_d'] # effective drag coefficient
     C_r = model_params['C_r'] # const. rolling resistance
     kappa_ref = CONST_CURV # reference curvature
+    q_n = cost_params['q_n']
+    q_sd = cost_params['q_sd']
+    q_mu = cost_params['q_mu']
+    r_dels = cost_params['r_dels']
+    r_ax = cost_params['r_ax']
 
-    paramvec = np.array((m, l_f, l_r, C_d, C_r, kappa_ref))
+    paramvec = np.array((m, l_f, l_r, C_d, C_r, kappa_ref, q_n, q_sd, q_mu, r_dels, r_ax))
     for j in range(horizon_params["N_horizon"]):
         ocp_solver.set(j, 'p', paramvec)
     integrator.set('p', paramvec)

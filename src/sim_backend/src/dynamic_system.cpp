@@ -45,7 +45,7 @@ void DynamicSystem::operator() ( const state_type &x , state_type &dxdt , const 
     // from Lagrange Equations in inertial frame
 
     // Resistance only in x-direction of vehicle frame
-    double F_resist = tanh(x[3]/1e-3) * (params_.C_d * pow(x[3], 2) + params_.C_r * params_.m * params_.g);
+    double F_resist = tanh(x[3]/1e-2) * (params_.C_d * pow(x[3], 2) + params_.C_r * params_.m * params_.g);
 
     // sideslip angles
     double alpha_f =

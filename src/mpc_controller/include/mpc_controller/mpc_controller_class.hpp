@@ -58,6 +58,14 @@ typedef struct{
     double C_r; // -
 } model_parameters;
 
+typedef struct{
+    double q_n; 
+    double q_sd; 
+    double q_mu; 
+    double r_dels; 
+    double r_axm; 
+} cost_parameters;
+
 class MpcController {
 
     private:
@@ -66,6 +74,7 @@ class MpcController {
         model_parameters model_params_;
         horizon_parameters horizon_params_;
         solver_output solver_out_;
+        cost_parameters cost_params_;
 
         MpcGeometry mpc_geometry_obj_;
 
@@ -154,6 +163,12 @@ class MpcController {
                                     double m, // kg
                                     double C_d, // 0.5 * rho * CdA
                                     double C_r);
+
+        int8_t set_cost_parameters(double q_sd,
+                                  double q_n,
+                                  double q_mu,
+                                  double r_dels,
+                                  double r_axm);
 
         int8_t set_horizon_parameters(int N, double T_f);
 

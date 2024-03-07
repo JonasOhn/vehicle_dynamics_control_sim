@@ -48,13 +48,13 @@
     solver_options:
       qp_solver: 'PARTIAL_CONDENSING_HPIPM' #'FULL_CONDENSING_HPIPM' #'FULL_CONDENSING_QPOASES' #'PARTIAL_CONDENSING_HPIPM'
       hessian_approx: 'EXACT' #'GAUSS_NEWTON' #'EXACT' #
-      integrator_type: 'IRK'
+      integrator_type: 'ERK'
       sim_method_newton_iter: 20
       nlp_solver_max_iter: 10
       qp_solver_iter_max: 50
-      qp_solver_warm_start: 1
+      qp_solver_warm_start: 0
       regularize_method: 'PROJECT'
-      reg_epsilon: 0.00001
+      reg_epsilon: 0.0001
       alpha_min: 0.000001
       alpha_reduction: 0.7
       hpipm_mode: 'BALANCE' #'BALANCE', 'ROBUST', 'SPEED'
@@ -62,6 +62,6 @@
       globalization: 'FIXED_STEP' # MERIT_BACKTRACKING  FIXED_STEP
       levenberg_marquardt: 0.0
       nlp_solver_step_length: 1.0
-      tol: 0.001
+      tol: 0.01
       qp_tol: 0.00001
       init_rti_phase: 0

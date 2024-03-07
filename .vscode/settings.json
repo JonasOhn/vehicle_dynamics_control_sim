@@ -81,5 +81,19 @@
         "regex": "cpp",
         "ocp_nlp_interface.h": "c",
         "core": "cpp"
-    }
+    },
+    "python.autoComplete.extraPaths": [
+      "/home/jonas/AMZ/vehicle_dynamics_control_sim/install/mpc_controller/lib/python3.11/site-packages",
+      "/home/jonas/AMZ/vehicle_dynamics_control_sim/install/sim_backend/lib/python3.11/site-packages",
+      "/home/jonas/AMZ/forces_pro_client",
+      "/opt/ros/humble/lib/python3.10/site-packages",
+      "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+      "/home/jonas/AMZ/vehicle_dynamics_control_sim/install/mpc_controller/lib/python3.11/site-packages",
+      "/home/jonas/AMZ/vehicle_dynamics_control_sim/install/sim_backend/lib/python3.11/site-packages",
+      "/home/jonas/AMZ/forces_pro_client",
+      "/opt/ros/humble/lib/python3.10/site-packages",
+      "/opt/ros/humble/local/lib/python3.10/dist-packages"
+    ]
 }

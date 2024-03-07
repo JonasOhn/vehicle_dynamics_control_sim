@@ -5,9 +5,7 @@ import casadi as ca
 import matplotlib.pyplot as plt
 
 
-def export_vehicle_ode_model(testing : bool = False,
-                             mpc_horizon_parameters : dict = {},
-                             model_cost_parameters : dict = {}) -> AcadosModel:
+def export_vehicle_ode_model() -> AcadosModel:
 
     # model name
     model_name = 'veh_dynamics_ode'
@@ -20,7 +18,12 @@ def export_vehicle_ode_model(testing : bool = False,
     C_d = SX.sym("C_d")
     C_r = SX.sym("C_r")
     kappa_ref = SX.sym("kappa_ref")
-    p = vertcat(m, l_f, l_r, C_d, C_r, kappa_ref)
+    q_n = SX.sym("q_n")
+    q_sd = SX.sym("q_sd")
+    q_mu = SX.sym("q_mu")
+    r_dels = SX.sym("r_dels")
+    r_ax = SX.sym("r_ax")
+    p = vertcat(m, l_f, l_r, C_d, C_r, kappa_ref, q_n, q_sd, q_mu, r_dels, r_ax)
 
     # Symbolic States
     s       = SX.sym('s')
@@ -66,11 +69,11 @@ def export_vehicle_ode_model(testing : bool = False,
 
     """ STAGE Cost (model-based, slack is defined on the solver) """
     # Progress Rate Cost
-    cost_sd = - model_cost_parameters['q_sd'] * s_dot_expl_dyn
-    cost_n = model_cost_parameters['q_n'] * n**2
-    cost_mu =  model_cost_parameters['q_mu'] * mu**2
-    cost_dels = model_cost_parameters['r_dels'] * del_s**2
-    cost_ax = model_cost_parameters['r_ax'] * ax_m**2
+    cost_sd = - q_sd * s_dot_expl_dyn
+    cost_n = q_n * n**2
+    cost_mu =  q_mu * mu**2
+    cost_dels = r_dels * del_s**2
+    cost_ax = r_ax * ax_m**2
 
     # Stage Cost
     stage_cost = cost_sd + cost_n + cost_mu + cost_dels + cost_ax
@@ -81,6 +84,7 @@ def export_vehicle_ode_model(testing : bool = False,
     model = AcadosModel()
 
     model.f_impl_expr = f_impl_time
+    model.f_expl_expr = f_expl_time
     model.x = x
     model.xdot = xdot
     model.u = u

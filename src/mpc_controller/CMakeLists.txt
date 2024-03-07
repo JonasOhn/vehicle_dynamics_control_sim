@@ -18,6 +18,7 @@ find_package(rcl_interfaces REQUIRED)
 find_package(rcutils REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/MpcStateTrajectory.msg"
@@ -96,6 +97,7 @@ ament_target_dependencies(mpc_controller_node
   rcutils
   visualization_msgs
   sensor_msgs
+  std_msgs
 )
 
 install(TARGETS 

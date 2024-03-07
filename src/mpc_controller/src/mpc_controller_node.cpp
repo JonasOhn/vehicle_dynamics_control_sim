@@ -19,6 +19,8 @@
 #include "mpc_controller/msg/mpc_input_trajectory.hpp"
 #include "mpc_controller/msg/mpc_kappa_trajectory.hpp"
 #include "mpc_controller/msg/mpc_solver_state.hpp"
+#include "std_msgs/msg/empty.hpp"
+#include "std_msgs/msg/bool.hpp"
 
 // controller class include
 #include "mpc_controller/mpc_controller_class.hpp"
@@ -47,6 +49,13 @@ class MPCControllerNode : public rclcpp::Node
         this->ref_path_subscriber_ = this->create_subscription<sim_backend::msg::Point2DArray>(
             "reference_path_points2d", 1, std::bind(&MPCControllerNode::ref_path_update, this, std::placeholders::_1));
 
+        // Subscriber to reset_controller topic
+        this->reset_mpc_subscriber_ = this->create_subscription<std_msgs::msg::Empty>("reset_controller", 1, std::bind(&MPCControllerNode::reset_controller, this, std::placeholders::_1));
+        // Subscriber to start_controller topic
+        this->start_mpc_subscriber_ = this->create_subscription<std_msgs::msg::Empty>("start_controller", 1, std::bind(&MPCControllerNode::start_controller, this, std::placeholders::_1));
+        // Subscriber to stop_controller topic
+        this->stop_mpc_subscriber_ = this->create_subscription<std_msgs::msg::Empty>("stop_controller", 1, std::bind(&MPCControllerNode::stop_controller, this, std::placeholders::_1));
+
 
         /* ========= PUBLISHERS ============ */
         // Init MPC <Functional> Prediction Horizon Publishers
@@ -69,6 +78,8 @@ class MPCControllerNode : public rclcpp::Node
         this->control_cmd_publisher_ = this->create_publisher<sim_backend::msg::SysInput>("vehicle_input", 10);
         this->control_cmd_timer_ = rclcpp::create_timer(this, this->get_clock(), this->dt_, std::bind(&MPCControllerNode::control_callback, this));
 
+        this->param_update_timer_ = rclcpp::create_timer(this, this->get_clock(), 1s, std::bind(&MPCControllerNode::update_cost_parameters, this));
+
         /* ========= CONTROLLER ============ */
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting up MPC.");
 
@@ -87,6 +98,13 @@ class MPCControllerNode : public rclcpp::Node
                                                        this->m_,
                                                        this->C_d_,
                                                        this->C_r_);
+                                              
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Initializing Cost parameters.");
+        this->mpc_controller_obj_.set_cost_parameters(this->q_sd_,
+                                                      this->q_n_,
+                                                      this->q_mu_,
+                                                      this->r_dels_,
+                                                      this->r_axm_);
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Sending control loop time step to MPC.");
         this->mpc_controller_obj_.set_dt_control_feedback(this->dt_seconds_);
@@ -167,8 +185,64 @@ class MPCControllerNode : public rclcpp::Node
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Reference path update succesful.");
     }
 
+    void reset_controller(const std_msgs::msg::Empty msg)
+    {
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Resetting Controller.");
+
+        // stop controller
+        this->controller_running_ = false;
+
+        // reset MPC
+        this->mpc_controller_obj_.reset_prediction_trajectories();
+
+        // clear reference path
+        this->reference_path_.clear();
+
+        // clear visualization
+        this->xy_spline_points_.clear();
+        this->xy_predict_points_.clear();
+
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Controller reset.");
+    }
+
+    void start_controller(const std_msgs::msg::Empty msg)
+    {
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Starting Controller.");
+
+        // start controller
+        this->controller_running_ = true;
+
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Controller started.");
+    }
+
+    void stop_controller(const std_msgs::msg::Empty msg)
+    {
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Stopping Controller.");
+
+        // stop controller
+        this->controller_running_ = false;
+
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Controller stopped.");
+    }
+
+    void update_cost_parameters()
+    {
+      RCLCPP_DEBUG_STREAM(this->get_logger(), "Updating Parameters for Controller.");
+
+      q_sd_ = this->get_parameter("cost.q_sd").as_double();
+      q_n_ = this->get_parameter("cost.q_n").as_double();
+      q_mu_ = this->get_parameter("cost.q_mu").as_double();
+      r_dels_ = this->get_parameter("cost.r_dels").as_double();
+      r_axm_ = this->get_parameter("cost.r_ax").as_double();
+
+      this->mpc_controller_obj_.set_cost_parameters(q_sd_, q_n_, q_mu_, r_dels_, r_axm_);
+
+      RCLCPP_DEBUG_STREAM(this->get_logger(), "Parameters updated.");
+    }
+
     void control_callback()
     {
+      if(this->controller_running_){
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Control Callback called.");
 
         // total time count
@@ -245,6 +319,14 @@ class MPCControllerNode : public rclcpp::Node
 
         // ===== FINISH Control Callback =========
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Control Callback ended.");
+      }else{
+        auto veh_input_msg = sim_backend::msg::SysInput();
+        veh_input_msg.fx_r = 0.0;
+        veh_input_msg.fx_f = 0.0;
+        veh_input_msg.del_s = 0.0;
+        control_cmd_publisher_->publish(veh_input_msg);
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Controller not running. Control Callback ended.");
+      }
     }
 
     void state_update(const sim_backend::msg::VehicleState & state_msg)
@@ -269,6 +351,7 @@ class MPCControllerNode : public rclcpp::Node
 
     void publish_predictions()
     {
+      if(this->controller_running_){
         // =================== Evaluate and Publish MPC Predictions ========================
         
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Evaluating MPC Predictions.");
@@ -352,7 +435,7 @@ class MPCControllerNode : public rclcpp::Node
         xy_predict_traj_publisher_->publish(path_predict_msg);
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Published MPC Predictions.");
-    
+      }
     }
 
     // Initialize Controller Object
@@ -364,11 +447,19 @@ class MPCControllerNode : public rclcpp::Node
     // Subscriber to ref path provided by "perception"
     rclcpp::Subscription<sim_backend::msg::Point2DArray>::SharedPtr ref_path_subscriber_;
 
+    // subscribers to reset, start and stop controller
+    rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr reset_mpc_subscriber_;
+    rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr start_mpc_subscriber_;
+    rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr stop_mpc_subscriber_;
+
     // Timer for control command publishing
     rclcpp::TimerBase::SharedPtr control_cmd_timer_;
 
     // Control command publisher
     rclcpp::Publisher<sim_backend::msg::SysInput>::SharedPtr control_cmd_publisher_;
+
+    // Timer for parameter update
+    rclcpp::TimerBase::SharedPtr param_update_timer_;
 
     // mpc trajectory publishers
     rclcpp::Publisher<mpc_controller::msg::MpcStateTrajectory>::SharedPtr mpc_xtraj_publisher_;
@@ -405,12 +496,21 @@ class MPCControllerNode : public rclcpp::Node
     double C_d_ = this->get_parameter("model.C_d").as_double();
     double C_r_ = this->get_parameter("model.C_r").as_double();
 
+    double q_sd_ = this->get_parameter("cost.q_sd").as_double();
+    double q_n_ = this->get_parameter("cost.q_n").as_double();
+    double q_mu_ = this->get_parameter("cost.q_mu").as_double();
+    double r_dels_ = this->get_parameter("cost.r_dels").as_double();
+    double r_axm_ = this->get_parameter("cost.r_ax").as_double();
+
     // For visualization
     std::vector<std::vector<double>> xy_spline_points_;
     std::vector<std::vector<double>> xy_predict_points_;
 
     // Iterators
     int i_ = 0;
+
+    // boolean status variable for controller
+    bool controller_running_ = false;
 };
 
 int main(int argc, char * argv[])

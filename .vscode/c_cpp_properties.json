@@ -1,0 +1,25 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/jonas/AMZ/vehicle_dynamics_control_sim/install/mpc_controller/include/**",
+        "/home/jonas/AMZ/vehicle_dynamics_control_sim/install/sim_backend/include/**",
+        "/opt/ros/humble/include/**",
+        "/home/jonas/AMZ/vehicle_dynamics_control_sim/acados/include/**",
+        "/home/jonas/AMZ/vehicle_dynamics_control_sim/src/mpc_controller/include/**",
+        "/home/jonas/AMZ/vehicle_dynamics_control_sim/src/sim_backend/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

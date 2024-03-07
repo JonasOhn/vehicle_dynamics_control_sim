@@ -51,6 +51,11 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}/
+)
+
 target_link_libraries(sim_visualization_node "${Boost_SYSTEM_LIBRARY}")
 
 if(BUILD_TESTING)

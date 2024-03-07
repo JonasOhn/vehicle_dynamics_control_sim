@@ -81,8 +81,7 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
 
 
     # Get AcadosModel form other python file
-    model = export_vehicle_ode_model(mpc_horizon_parameters=mpc_horizon_parameters,
-                                     model_cost_parameters=model_cost_parameters)
+    model = export_vehicle_ode_model()
     ocp.model = model
 
 
@@ -212,8 +211,13 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
     C_d = model_params['C_d'] # effective drag coefficient
     C_r = model_params['C_r'] # const. rolling resistance
     kappa_ref = model_params['kappa_ref'] # reference curvature
+    q_n = cost_params['q_n']
+    q_sd = cost_params['q_sd']
+    q_mu = cost_params['q_mu']
+    r_dels = cost_params['r_dels']
+    r_ax = cost_params['r_ax']
 
-    paramvec = np.array((m, l_f, l_r, C_d, C_r, kappa_ref))
+    paramvec = np.array((m, l_f, l_r, C_d, C_r, kappa_ref, q_n, q_sd, q_mu, r_dels, r_ax))
     ocp.parameter_values = paramvec
 
     """ ====== CREATE OCP AND SIM SOLVERS =========== """

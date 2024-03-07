@@ -9,6 +9,9 @@
 
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/empty.hpp"
+#include "std_msgs/msg/bool.hpp"
+#include "std_msgs/msg/int32.hpp"
+#include "std_msgs/msg/float64.hpp"
 #include "sim_backend/msg/vehicle_state.hpp"
 #include "sim_backend/msg/sys_input.hpp"
 #include "sim_backend/msg/point2_d.hpp"
@@ -42,15 +45,27 @@ class DynamicsSimulator : public rclcpp::Node
             }
             print_global_refpoints();
 
+            // State of Simulation
+
+            // X_C
             x_[0] = 0.0;
+            // Y_C
             x_[1] = 0.0;
+            // psi
             x_[2] = 0.0;
+            // dX_cdt in vehicle frame
             x_[3] = 0.0;
+            // dY_cdt in vehicle frame
             x_[4] = 0.0;
+            // dpsidt
             x_[5] = 0.0;
+            // fx_f
             x_[6] = 0.0;
+            // dfx_f/dt
             x_[7] = 0.0;
+            // fx_r
             x_[8] = 0.0;
+            // dfx_r/dt
             x_[9] = 0.0;
 
             // Get perception parameters from parameter server
@@ -81,7 +96,7 @@ class DynamicsSimulator : public rclcpp::Node
             // Time step for ODE solver in seconds
             dt_seconds_ = dt_.count() / 1e3;
             // Absolute Simulation time in seconds
-            t_ = 0.0;
+            t_ = 0.00001;
 
             // Publisher for vehicle state
             state_publisher_ = this->create_publisher<sim_backend::msg::VehicleState>("vehicle_state", 10);
@@ -91,6 +106,22 @@ class DynamicsSimulator : public rclcpp::Node
             trackbounds_left_publisher_ = this->create_publisher<sim_backend::msg::Point2DArray>("trackbounds_left_points2d", 10);
             trackbounds_right_publisher_ = this->create_publisher<sim_backend::msg::Point2DArray>("trackbounds_right_points2d", 10);
             ref_path_publisher_ = this->create_publisher<sim_backend::msg::Point2DArray>("reference_path_points2d", 10);
+
+            // number of cones hit publisher
+            num_cones_hit_publisher_ = this->create_publisher<std_msgs::msg::Int32>("num_cones_hit", 10);
+
+            // lap count publisher
+            lap_count_publisher_ = this->create_publisher<std_msgs::msg::Int32>("lap_count", 10);
+            // lap time publisher
+            lap_time_publisher_ = this->create_publisher<std_msgs::msg::Float64>("lap_time", 10);
+
+            // Publisher for controllers
+            // start controller: empty message
+            start_controller_publisher_ = this->create_publisher<std_msgs::msg::Empty>("start_controller", 10);
+            // reset controller: empty message
+            reset_controller_publisher_ = this->create_publisher<std_msgs::msg::Empty>("reset_controller", 10);
+            // stop controller: empty message
+            stop_controller_publisher_ = this->create_publisher<std_msgs::msg::Empty>("stop_controller", 10);
 
             // Timers for solve step and track publisher
             solve_timer_ = rclcpp::create_timer(this, this->get_clock(), this->dt_, std::bind(&DynamicsSimulator::solve_step, this));
@@ -102,10 +133,19 @@ class DynamicsSimulator : public rclcpp::Node
             reset_subscription_ = this->create_subscription<std_msgs::msg::Empty>(
                 "reset_sim", 10, std::bind(&DynamicsSimulator::reset_simulator, this, std::placeholders::_1));
 
+            // subscriber to toggle_sim_input_acceptance to accept control inputs or not
+            toggle_sim_input_acceptance_sub_ = this->create_subscription<std_msgs::msg::Empty>("toggle_sim_input_acceptance", 1, std::bind(&DynamicsSimulator::toggle_sim_input_acceptance, this, std::placeholders::_1));
+
             RCLCPP_INFO_STREAM(this->get_logger(), "Node " << this->get_name() << " initialized.");
         }
 
     private:
+
+        void toggle_sim_input_acceptance(const std_msgs::msg::Empty & msg)
+        {
+            RCLCPP_INFO_STREAM(this->get_logger(), "Toggling input acceptance.");
+            this->accept_inputs_ = !this->accept_inputs_;
+        }
 
         void reset_simulator(const std_msgs::msg::Empty & msg)
         {
@@ -122,6 +162,23 @@ class DynamicsSimulator : public rclcpp::Node
             x_[9] = 0.0;
 
             this->initial_idx_refloop_ = 0;
+            num_cones_hit_ = 0;
+            for (size_t i=0; i<cones_hit_count_left_.size(); i++)
+            {
+              cones_hit_count_left_[i] = 0;
+              cones_currently_hit_left_[i] = false;
+            }
+            for (size_t i=0; i<cones_hit_count_right_.size(); i++)
+            {
+              cones_hit_count_right_[i] = 0;
+              cones_currently_hit_right_[i] = false;
+            }
+            t_ = 0.00001;
+            lap_count_ = 0;
+            lap_time_start_ = 0.0;
+            lap_time_ = 0.0;
+            last_lap_time_ = 0.0;
+
             RCLCPP_DEBUG_STREAM(this->get_logger(), "Sim Reset.");
         }
 
@@ -130,7 +187,11 @@ class DynamicsSimulator : public rclcpp::Node
             RCLCPP_DEBUG_STREAM(this->get_logger(), 
                 "Received Input Fx_f: " << msg.fx_f << ""
                 << ", Fx_r: " << msg.fx_r << ", delta_s: " << msg.del_s);
-            this->sys_.update_inputs(msg.fx_f, msg.fx_r, msg.del_s);
+            if (this->accept_inputs_){
+              this->sys_.update_inputs(msg.fx_f, msg.fx_r, msg.del_s);
+            }else{
+              this->sys_.update_inputs(0.0, 0.0, 0.0);
+            }
         }
 
         int get_csv_ref_track()
@@ -161,6 +222,8 @@ class DynamicsSimulator : public rclcpp::Node
                     parsedRow.push_back(std::stod(cell));
                 }
                 trackbounds_left_.push_back(parsedRow);
+                cones_hit_count_left_.push_back(0);
+                cones_currently_hit_left_.push_back(false);
             }
 
             // right cones are yellow
@@ -175,6 +238,8 @@ class DynamicsSimulator : public rclcpp::Node
                     parsedRow.push_back(std::stod(cell));
                 }
                 trackbounds_right_.push_back(parsedRow);
+                cones_hit_count_right_.push_back(0);
+                cones_currently_hit_right_.push_back(false);
             }
 
             return 0;
@@ -190,11 +255,201 @@ class DynamicsSimulator : public rclcpp::Node
             RCLCPP_DEBUG_STREAM(this->get_logger(), "===");
         }
 
+        bool updateAllConeCollisions()
+        {
+          // create a bounding box around the car
+          double x_c = x_[0];
+          double y_c = x_[1];
+          double psi = x_[2];
+
+          // create 4 line segments that represent the car's bounding box
+          std::vector<std::vector<double>> car_bbox;
+          car_bbox.push_back({x_c + l_to_front_ * cos(psi) + l_to_right_ * sin(psi), y_c + l_to_front_ * sin(psi) - l_to_right_ * cos(psi)});
+          car_bbox.push_back({x_c + l_to_front_ * cos(psi) - l_to_left_ * sin(psi), y_c + l_to_front_ * sin(psi) + l_to_left_ * cos(psi)});
+          car_bbox.push_back({x_c - l_to_rear_ * cos(psi) - l_to_left_ * sin(psi), y_c - l_to_rear_ * sin(psi) + l_to_left_ * cos(psi)});
+          car_bbox.push_back({x_c - l_to_rear_ * cos(psi) + l_to_right_ * sin(psi), y_c - l_to_rear_ * sin(psi) - l_to_right_ * cos(psi)});
+
+          // iterate through both left and right cone arrays and check for intersection with car bbox
+          // if the current cone is not in collision with the car, it is counted as colliding with the car
+          // if the current cone is in collision with the car, it is not counted as colliding with the car to avoid double counting
+          for (size_t i=0; i<trackbounds_left_.size(); i++)
+          {
+            if (coneWithinBoundingBox(car_bbox, trackbounds_left_[i]))
+            {
+              if (!cones_currently_hit_left_[i])
+              {
+                cones_currently_hit_left_[i] = true;
+                cones_hit_count_left_[i]++;
+              }
+            }else{
+              cones_currently_hit_left_[i] = false;
+            }
+          }
+          for(size_t i=0; i<trackbounds_right_.size(); i++)
+          {
+            if (coneWithinBoundingBox(car_bbox, trackbounds_right_[i]))
+            {
+              if (!cones_currently_hit_right_[i])
+              {
+                cones_currently_hit_right_[i] = true;
+                cones_hit_count_right_[i]++;
+              }
+            }else{
+              cones_currently_hit_right_[i] = false;
+            }
+          }
+        }
+
+        bool coneWithinBoundingBox(std::vector<std::vector<double>> bbox, std::vector<double> cone)
+        {
+          // Check if the cone is within the bounding box defined by the four points in counterclockwise order
+          double x = cone[0];
+          double y = cone[1];
+
+          // Iterate through the four line segments of the bounding box
+          for (size_t i = 0; i < bbox.size(); i++)
+          {
+            double x1 = bbox[i][0];
+            double y1 = bbox[i][1];
+            double x2 = bbox[(i + 1) % bbox.size()][0];
+            double y2 = bbox[(i + 1) % bbox.size()][1];
+
+            // Calculate the cross product between the vectors (x2-x1, y2-y1) and (x-x1, y-y1)
+            double crossProduct = (x2 - x1) * (y - y1) - (y2 - y1) * (x - x1);
+
+            // If the cross product is negative, the point is outside the bounding box
+            if (crossProduct < 0)
+            {
+              return false;
+            }
+          }
+
+          // If the point is inside all four line segments, it is within the bounding box
+          return true;
+        }
+
+        void count_cones_hit(){
+          num_cones_hit_ = 0;
+          // iterate through both left and right cone arrays and check for intersection with car bbox
+          for (size_t i=0; i<trackbounds_left_.size(); i++)
+          {
+            num_cones_hit_ += cones_hit_count_left_[i];
+          }
+          for (size_t i=0; i<trackbounds_right_.size(); i++)
+          {
+            num_cones_hit_ += cones_hit_count_right_[i];
+          }
+        }
+
+        bool carCrossesStartFinishLine()
+        {
+          // check if car has crossed the start/finish line, given as the fourth line segment of ref_points_global_
+          double x_c = x_[0];
+          double y_c = x_[1];
+          double psi = x_[2];
+
+          // start/finish line as a line segment perpendicular to the segment from point 4 to point 5 on the global reference path, going through the fifth point
+          double x1 = ref_points_global_[4][0];
+          double y1 = ref_points_global_[4][1];
+          double x2 = ref_points_global_[5][0];
+          double y2 = ref_points_global_[5][1];
+          // orthogonal segment to the line segment from point 4 to point 5
+          double dx_norm = (x2 - x1) / sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
+          double dy_norm = (y2 - y1) / sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2));
+          double x3 = x2 + trackwidth_ * dy_norm;
+          double y3 = y2 - trackwidth_ * dx_norm;
+          double x4 = x2 - trackwidth_ * dy_norm;
+          double y4 = y2 + trackwidth_ * dx_norm;
+
+          // create bounding box
+          std::vector<std::vector<double>> car_bbox;
+          car_bbox.push_back({x_c + l_to_front_ * cos(psi) + l_to_right_ * sin(psi), y_c + l_to_front_ * sin(psi) - l_to_right_ * cos(psi)});
+          car_bbox.push_back({x_c + l_to_front_ * cos(psi) - l_to_left_ * sin(psi), y_c + l_to_front_ * sin(psi) + l_to_left_ * cos(psi)});
+          car_bbox.push_back({x_c - l_to_rear_ * cos(psi) - l_to_left_ * sin(psi), y_c - l_to_rear_ * sin(psi) + l_to_left_ * cos(psi)});
+          car_bbox.push_back({x_c - l_to_rear_ * cos(psi) + l_to_right_ * sin(psi), y_c - l_to_rear_ * sin(psi) - l_to_right_ * cos(psi)});
+
+          // check if bounding box collides with start/finish line
+          for (size_t i=0; i<car_bbox.size(); i++)
+          {
+            if (doIntersect({x3, y3}, {x4, y4}, car_bbox[i], car_bbox[(i+1)%car_bbox.size()]))
+            {
+              return true;
+              RCLCPP_INFO_STREAM(this->get_logger(), "Car currently crosses start/finish line!");
+            }
+          }
+          return false;
+        }
+
+        bool doIntersect(std::vector<double> p1, std::vector<double> q1, std::vector<double> p2, std::vector<double> q2)
+        {
+            // Find the four orientations needed for general and special cases
+            int o1 = orientation(p1, q1, p2);
+            int o2 = orientation(p1, q1, q2);
+            int o3 = orientation(p2, q2, p1);
+            int o4 = orientation(p2, q2, q1);
+
+            // General case
+            if (o1 != o2 && o3 != o4)
+            {
+                return true;
+            }
+
+            // Special Cases
+            // p1, q1 and p2 are colinear and p2 lies on segment p1q1
+            if (o1 == 0 && onSegment(p1, p2, q1))
+            {
+                return true;
+            }
+
+            // p1, q1 and q2 are colinear and q2 lies on segment p1q1
+            if (o2 == 0 && onSegment(p1, q2, q1))
+            {
+                return true;
+            }
+
+            // p2, q2 and p1 are colinear and p1 lies on segment p2q2
+            if (o3 == 0 && onSegment(p2, p1, q2))
+            {
+                return true;
+            }
+
+            // p2, q2 and q1 are colinear and q1 lies on segment p2q2
+            if (o4 == 0 && onSegment(p2, q1, q2))
+            {
+                return true;
+            }
+
+            return false; // Doesn't fall in any of the above cases
+        }
+
+        bool onSegment(std::vector<double> p, std::vector<double> q, std::vector<double> r)
+        {
+            if (q[0] <= std::max(p[0], r[0]) && q[0] >= std::min(p[0], r[0]) &&
+                q[1] <= std::max(p[1], r[1]) && q[1] >= std::min(p[1], r[1]))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        int orientation(std::vector<double> p, std::vector<double> q, std::vector<double> r)
+        {
+            // See https://www.geeksforgeeks.org/orientation-3-ordered-points/
+            // for details of below formula.
+            double val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]);
+
+            if (val == 0)
+            {
+                return 0; // colinear
+            }
+            return (val > 0) ? 1 : 2; // clock or counterclock wise
+        }
+
         void solve_step()
         {
             RCLCPP_DEBUG_STREAM(this->get_logger(), "Solve step started.");
             /* Get start time of solve step */
-            double t0 = (double_t)(this->now().nanoseconds())/1e6;  // [ms]
+            double t0 = (double_t)(this->now().nanoseconds());  // [ms]
 
             RCLCPP_DEBUG_STREAM(this->get_logger(), "Step began at time t_ = " << t_ << " s.");
             
@@ -231,13 +486,64 @@ class DynamicsSimulator : public rclcpp::Node
             state_publisher_->publish(state_msg);
 
             this->ref_path_callback();
-            
+
+            // check update all cone collisions
+            updateAllConeCollisions();
+
+            // check if car is on start/finish line and previously was not
+            if(carCrossesStartFinishLine() && !car_on_start_finish_line_){
+              car_on_start_finish_line_ = true;
+
+              // check if car crosses start/finish line for the first time
+              if(lap_time_start_ == 0.0){
+                // This is the case for when the car crosses the start/finish line for the first time
+                RCLCPP_INFO_STREAM(this->get_logger(), "Car crossed start/finish line for the first time!");              
+                // definitely first lap
+                lap_count_ = 0;
+                
+                // set last lap time to zero for first lap
+                last_lap_time_ = 0.0;
+                
+                // reset lap time
+                lap_time_ = 0.0;
+              } else {
+                // car crossed start/finish line after the first lap
+                RCLCPP_INFO_STREAM(this->get_logger(), "Car crossed start/finish line!");
+                RCLCPP_INFO_STREAM(this->get_logger(), "Lap time: " << lap_time_ << " s");
+                RCLCPP_INFO_STREAM(this->get_logger(), "Lap count: " << lap_count_);
+                
+                // increment lap count
+                lap_count_++;
+
+                // set last lap time to current lap time
+                last_lap_time_ = lap_time_;
+
+                // reset lap time
+                lap_time_ = 0.0;
+              }
+
+              lap_time_start_ = t_;
+
+            }else if(!carCrossesStartFinishLine()){
+              car_on_start_finish_line_ = false;
+            }
+
+            lap_time_ = t_ - lap_time_start_;
+
+            auto lap_count_msg = std_msgs::msg::Int32();
+            lap_count_msg.data = lap_count_;
+            lap_count_publisher_->publish(lap_count_msg);
+
+            auto lap_time_msg = std_msgs::msg::Float64();
+            lap_time_msg.data = lap_time_;
+            lap_time_publisher_->publish(lap_time_msg);
+
             /* Get end time of solve step */
-            double t1 = (double_t)(this->now().nanoseconds()) / 1e6;  // [ms]
+            double t1 = (double_t)(this->now().nanoseconds());  // [ms]
             RCLCPP_DEBUG_STREAM(this->get_logger(), "Time needed for step: " << t1-t0 << " ms. \nSolver did " << steps << " step(s).");
 
-            if (t1 - t0 > 0.99 * dt_.count()){
-                RCLCPP_ERROR_STREAM(this->get_logger(), "Needed too long for solver step! Took: " << t1-t0 << " ms, but dt is " << dt_.count() << " ms!");
+            if (t1 - t0 > 1e6 * dt_.count()){
+                RCLCPP_ERROR_STREAM(this->get_logger(), "Needed too long for solver step! Took: " << (t1-t0)/1e6 << " ms, but dt is " << dt_.count() << " ms!");
             }
             RCLCPP_DEBUG_STREAM(this->get_logger(), "Step ended at time t_ = " << t_ << " s.");
 
@@ -300,6 +606,13 @@ class DynamicsSimulator : public rclcpp::Node
             trackbounds_right_publisher_->publish(right_bound_msg);
 
             RCLCPP_DEBUG_STREAM(this->get_logger(), "Track callback ended.");
+
+            // count cones hit
+            count_cones_hit();
+            // publish number of cones hit
+            auto num_cones_hit_msg = std_msgs::msg::Int32();
+            num_cones_hit_msg.data = num_cones_hit_;
+            num_cones_hit_publisher_->publish(num_cones_hit_msg);
         }
 
         void ref_path_callback()
@@ -318,16 +631,6 @@ class DynamicsSimulator : public rclcpp::Node
             double x_c = x_[0];
             double y_c = x_[1];
             double psi = x_[2];
-
-            // vector defining the "negative halfspace" a = [a_1, a_2]^T and b
-            double a_1_neg = sin(psi - gamma_);
-            double a_2_neg = - cos(psi - gamma_);
-            double b_neg = - a_1_neg * x_c - a_2_neg * y_c;
-
-            // vector defining the "positive halfspace" a = [a_1, a_2]^T and b
-            double a_1_pos = sin(psi + gamma_);
-            double a_2_pos = - cos(psi + gamma_);
-            double b_pos = a_1_pos * x_c + a_2_pos * y_c;
 
             // Necessary message container variables
             auto point2d_i = sim_backend::msg::Point2D();
@@ -413,11 +716,28 @@ class DynamicsSimulator : public rclcpp::Node
         rclcpp::Publisher<sim_backend::msg::Point2DArray>::SharedPtr trackbounds_left_publisher_;
         rclcpp::Publisher<sim_backend::msg::Point2DArray>::SharedPtr trackbounds_right_publisher_;
 
+        // Publisher for number of cones hit
+        rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr num_cones_hit_publisher_;
+
+        // Controller control message publishers
+        rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr start_controller_publisher_;
+        rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr reset_controller_publisher_;
+        rclcpp::Publisher<std_msgs::msg::Empty>::SharedPtr stop_controller_publisher_;
+
         // Subscriber to update input signals
         rclcpp::Subscription<sim_backend::msg::SysInput>::SharedPtr input_subscription_;
 
         // Subscriber to reset message
         rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr reset_subscription_;
+
+        // Subscriber to toggle_sim_input_acceptance to accept control inputs or not
+        rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr toggle_sim_input_acceptance_sub_;
+
+        // lap counter publisher
+        rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr lap_count_publisher_;
+
+        // lap time publisher
+        rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr lap_time_publisher_;
 
         // Cycle time of Simulation node
         std::chrono::milliseconds dt_{std::chrono::milliseconds(5)};
@@ -435,6 +755,24 @@ class DynamicsSimulator : public rclcpp::Node
         // Perception radii (min and max)
         double r_perception_max_;
         double r_perception_min_;
+
+        // car dimensions
+        double l_to_front_ = 1.0;
+        double l_to_rear_ = 1.0;
+        double l_to_right_ = 0.8;
+        double l_to_left_ = 0.8;
+
+        bool accept_inputs_ = true;
+
+        int lap_count_ = 0;
+        int num_cones_hit_ = 0;
+        double trackwidth_ = 5.0;
+        double lap_time_ = 0.0;           // seconds for the current lap
+        double lap_time_start_ = 0.0;     // seconds on the clock
+        double last_lap_time_ = 0.0;      // seconds for the last lap
+
+        double minimum_lap_time_ = 20.0;  // seconds
+        double maximum_lap_time_ = 100.0; // seconds
 
         // Index to keep track of initial point of reference path
         size_t initial_idx_refloop_;
@@ -458,6 +796,16 @@ class DynamicsSimulator : public rclcpp::Node
         // Track bounds
         std::vector<std::vector<double>> trackbounds_left_;
         std::vector<std::vector<double>> trackbounds_right_;
+
+        // boolean vector to keep track of which cones are currently hit
+        std::vector<bool> cones_currently_hit_left_;
+        std::vector<bool> cones_currently_hit_right_;
+
+        // count vector to keep track of how many times each cone has been hit
+        std::vector<int> cones_hit_count_left_;
+        std::vector<int> cones_hit_count_right_;
+
+        bool car_on_start_finish_line_ = false;
     
         // Create uncontrolled ODE stepper
         runge_kutta_dopri5< state_type > stepper_uncontrolled_ = runge_kutta_dopri5< state_type >();
@@ -465,7 +813,7 @@ class DynamicsSimulator : public rclcpp::Node
         default_error_checker<double, 
             range_algebra, 
             default_operations
-            > error_checker = default_error_checker<double, range_algebra, default_operations>(1e-2, 1e-2);
+            > error_checker = default_error_checker<double, range_algebra, default_operations>(1e-1, 1e-1);
         // Create Default Step Adjuster
         default_step_adjuster<double, double> step_adjuster = default_step_adjuster<double, double>(static_cast<double>(max_dt_));
 
