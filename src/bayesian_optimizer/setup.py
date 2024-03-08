@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-                'talker = bayesian_optimizer.bayesian_optimizer_node:main',
+                'bayesian_optimizer_node = bayesian_optimizer.bayesian_optimizer_node:main',
         ],
     },
 )

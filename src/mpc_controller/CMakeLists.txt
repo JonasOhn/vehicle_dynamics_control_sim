@@ -19,8 +19,10 @@ find_package(rcutils REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/MpcCostParameters.msg"
   "msg/MpcStateTrajectory.msg"
   "msg/MpcInputTrajectory.msg"
   "msg/MpcSolverState.msg"

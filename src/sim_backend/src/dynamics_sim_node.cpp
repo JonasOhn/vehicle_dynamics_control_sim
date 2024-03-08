@@ -114,6 +114,8 @@ class DynamicsSimulator : public rclcpp::Node
             lap_count_publisher_ = this->create_publisher<std_msgs::msg::Int32>("lap_count", 10);
             // lap time publisher
             lap_time_publisher_ = this->create_publisher<std_msgs::msg::Float64>("lap_time", 10);
+            // last lap time publisher
+            last_lap_time_publisher_ = this->create_publisher<std_msgs::msg::Float64>("last_lap_time", 10);
 
             // Publisher for controllers
             // start controller: empty message
@@ -520,6 +522,10 @@ class DynamicsSimulator : public rclcpp::Node
 
                 // reset lap time
                 lap_time_ = 0.0;
+
+                auto last_lap_time_msg = std_msgs::msg::Float64();
+                last_lap_time_msg.data = last_lap_time_;
+                last_lap_time_publisher_->publish(last_lap_time_msg);
               }
 
               lap_time_start_ = t_;
@@ -739,6 +745,9 @@ class DynamicsSimulator : public rclcpp::Node
         // lap time publisher
         rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr lap_time_publisher_;
 
+        // last lap time publisher
+        rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr last_lap_time_publisher_;
+
         // Cycle time of Simulation node
         std::chrono::milliseconds dt_{std::chrono::milliseconds(5)};
         std::chrono::milliseconds dt_trackpub_{std::chrono::milliseconds(20)};
@@ -770,9 +779,6 @@ class DynamicsSimulator : public rclcpp::Node
         double lap_time_ = 0.0;           // seconds for the current lap
         double lap_time_start_ = 0.0;     // seconds on the clock
         double last_lap_time_ = 0.0;      // seconds for the last lap
-
-        double minimum_lap_time_ = 20.0;  // seconds
-        double maximum_lap_time_ = 100.0; // seconds
 
         // Index to keep track of initial point of reference path
         size_t initial_idx_refloop_;

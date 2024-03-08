@@ -19,6 +19,7 @@
 #include "mpc_controller/msg/mpc_input_trajectory.hpp"
 #include "mpc_controller/msg/mpc_kappa_trajectory.hpp"
 #include "mpc_controller/msg/mpc_solver_state.hpp"
+#include "mpc_controller/msg/mpc_cost_parameters.hpp"
 #include "std_msgs/msg/empty.hpp"
 #include "std_msgs/msg/bool.hpp"
 
@@ -56,6 +57,8 @@ class MPCControllerNode : public rclcpp::Node
         // Subscriber to stop_controller topic
         this->stop_mpc_subscriber_ = this->create_subscription<std_msgs::msg::Empty>("stop_controller", 1, std::bind(&MPCControllerNode::stop_controller, this, std::placeholders::_1));
 
+
+        this->param_update_subscriber_ = this->create_subscription<mpc_controller::msg::MpcCostParameters>("mpc_cost_parameters", 1, std::bind(&MPCControllerNode::update_cost_parameters_from_msg, this, std::placeholders::_1));
 
         /* ========= PUBLISHERS ============ */
         // Init MPC <Functional> Prediction Horizon Publishers
@@ -223,6 +226,19 @@ class MPCControllerNode : public rclcpp::Node
         this->controller_running_ = false;
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Controller stopped.");
+    }
+
+    void update_cost_parameters_from_msg(const mpc_controller::msg::MpcCostParameters msg)
+    {
+      RCLCPP_INFO_STREAM(this->get_logger(), "Updating MPC parameters from ROS message.");
+
+      this->set_parameter(rclcpp::Parameter("cost.q_sd", msg.q_sd));
+      this->set_parameter(rclcpp::Parameter("cost.q_n", msg.q_n));
+      this->set_parameter(rclcpp::Parameter("cost.q_mu", msg.q_mu));
+      this->set_parameter(rclcpp::Parameter("cost.r_dels", msg.r_dels));
+      this->set_parameter(rclcpp::Parameter("cost.r_ax", msg.r_ax));
+
+      this->mpc_controller_obj_.set_cost_parameters(msg.q_sd, msg.q_n, msg.q_mu, msg.r_dels, msg.r_ax);
     }
 
     void update_cost_parameters()
@@ -451,6 +467,8 @@ class MPCControllerNode : public rclcpp::Node
     rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr reset_mpc_subscriber_;
     rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr start_mpc_subscriber_;
     rclcpp::Subscription<std_msgs::msg::Empty>::SharedPtr stop_mpc_subscriber_;
+
+    rclcpp::Subscription<mpc_controller::msg::MpcCostParameters>::SharedPtr param_update_subscriber_;
 
     // Timer for control command publishing
     rclcpp::TimerBase::SharedPtr control_cmd_timer_;
