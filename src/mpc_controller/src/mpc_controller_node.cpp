@@ -81,7 +81,7 @@ class MPCControllerNode : public rclcpp::Node
         this->control_cmd_publisher_ = this->create_publisher<sim_backend::msg::SysInput>("vehicle_input", 10);
         this->control_cmd_timer_ = rclcpp::create_timer(this, this->get_clock(), this->dt_, std::bind(&MPCControllerNode::control_callback, this));
 
-        this->param_update_timer_ = rclcpp::create_timer(this, this->get_clock(), 1s, std::bind(&MPCControllerNode::update_cost_parameters, this));
+        this->param_update_timer_ = rclcpp::create_timer(this, this->get_clock(), 100ms, std::bind(&MPCControllerNode::update_cost_parameters, this));
 
         /* ========= CONTROLLER ============ */
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting up MPC.");
@@ -106,8 +106,10 @@ class MPCControllerNode : public rclcpp::Node
         this->mpc_controller_obj_.set_cost_parameters(this->q_sd_,
                                                       this->q_n_,
                                                       this->q_mu_,
-                                                      this->r_dels_,
-                                                      this->r_axm_);
+                                                      this->q_axm_,
+                                                      this->q_dels_,
+                                                      this->r_daxm_,
+                                                      this->r_ddels_);
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "--- Sending control loop time step to MPC.");
         this->mpc_controller_obj_.set_dt_control_feedback(this->dt_seconds_);
@@ -235,10 +237,12 @@ class MPCControllerNode : public rclcpp::Node
       this->set_parameter(rclcpp::Parameter("cost.q_sd", msg.q_sd));
       this->set_parameter(rclcpp::Parameter("cost.q_n", msg.q_n));
       this->set_parameter(rclcpp::Parameter("cost.q_mu", msg.q_mu));
-      this->set_parameter(rclcpp::Parameter("cost.r_dels", msg.r_dels));
-      this->set_parameter(rclcpp::Parameter("cost.r_ax", msg.r_ax));
+      this->set_parameter(rclcpp::Parameter("cost.q_dels", msg.q_dels));
+      this->set_parameter(rclcpp::Parameter("cost.q_ax", msg.q_ax));
+      this->set_parameter(rclcpp::Parameter("cost.r_dax", msg.r_dax));
+      this->set_parameter(rclcpp::Parameter("cost.r_ddels", msg.r_ddels));
 
-      this->mpc_controller_obj_.set_cost_parameters(msg.q_sd, msg.q_n, msg.q_mu, msg.r_dels, msg.r_ax);
+      this->mpc_controller_obj_.set_cost_parameters(msg.q_sd, msg.q_n, msg.q_mu, msg.q_ax, msg.q_dels, msg.r_dax, msg.r_ddels);
     }
 
     void update_cost_parameters()
@@ -248,10 +252,12 @@ class MPCControllerNode : public rclcpp::Node
       q_sd_ = this->get_parameter("cost.q_sd").as_double();
       q_n_ = this->get_parameter("cost.q_n").as_double();
       q_mu_ = this->get_parameter("cost.q_mu").as_double();
-      r_dels_ = this->get_parameter("cost.r_dels").as_double();
-      r_axm_ = this->get_parameter("cost.r_ax").as_double();
+      q_dels_ = this->get_parameter("cost.q_dels").as_double();
+      q_axm_ = this->get_parameter("cost.q_ax").as_double();
+      r_daxm_ = this->get_parameter("cost.r_dax").as_double();
+      r_ddels_ = this->get_parameter("cost.r_ddels").as_double();
 
-      this->mpc_controller_obj_.set_cost_parameters(q_sd_, q_n_, q_mu_, r_dels_, r_axm_);
+      this->mpc_controller_obj_.set_cost_parameters(q_sd_, q_n_, q_mu_, q_axm_, q_dels_, r_daxm_, r_ddels_);
 
       RCLCPP_DEBUG_STREAM(this->get_logger(), "Parameters updated.");
     }
@@ -359,6 +365,8 @@ class MPCControllerNode : public rclcpp::Node
                                             state_msg.y_c,
                                             state_msg.psi,
                                             state_msg.dx_c_v,
+                                            state_msg.del_s_ref,
+                                            (state_msg.fx_f_act + state_msg.fx_r_act)/this->mpc_controller_obj_.get_mass(),
                                             s, n, mu);
 
         RCLCPP_DEBUG_STREAM(this->get_logger(), "s = " << s << ", n = " << n << ", mu = " << mu);
@@ -382,8 +390,10 @@ class MPCControllerNode : public rclcpp::Node
                                                   state_traj_msg.vx_c,
                                                   state_traj_msg.vy_c,
                                                   state_traj_msg.dpsi,
-                                                  input_traj_msg.ax_m,
-                                                  input_traj_msg.del_s,
+                                                  state_traj_msg.ax_m,
+                                                  state_traj_msg.del_s,
+                                                  input_traj_msg.dax_m,
+                                                  input_traj_msg.ddel_s,
                                                   kappa_traj_msg.s_traj_mpc,
                                                   kappa_traj_msg.kappa_traj_mpc,
                                                   kappa_traj_msg.s_ref_spline,
@@ -517,8 +527,10 @@ class MPCControllerNode : public rclcpp::Node
     double q_sd_ = this->get_parameter("cost.q_sd").as_double();
     double q_n_ = this->get_parameter("cost.q_n").as_double();
     double q_mu_ = this->get_parameter("cost.q_mu").as_double();
-    double r_dels_ = this->get_parameter("cost.r_dels").as_double();
-    double r_axm_ = this->get_parameter("cost.r_ax").as_double();
+    double q_dels_ = this->get_parameter("cost.q_dels").as_double();
+    double q_axm_ = this->get_parameter("cost.q_ax").as_double();
+    double r_ddels_ = this->get_parameter("cost.r_ddels").as_double();
+    double r_daxm_ = this->get_parameter("cost.r_dax").as_double();
 
     // For visualization
     std::vector<std::vector<double>> xy_spline_points_;

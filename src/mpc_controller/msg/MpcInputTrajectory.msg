@@ -1,2 +1,2 @@
-float64[] del_s
-float64[] ax_m
+float64[] ddel_s
+float64[] dax_m

@@ -14,11 +14,13 @@
       T_final: 1.0
       N_horizon: 40
     cost:
-      q_sd: 0.15
+      q_sd: 0.05
       q_n: 0.4
-      q_mu: 0.01
-      r_dels: 1.0
-      r_ax: 0.01
+      q_mu: 0.4
+      q_dels: 0.001
+      q_ax: 0.001
+      r_ddels: 0.001
+      r_dax: 0.001
       slack_penalties:
         linear:
           S_n_lin: 10.0
@@ -32,19 +34,23 @@
           S_mu_quad_e: 100.0
     constraints:
       soft:
-        lb_n: -0.3
-        ub_n: 0.3
+        lb_n: -0.5
+        ub_n: 0.5
         lb_mu: -0.5
         ub_mu: 0.5
       hard:
         lb_s: -10.0
-        ub_s: 15.0
-        lb_vx: 0.0
-        ub_vx: 10.0
-        lb_axm: -9.0
-        ub_axm: 9.0
+        ub_s: 1000.0
+        lb_vx: -0.1
+        ub_vx: 15.0
+        lb_ax: -10.0
+        ub_ax: 10.0
         lb_dels: -0.5
         ub_dels: 0.5
+        lb_dax: -10.0
+        ub_dax: 10.0
+        lb_ddels: -1.0
+        ub_ddels: 1.0
     solver_options:
       qp_solver: 'PARTIAL_CONDENSING_HPIPM' #'FULL_CONDENSING_HPIPM' #'FULL_CONDENSING_QPOASES' #'PARTIAL_CONDENSING_HPIPM'
       hessian_approx: 'EXACT' #'GAUSS_NEWTON' #'EXACT' #

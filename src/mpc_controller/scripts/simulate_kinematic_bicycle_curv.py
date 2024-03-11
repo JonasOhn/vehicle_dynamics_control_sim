@@ -15,8 +15,8 @@ def main(use_stepped_sim:bool=False):
     model_params, horizon_params, cost_params, _, _ = load_mpc_yaml_params()
 
     """ =========== INITIAL STATE FOR SIMULATION ============ """
-    # x0 =        [s,   n,   mu,  vx]
-    x0 = np.array([0.0, 0.0, 0.0, 0.0])
+    # x0 =        [s,   n,   mu,  vx, ax, dels]
+    x0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
     """ =========== GET SOLVER AND INTEGRATOR ============ """
     ocp_solver, integrator = setup_nlp_ocp_and_sim(x0, simulate_ocp=True)
@@ -34,7 +34,7 @@ def main(use_stepped_sim:bool=False):
     ub_u = ocp_solver.acados_ocp.constraints.ubu
 
     """ =========== SET SIMULATION PARAMS ============ """
-    Nsim = 200
+    Nsim = 500
     stepping_start_idx = 50
     simX = np.ndarray((Nsim+1, nx))
     simU = np.ndarray((Nsim, nu))
@@ -61,10 +61,12 @@ def main(use_stepped_sim:bool=False):
     q_n = cost_params['q_n']
     q_sd = cost_params['q_sd']
     q_mu = cost_params['q_mu']
-    r_dels = cost_params['r_dels']
-    r_ax = cost_params['r_ax']
+    q_dels = cost_params['q_dels']
+    q_ax = cost_params['q_ax']
+    r_dax = cost_params['r_dax']
+    r_ddels = cost_params['r_ddels']
 
-    paramvec = np.array((m, l_f, l_r, C_d, C_r, kappa_ref, q_n, q_sd, q_mu, r_dels, r_ax))
+    paramvec = np.array((m, l_f, l_r, C_d, C_r, kappa_ref, q_n, q_sd, q_mu, q_ax, q_dels, r_dax, r_ddels))
     for j in range(horizon_params["N_horizon"]):
         ocp_solver.set(j, 'p', paramvec)
     integrator.set('p', paramvec)

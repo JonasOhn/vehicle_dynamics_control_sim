@@ -76,9 +76,10 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
     model_cost_parameters['q_sd'] = cost_params['q_sd']
     model_cost_parameters['q_n'] = cost_params['q_n']
     model_cost_parameters['q_mu'] = cost_params['q_mu']
-    model_cost_parameters['r_dels'] = cost_params['r_dels']
-    model_cost_parameters['r_ax'] = cost_params['r_ax']
-
+    model_cost_parameters['q_ax'] = cost_params['q_ax']
+    model_cost_parameters['q_dels'] = cost_params['q_dels']
+    model_cost_parameters['r_dax'] = cost_params['r_dax']
+    model_cost_parameters['r_ddels'] = cost_params['r_ddels']
 
     # Get AcadosModel form other python file
     model = export_vehicle_ode_model()
@@ -97,49 +98,57 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
 
     """ ========= CONSTRAINTS: STAGE STATE ======== """
     # ---
-    # State: [s, n, mu, vx]
+    # State: [s, n, mu, vx, ax, dels]
     # State Constraints: lower bounds
     ocp.constraints.lbx = np.array((constraints_params['hard']['lb_s'],
                                     constraints_params['soft']['lb_n'],
                                     constraints_params['soft']['lb_mu'],
-                                    constraints_params['hard']['lb_vx']))
+                                    constraints_params['hard']['lb_vx'],
+                                    constraints_params['hard']['lb_ax'],
+                                    constraints_params['hard']['lb_dels']))
     # State Constraints: upper bounds
     ocp.constraints.ubx = np.array((constraints_params['hard']['ub_s'],
                                     constraints_params['soft']['ub_n'],
                                     constraints_params['soft']['ub_mu'],
-                                    constraints_params['hard']['ub_vx']))
+                                    constraints_params['hard']['ub_vx'],
+                                    constraints_params['hard']['ub_ax'],
+                                    constraints_params['hard']['ub_dels']))
     # State Constraints: indices of lb and ub in State vector
-    ocp.constraints.idxbx = np.array((0, 1, 2, 3))
+    ocp.constraints.idxbx = np.array((0, 1, 2, 3, 4, 5))
 
 
     """ ========= CONSTRAINTS: STAGE INPUT ======== """
     # ---
-    # Input: [ax_m, del_s]
+    # Input: [dax_m, ddel_s]
     # Input Constraints: lower bounds
-    ocp.constraints.lbu = np.array((constraints_params['hard']['lb_axm'],
-                                    constraints_params['hard']['lb_dels']))
+    ocp.constraints.lbu = np.array((constraints_params['hard']['lb_dax'],
+                                    constraints_params['hard']['lb_ddels']))
     # Input Constraints: upper bounds
-    ocp.constraints.ubu = np.array((constraints_params['hard']['ub_axm'],
-                                    constraints_params['hard']['ub_dels']))
+    ocp.constraints.ubu = np.array((constraints_params['hard']['ub_dax'],
+                                    constraints_params['hard']['ub_ddels']))
     # Input Constraints: indices of lb and ub in input vector
     ocp.constraints.idxbu = np.array((0, 1))
 
 
     """ ========= CONSTRAINTS: TERMINAL STATE ======== """
     # ---
-    # Terminal State: [s, n, mu, vx]
+    # Terminal State: [s, n, mu, vx, ax, dels]
     # Terminal State Constraints: lower bounds
     ocp.constraints.lbx_e = np.array((constraints_params['hard']['lb_s'],
                                       constraints_params['soft']['lb_n'],
                                       constraints_params['soft']['lb_mu'],
-                                      constraints_params['hard']['lb_vx']))
+                                      constraints_params['hard']['lb_vx'],
+                                      constraints_params['hard']['lb_ax'],
+                                      constraints_params['hard']['lb_dels']))
     # Terminal State Constraints: upper bounds
     ocp.constraints.ubx_e = np.array((constraints_params['hard']['ub_s'],
                                       constraints_params['soft']['ub_n'],
                                       constraints_params['soft']['ub_mu'],
-                                      constraints_params['hard']['ub_vx']))
+                                      constraints_params['hard']['ub_vx'],
+                                      constraints_params['hard']['ub_ax'],
+                                      constraints_params['hard']['ub_dels']))
     # Terminal State Constraints: indices of lb and ub in State vector
-    ocp.constraints.idxbx_e = np.array((0, 1, 2, 3))
+    ocp.constraints.idxbx_e = np.array((0, 1, 2, 3, 4, 5))
     
     """ ========= COST =========== """
     # (model cost inside ocp.model) --> cost type external
@@ -214,10 +223,12 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
     q_n = cost_params['q_n']
     q_sd = cost_params['q_sd']
     q_mu = cost_params['q_mu']
-    r_dels = cost_params['r_dels']
-    r_ax = cost_params['r_ax']
+    q_ax = cost_params['q_ax']
+    q_dels = cost_params['q_dels']
+    r_dax = cost_params['r_dax']
+    r_ddels = cost_params['r_ddels']
 
-    paramvec = np.array((m, l_f, l_r, C_d, C_r, kappa_ref, q_n, q_sd, q_mu, r_dels, r_ax))
+    paramvec = np.array((m, l_f, l_r, C_d, C_r, kappa_ref, q_n, q_sd, q_mu, q_ax, q_dels, r_dax, r_ddels))
     ocp.parameter_values = paramvec
 
     """ ====== CREATE OCP AND SIM SOLVERS =========== """
@@ -238,6 +249,6 @@ def setup_nlp_ocp_and_sim(x0, simulate_ocp:bool=False):
     return acados_ocp_solver, acados_integrator
 
 if __name__ == '__main__':
-    # x =         [s,   n,   mu,  vx]
-    x0 = np.array([0.0, 0.0, 0.0, 0.0])
+    # x =         [s,   n,   mu,  vx, ax, dels]
+    x0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     setup_nlp_ocp_and_sim(x0, simulate_ocp=True)

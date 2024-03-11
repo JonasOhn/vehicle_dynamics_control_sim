@@ -62,8 +62,10 @@ typedef struct{
     double q_n; 
     double q_sd; 
     double q_mu; 
-    double r_dels; 
-    double r_axm; 
+    double q_ax; 
+    double q_dels;
+    double r_dax;
+    double r_ddels;
 } cost_parameters;
 
 class MpcController {
@@ -83,8 +85,8 @@ class MpcController {
         int i_ = 0, j_ = 0, k_ = 0;
 
         // Current State for MPC
-        // [s:0, n:1, mu:2, vx:3]
-        double x_[4] = {0.0};
+        // [s:0, n:1, mu:2, vx:3, axm:4, dels:5]
+        double x_[6] = {0.0};
 
         // NLP Prediction trajectories
         double x_traj_[VEH_DYNAMICS_ODE_N + 1][NX];
@@ -125,19 +127,21 @@ class MpcController {
                                      double & solv_time);
 
         int8_t get_predictions(std::vector<double> &s_predict,
-                               std::vector<double> &n_predict,
-                               std::vector<double> &mu_predict,
-                               std::vector<double> &vx_predict,
-                               std::vector<double> &vy_predict,
-                               std::vector<double> &dpsi_predict,
-                               std::vector<double> &fxm_predict,
-                               std::vector<double> &dels_predict,
-                               std::vector<double> &s_traj_mpc,
-                               std::vector<double> &kappa_traj_mpc,
-                               std::vector<double> &s_ref_spline,
-                               std::vector<double> &kappa_ref_spline,
-                               std::vector<double> &s_ref_mpc,
-                               std::vector<double> &kappa_ref_mpc);
+                                std::vector<double> &n_predict,
+                                std::vector<double> &mu_predict,
+                                std::vector<double> &vx_predict,
+                                std::vector<double> &vy_predict,
+                                std::vector<double> &dpsi_predict,
+                                std::vector<double> &axm_predict,
+                                std::vector<double> &dels_predict,
+                                std::vector<double> &daxm_predict,
+                                std::vector<double> &ddels_predict,
+                                std::vector<double> &s_traj_mpc,
+                                std::vector<double> &kappa_traj_mpc,
+                                std::vector<double> &s_ref_spline,
+                                std::vector<double> &kappa_ref_spline,
+                                std::vector<double> &s_ref_mpc,
+                                std::vector<double> &kappa_ref_mpc);
 
         int get_number_of_spline_evaluations();
 
@@ -150,6 +154,8 @@ class MpcController {
                          double y_c, 
                          double psi, 
                          double vx_local,
+                         double dels,
+                         double ax,
                          double &s,
                          double &n,
                          double &mu);
@@ -167,8 +173,10 @@ class MpcController {
         int8_t set_cost_parameters(double q_sd,
                                   double q_n,
                                   double q_mu,
-                                  double r_dels,
-                                  double r_axm);
+                                  double q_ax,
+                                  double q_dels,
+                                  double r_dax,
+                                  double r_ddels);
 
         int8_t set_horizon_parameters(int N, double T_f);
 
@@ -177,6 +185,8 @@ class MpcController {
         int8_t update_solver_statistics();
 
         void set_dt_control_feedback(double dt_ctrl_callback);
+
+        double get_mass();
 };
 
 #endif

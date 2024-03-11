@@ -27,6 +27,6 @@ ACADOS
         4 --> INCONS_EQ, // unconsistent equality constraints
 """
 
-# x =         [s,   n,   mu,  vx]
-x0 = np.array([0.0, 0.0, 0.0, 0.0])
+# x =         [s,   n,   mu,  vx, ax, dels]
+x0 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 setup_nlp_ocp_and_sim(x0, simulate_ocp=False)

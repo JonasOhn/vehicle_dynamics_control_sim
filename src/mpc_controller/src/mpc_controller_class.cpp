@@ -18,12 +18,14 @@ void MpcController::reset_prediction_trajectories()
       this->x_traj_[this->i_][1] = 0.0; // n
       this->x_traj_[this->i_][2] = 0.0; // mu
       this->x_traj_[this->i_][3] = 0.0; // vx
+      this->x_traj_[this->i_][4] = 0.0; // ax
+      this->x_traj_[this->i_][5] = 0.0; // dels
 
       // If it's not the end of the prediction horizon yet
       if (this->i_ < this->horizon_params_.N_horizon_mpc)
       {
-          this->u_traj_[this->i_][0] = 0.0; // ax_m
-          this->u_traj_[this->i_][1] = 0.0; // del_s
+          this->u_traj_[this->i_][0] = 0.0; // dax
+          this->u_traj_[this->i_][1] = 0.0; // ddels
 
           this->s_ref_mpc_[this->i_] = 0.0;
           this->curv_ref_mpc_[this->i_] = 0.0;
@@ -56,13 +58,15 @@ int8_t MpcController::set_model_parameters(double l_f, double l_r,
     return 0;
 }
 
-int8_t MpcController::set_cost_parameters(double q_sd, double q_n, double q_mu, double r_dels, double r_axm){
+int8_t MpcController::set_cost_parameters(double q_sd, double q_n, double q_mu, double q_ax, double q_dels, double r_dax, double r_ddels){
     std::cout << "Setting cost parameters." << std::endl;
     this->cost_params_.q_sd = q_sd;
     this->cost_params_.q_n = q_n;
     this->cost_params_.q_mu = q_mu;
-    this->cost_params_.r_dels = r_dels;
-    this->cost_params_.r_axm = r_axm;
+    this->cost_params_.q_ax = q_ax;
+    this->cost_params_.q_dels = q_dels;
+    this->cost_params_.r_dax = r_dax;
+    this->cost_params_.r_ddels = r_ddels;
 
     return 0;
 
@@ -122,6 +126,8 @@ int8_t MpcController::set_state(double x_c,
                                 double y_c, 
                                 double psi, 
                                 double vx_local,
+                                double dels,
+                                double ax,
                                 double &s,
                                 double &n,
                                 double &mu)
@@ -147,6 +153,12 @@ int8_t MpcController::set_state(double x_c,
     // vx: velocity in local frame
     this->x_[3] = vx_local; // vx
 
+    // ax: acceleration setpoint
+    this->x_[4] = ax;
+
+    // dels: steering angle
+    this->x_[5] = dels;
+
     return 0;
 }
 
@@ -158,12 +170,16 @@ int8_t MpcController::set_initial_state()
     idxbx0[1] = 1;
     idxbx0[2] = 2;
     idxbx0[3] = 3;
+    idxbx0[4] = 4;
+    idxbx0[5] = 5;
 
     double bx0[NBX0];
     bx0[0] = this->x_[0];
     bx0[1] = this->x_[1];
     bx0[2] = this->x_[2];
     bx0[3] = this->x_[3];
+    bx0[4] = this->x_[4];
+    bx0[5] = this->x_[5];
 
     ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "idxbx", idxbx0);
     ocp_nlp_constraints_model_set(this->nlp_config_, this->nlp_dims_, this->nlp_in_, 0, "lbx", bx0);
@@ -187,8 +203,10 @@ int8_t MpcController::init_mpc_parameters()
     p[6] = this->cost_params_.q_n;
     p[7] = this->cost_params_.q_sd;
     p[8] = this->cost_params_.q_mu;
-    p[9] = this->cost_params_.r_dels;
-    p[10] = this->cost_params_.r_axm;
+    p[9] = this->cost_params_.q_ax;
+    p[10] = this->cost_params_.q_dels;
+    p[11] = this->cost_params_.r_dax;
+    p[12] = this->cost_params_.r_ddels;
 
     // Init curvature ref using the last predicted s-trajectory
     for (this->i_ = 0; this->i_ < this->horizon_params_.N_horizon_mpc; this->i_++)
@@ -224,12 +242,14 @@ int8_t MpcController::init_mpc_horizon()
         this->x_stage_to_fill_[1] = this->x_traj_[this->i_ + 1][1]; // n
         this->x_stage_to_fill_[2] = this->x_traj_[this->i_ + 1][2]; // mu
         this->x_stage_to_fill_[3] = this->x_traj_[this->i_ + 1][3]; // vx
+        this->x_stage_to_fill_[4] = this->x_traj_[this->i_ + 1][4]; // ax
+        this->x_stage_to_fill_[5] = this->x_traj_[this->i_ + 1][5]; // dels
 
         // fill x_(k) with x_(k+1) for k in [0, N - 2]
         ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "x", this->x_stage_to_fill_);
 
-        this->u_stage_to_fill_[0] = this->u_traj_[this->i_ + 1][0]; // ax_m
-        this->u_stage_to_fill_[1] = this->u_traj_[this->i_ + 1][1]; // del_s
+        this->u_stage_to_fill_[0] = this->u_traj_[this->i_ + 1][0]; // dax_m
+        this->u_stage_to_fill_[1] = this->u_traj_[this->i_ + 1][1]; // ddel_s
 
         // fill u_(k) with u_(k+1) for k in [0, N - 2]
         ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, i_, "u", this->u_stage_to_fill_);
@@ -243,6 +263,8 @@ int8_t MpcController::init_mpc_horizon()
     this->x_stage_to_fill_[1] = this->x_traj_[VEH_DYNAMICS_ODE_N][1]; // n
     this->x_stage_to_fill_[2] = this->x_traj_[VEH_DYNAMICS_ODE_N][2]; // mu
     this->x_stage_to_fill_[3] = this->x_traj_[VEH_DYNAMICS_ODE_N][3]; // vx
+    this->x_stage_to_fill_[4] = this->x_traj_[VEH_DYNAMICS_ODE_N][4]; // ax
+    this->x_stage_to_fill_[5] = this->x_traj_[VEH_DYNAMICS_ODE_N][5]; // dels
 
     // take x_previous_(N) from last prediction to fill x_new_(N - 1) and x_new_(N)
     ocp_nlp_out_set(this->nlp_config_, this->nlp_dims_, this->nlp_out_, this->horizon_params_.N_horizon_mpc - 1, "x", this->x_stage_to_fill_);
@@ -305,7 +327,9 @@ int8_t MpcController::get_input(double (&u)[2])
 
     // get stage to evaluate based on elapsed solver time
     //int stage_to_eval = (int) (total_elapsed_time / dt_mpc_);
-    int stage_to_eval = 0;
+    int stage_to_eval = 1;
+
+    double x_to_eval[6] = {0.0};
 
     // If solver successful
     if(this->solver_out_.nlp_solver_status == 0
@@ -313,9 +337,10 @@ int8_t MpcController::get_input(double (&u)[2])
         || this->solver_out_.nlp_solver_status == 2)
     {
         // evaluate u at initial stage
-        ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, stage_to_eval, "u", &u);
+        ocp_nlp_out_get(this->nlp_config_, this->nlp_dims_, this->nlp_out_, stage_to_eval, "x", &x_to_eval);
         // scale optimization output by mass to get force
-        u[0] = this->model_params_.m * u[0];
+        u[0] = this->model_params_.m * x_to_eval[4];
+        u[1] = x_to_eval[5];
         std::cout << "ax_m = " << u[0] << std::endl;
         std::cout << "del_s = " << u[1] << std::endl;
     // If solver failed
@@ -335,6 +360,8 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
                                      std::vector<double> &dpsi_predict,
                                      std::vector<double> &axm_predict,
                                      std::vector<double> &dels_predict,
+                                     std::vector<double> &daxm_predict,
+                                     std::vector<double> &ddels_predict,
                                      std::vector<double> &s_traj_mpc,
                                      std::vector<double> &kappa_traj_mpc,
                                      std::vector<double> &s_ref_spline,
@@ -369,11 +396,13 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
         n_predict.push_back(this->x_traj_[i][1]);
         mu_predict.push_back(this->x_traj_[i][2]);
         vx_predict.push_back(this->x_traj_[i][3]);
-        vy_predict.push_back(tan(this->u_traj_[i][1]) * this->x_traj_[i][3]);
-        dpsi_predict.push_back(tan(this->u_traj_[i][1]) * this->x_traj_[i][3] / this->model_params_.l_r);
+        axm_predict.push_back(this->x_traj_[i][4]);
+        dels_predict.push_back(this->x_traj_[i][5]);
+        vy_predict.push_back(tan(this->x_traj_[i][5]) * this->x_traj_[i][3]);
+        dpsi_predict.push_back(tan(this->x_traj_[i][5]) * this->x_traj_[i][3] / this->model_params_.l_r);
 
-        axm_predict.push_back(this->u_traj_[i][0]);
-        dels_predict.push_back(this->u_traj_[i][1]);
+        daxm_predict.push_back(this->u_traj_[i][0]);
+        ddels_predict.push_back(this->u_traj_[i][1]);        
 
         kappa_traj_mpc.push_back(this->mpc_geometry_obj_.get_mpc_curvature(this->x_traj_[i][0]));
         s_traj_mpc.push_back(this->x_traj_[i][0]);
@@ -395,8 +424,11 @@ int8_t MpcController::get_predictions(std::vector<double> &s_predict,
     n_predict.push_back(x_traj_[this->nlp_dims_->N][1]);
     mu_predict.push_back(x_traj_[this->nlp_dims_->N][2]);
     vx_predict.push_back(x_traj_[this->nlp_dims_->N][3]);
-    vy_predict.push_back(x_traj_[this->nlp_dims_->N][4]);
-    dpsi_predict.push_back(x_traj_[this->nlp_dims_->N][5]);
+    axm_predict.push_back(x_traj_[this->nlp_dims_->N][4]);
+    dels_predict.push_back(x_traj_[this->nlp_dims_->N][5]);
+
+    vy_predict.push_back(tan(this->x_traj_[this->nlp_dims_->N][5]) * this->x_traj_[this->nlp_dims_->N][3]);
+    dpsi_predict.push_back(tan(this->x_traj_[this->nlp_dims_->N][5]) * this->x_traj_[this->nlp_dims_->N][3] / this->model_params_.l_r);
 
     this->mpc_geometry_obj_.get_s_ref_spline(s_ref_spline);
     this->mpc_geometry_obj_.get_kappa_ref_spline(kappa_ref_spline);
@@ -436,7 +468,7 @@ int8_t MpcController::get_visual_predictions(std::vector<std::vector<double>> &x
     for(i = 0; i < this->horizon_params_.N_horizon_mpc; i++)
     {
         // psi_k+1 = psi_k + dpsi_k * dt
-        vy = tan(this->u_traj_[i][1]) * this->x_traj_[i][3];
+        vy = tan(this->x_traj_[i][5]) * this->x_traj_[i][3];
         dpsi = vy / this->model_params_.l_r;
         psi_predict = psi_predict + dpsi * this->horizon_params_.dt_mpc;
 
@@ -467,4 +499,9 @@ int8_t MpcController::set_reference_path(std::vector<std::vector<double>> &path)
     this->mpc_geometry_obj_.fit_bspline_to_waypoint_path();
 
     return 0;
+}
+
+double MpcController::get_mass()
+{
+  return this->model_params_.m;
 }

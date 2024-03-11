@@ -16,8 +16,9 @@ import numpy as np
 
 class BayesianOptimizer():
 
-    def __init__(self, gp):
+    def __init__(self, gp, beta):
         self.gp = gp
+        self.beta = beta
 
     def aquisition_function(self, X):
         '''
@@ -38,14 +39,12 @@ class BayesianOptimizer():
 
         y, std = self.gp.predict(X)
 
-        beta = 1.0
-
-        y_hat = y - beta * np.sqrt(std)
+        y_hat = y - self.beta * std
         #print(y_hat.shape)
 
         idx_min = np.argmin(y_hat)
         theta = X[idx_min, :].reshape(-1, 1)
-        #print(theta.shape)
+        #print(theta.shape)ü
 
         # --- end inserting code here ---
         return theta, y_hat

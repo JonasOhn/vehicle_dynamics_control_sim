@@ -70,7 +70,7 @@ plt.gca().add_collection(lc)
 plt.scatter(xs_blue, ys_blue, s=6, c='b', marker="o")
 plt.scatter(xs_yellow, ys_yellow, s=6, c='y', marker="o")
 plt.scatter(x_midline, y_midline, s=6, c='k', marker="o")
-plt.plot(xs_midline, ys_midline, linewidth=0.5,  marker="o", markersize=0.1)
+plt.plot(xs_midline, ys_midline, linewidth=0.5,  marker="o", markersize=1)
 plt.scatter(x_midline[0], y_midline[0], s=10, c='r', marker="o")
 plt.scatter(x_midline[-1], y_midline[-1], s=10, c='r', marker="o")
 plt.grid()
@@ -79,5 +79,5 @@ plt.show()
 
 with open('src/sim_backend/tracks/FSG_middle_path.csv', 'w', newline='') as csv_file:
     csv_writer = csv.writer(csv_file, delimiter=',')
-    for i in range(len(x_midline)):
-        csv_writer.writerow([x_midline[i], y_midline[i]])
+    for i in range(len(xs_midline)):
+        csv_writer.writerow([xs_midline[i], ys_midline[i]])

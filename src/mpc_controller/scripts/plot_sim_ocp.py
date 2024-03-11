@@ -47,7 +47,7 @@ def plot_nlp_dynamics(shooting_nodes,
     plt.figure()
     n_rows_plot = math.ceil((nx+nu)/2)
 
-    inputs_lables = [r'$a_{x,m}$', r'$\delta_s$']
+    inputs_lables = [r'$da_{x,m}$', r'$d\delta_s$']
     idx_u = 0
     for i in range(nu):
         plt.subplot(n_rows_plot, 2, plotting_idx)
@@ -69,7 +69,7 @@ def plot_nlp_dynamics(shooting_nodes,
 
         plotting_idx += 1
 
-    states_lables = ['$s$', '$n$', r'$\mu$', '$v_x$', '$v_y$', r'$\dot{\psi}$']
+    states_lables = ['$s$', '$n$', r'$\mu$', '$v_x$', '$a_x$', r'$\delta_s$']
     idx_x = 0
     for i in range(nx):
         plt.subplot(n_rows_plot, 2, plotting_idx)
