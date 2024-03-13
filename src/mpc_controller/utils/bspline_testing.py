@@ -2,26 +2,25 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import collections  as mc
 
-# control_points = np.array([
-#     [-5, -5],
-#     [-4, -3],
-#     [-2, 0],
-#     [0, 1],
-#     [2, 4],
-#     [2, 5],
-#     [3, 8],
-#     [4, 10],
-#     [5, 8],
-#     [5, 6],
-# ])
+control_points = np.array([
+    [-1, -2],
+    [0, 0],
+    [1, 2],
+    [2, 4],
+    [2, 5],
+    [3, 8],
+    [4, 10],
+    [5, 8],
+    [5, 6],
+])
 
-control_points = []
-for angle in np.linspace(0, np.pi, 20):
-    control_points.append([100 * np.cos(angle), 100 * np.sin(angle)])
-control_points = np.array(control_points)
+# control_points = []
+# for angle in np.linspace(0, np.pi, 20):
+#     control_points.append([100 * np.cos(angle), 100 * np.sin(angle)])
+# control_points = np.array(control_points)
 
-control_points = np.insert(control_points, 0, control_points[0], axis=0)
-control_points = np.insert(control_points, -1, control_points[-1], axis=0)
+# control_points = np.insert(control_points, 0, control_points[0], axis=0)
+# control_points = np.insert(control_points, -1, control_points[-1], axis=0)
 
 # control_points = np.insert(control_points, 0, control_points[-1], axis=0)
 # control_points = np.insert(control_points, -1, control_points[0], axis=0)
@@ -42,7 +41,7 @@ print('num_points:', control_points.shape[0])
 n_s = control_points.shape[0] - 3
 print('n_s:', n_s)
 
-t_step = 0.5
+t_step = 0.1
 t = np.arange(0, n_s, t_step)
 spline_points = []
 dspline_points = []

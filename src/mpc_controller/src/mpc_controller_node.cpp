@@ -57,7 +57,6 @@ class MPCControllerNode : public rclcpp::Node
         // Subscriber to stop_controller topic
         this->stop_mpc_subscriber_ = this->create_subscription<std_msgs::msg::Empty>("stop_controller", 1, std::bind(&MPCControllerNode::stop_controller, this, std::placeholders::_1));
 
-
         this->param_update_subscriber_ = this->create_subscription<mpc_controller::msg::MpcCostParameters>("mpc_cost_parameters", 1, std::bind(&MPCControllerNode::update_cost_parameters_from_msg, this, std::placeholders::_1));
 
         /* ========= PUBLISHERS ============ */
@@ -81,7 +80,7 @@ class MPCControllerNode : public rclcpp::Node
         this->control_cmd_publisher_ = this->create_publisher<sim_backend::msg::SysInput>("vehicle_input", 10);
         this->control_cmd_timer_ = rclcpp::create_timer(this, this->get_clock(), this->dt_, std::bind(&MPCControllerNode::control_callback, this));
 
-        this->param_update_timer_ = rclcpp::create_timer(this, this->get_clock(), 100ms, std::bind(&MPCControllerNode::update_cost_parameters, this));
+        //this->param_update_timer_ = rclcpp::create_timer(this, this->get_clock(), 1ms, std::bind(&MPCControllerNode::update_cost_parameters, this));
 
         /* ========= CONTROLLER ============ */
         RCLCPP_DEBUG_STREAM(this->get_logger(), "Setting up MPC.");
@@ -233,6 +232,14 @@ class MPCControllerNode : public rclcpp::Node
     void update_cost_parameters_from_msg(const mpc_controller::msg::MpcCostParameters msg)
     {
       RCLCPP_INFO_STREAM(this->get_logger(), "Updating MPC parameters from ROS message.");
+
+      q_sd_ = msg.q_sd;
+      q_n_ = msg.q_n;
+      q_mu_ = msg.q_mu;
+      q_dels_ = msg.q_dels;
+      q_axm_ = msg.q_ax;
+      r_daxm_ = msg.r_dax;
+      r_ddels_ = msg.r_ddels;
 
       this->set_parameter(rclcpp::Parameter("cost.q_sd", msg.q_sd));
       this->set_parameter(rclcpp::Parameter("cost.q_n", msg.q_n));
@@ -487,7 +494,7 @@ class MPCControllerNode : public rclcpp::Node
     rclcpp::Publisher<sim_backend::msg::SysInput>::SharedPtr control_cmd_publisher_;
 
     // Timer for parameter update
-    rclcpp::TimerBase::SharedPtr param_update_timer_;
+    //rclcpp::TimerBase::SharedPtr param_update_timer_;
 
     // mpc trajectory publishers
     rclcpp::Publisher<mpc_controller::msg::MpcStateTrajectory>::SharedPtr mpc_xtraj_publisher_;

@@ -8,14 +8,18 @@ import yaml
 from bayesian_optimizer.gp import GaussianProcess
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-import threading
 import typing
+import time
 
 RANDOM_SAMPLE = False
 
 class BayesianOptimizerNode(Node):
     def __init__(self):
-        super().__init__('bayesian_optimizer', allow_undeclared_parameters=True)
+        super().__init__('bayesian_optimizer')
+
+        self.fig = plt.figure(1)
+        plt.ion()
+        plt.show()
 
         self.results_csv_filepath = "/home/jonas/AMZ/vehicle_dynamics_control_sim/src/bayesian_optimizer/results/results.csv"
 
@@ -25,6 +29,10 @@ class BayesianOptimizerNode(Node):
         self.start_mpc_publisher_ = self.create_publisher(Empty, "start_controller", 10)
         self.stop_mpc_publisher_ = self.create_publisher(Empty, "stop_controller", 10)
         self.reset_sim_publisher_ = self.create_publisher(Empty, "reset_sim", 10)
+
+        self.plot_timer_period = 0.1
+        self.plot_bo_timer = self.create_timer(self.plot_timer_period, self.plot_bo_results)
+        self.plot_angle = 0.0
 
         # Subscribers
         self.last_lap_time_subscription = self.create_subscription(
@@ -51,8 +59,10 @@ class BayesianOptimizerNode(Node):
         )
         self.num_cones_hit_subscription
 
+        self.lap_ongoing = False
+
         # period after which simulation and controller are reset
-        self.stop_sim_period = 60.0
+        self.stop_sim_period = 40.0
 
         # define bounds on the decision variables
         self.lb_q_sd = 0.01
@@ -64,20 +74,19 @@ class BayesianOptimizerNode(Node):
         self.lb_q_mu = 0.01
         self.ub_q_mu = 2.0
 
-        self.num_acqfct_samples_perdim = 400
+        self.num_acqfct_samples_perdim = 500
         self.Q = np.zeros((self.num_acqfct_samples_perdim, 3))
-        self.resample_acqfct_optimizer_inputs()
   
         # time penalty per cone in seconds
         self.penalty_per_cone = 2.0
 
         self.num_cones_hit = 0
 
-        gp_noise_covariance = 0.0000001
-        gp_lengthscale = 5.0
+        gp_noise_covariance = 0.1
+        gp_lengthscale = 1.0
         gp_output_variance = 1.0
         self.gp_mean = 30.0
-        beta = 0.5
+        beta = 1.0
 
         gp = GaussianProcess(noise_covariance=gp_noise_covariance,
                              lengthscale=gp_lengthscale,
@@ -113,6 +122,8 @@ class BayesianOptimizerNode(Node):
 
         self.start_first_lap()
 
+        self.resample_acqfct_optimizer_inputs()
+
     def resample_acqfct_optimizer_inputs(self):
         
         if RANDOM_SAMPLE:
@@ -135,17 +146,33 @@ class BayesianOptimizerNode(Node):
           # Reshape meshgrid to form a matrix where each column represents one parameter dimension
           self.Q = np.vstack((X.flatten(), Y.flatten(), Z.flatten())).T
 
+        try:
+          self.q_hat = self.bayesian_optimizer.aquisition_function(self.Q)[1]
+        except:
+          pass
+
     def current_lap_time_callback(self, msg):
-        if msg.data > self.stop_sim_period:
+        if msg.data > self.stop_sim_period and self.lap_ongoing:
             self.get_logger().info("Stopping lap because controller took too long.")
+            
             self.stop_lap()
+            time.sleep(0.01)
             cost = self.stop_sim_period
             x_data = np.reshape(self.current_parameters[0:3], (1, 3))
             cost = np.reshape(np.array((cost)), (1,1))
+            
             self.bayesian_optimizer.add_data(x_data, cost - self.gp_mean)
+            self.get_logger().info("Added data q_sd = {0}, q_n = {1}, q_mu = {2} to Bayesian optimizer with cost = {3}.".format(self.current_parameters[0], self.current_parameters[1], self.current_parameters[2], cost - self.gp_mean))
+            time.sleep(0.01)
+            self.get_logger().info("Optimizing acquisition function.")
             self.choose_new_parameters()
+            time.sleep(0.01)
+            self.get_logger().info("Sending new parameters to controller.")
             self.send_current_controller_params()
+            time.sleep(0.01)
+            self.get_logger().info("Starting new lap.")
             self.start_lap()
+            time.sleep(0.01)
         else:
             pass
 
@@ -153,8 +180,16 @@ class BayesianOptimizerNode(Node):
         self.get_logger().info("Choosing new parameters by optimizing acquisition function.")
         param_opt, _ = self.bayesian_optimizer.aquisition_function(self.Q)
         self.current_parameters[0:3] = np.squeeze(param_opt)
-        self.plot_bo_results()
+        self.get_logger().info("Got new optimized q_sd = {0}, q_n = {1}, q_mu = {2}.".format(self.current_parameters[0], self.current_parameters[1], self.current_parameters[2]))
         self.resample_acqfct_optimizer_inputs()
+
+    def write_data_to_csv(self):
+        # save current parameters as well as cost value to .csv file
+        self.get_logger().info("Writing current parameters and cost to .csv.")
+        X, y = self.bayesian_optimizer.get_data()
+        data = np.column_stack((X, y))
+        np.savetxt(self.results_csv_filepath, data, delimiter=",")
+        self.get_logger().info("Written .csv file.")
 
     def num_cones_hit_callback(self, msg):
         self.num_cones_hit = msg.data
@@ -163,45 +198,52 @@ class BayesianOptimizerNode(Node):
         self.get_logger().info("Starting first lap.")
         start_ctrl_msg = Empty()
         self.start_mpc_publisher_.publish(start_ctrl_msg)
+        self.lap_ongoing = True
 
     def start_lap(self):
         self.get_logger().info("Sending Start Lap message.")
         start_ctrl_msg = Empty()
         self.start_mpc_publisher_.publish(start_ctrl_msg)
-    
-        # save current parameters as well as cost value to .csv file
-        self.get_logger().info("Writing parameters and cost to .csv.")
-        X, y = self.bayesian_optimizer.get_data()
-        data = np.column_stack((X, y))
-        np.savetxt(self.results_csv_filepath, data, delimiter=",")
-        self.get_logger().info("Written .csv file.")
+        self.lap_ongoing = True
     
     def last_lap_time_callback(self, msg):
+        
         self.get_logger().info("Lap completion detected.")
-        # get cost from number of cones hit and lap time
-        lap_time = msg.data
-        num_cones_hit = self.num_cones_hit
-        cost = self.calculate_cost(lap_time=lap_time, num_cones_hit=num_cones_hit)
         
-        # Stop Lap (resets sim and controller)
-        self.stop_lap()
+        if self.lap_ongoing:
+          # get cost from number of cones hit and lap time
+          lap_time = msg.data
+          num_cones_hit = self.num_cones_hit
+          cost = self.calculate_cost(lap_time=lap_time, num_cones_hit=num_cones_hit)
+          
+          # Stop Lap (resets sim and controller)
+          self.stop_lap()
 
-        # add new data to BayesOpt
-        x_data = np.reshape(self.current_parameters[0:3], (1, 3))
-        cost = np.reshape(np.array((cost)), (1,1))
-        self.bayesian_optimizer.add_data(x_data, cost - self.gp_mean)
-        self.get_logger().info("Added data to Bayesian optimizer.")
-        
-        # optimize acquisition function to get new parameters
-        self.choose_new_parameters()
+          # add new data to BayesOpt
+          x_data = np.reshape(self.current_parameters[0:3], (1, 3))
+          cost = np.reshape(np.array((cost)), (1,1))
+          self.bayesian_optimizer.add_data(x_data, cost - self.gp_mean)
+          self.get_logger().info("Added data q_sd = {0}, q_n = {1}, q_mu = {2} to Bayesian optimizer with cost = {3}.".format(self.current_parameters[0], self.current_parameters[1], self.current_parameters[2], cost - self.gp_mean))
 
-        # send new parameters to controller
-        self.send_current_controller_params()
+          self.write_data_to_csv()
 
-        # start lap again
-        self.start_lap()
+          time.sleep(0.01)
+          
+          # optimize acquisition function to get new parameters
+          self.choose_new_parameters()
+
+          time.sleep(0.01)
+
+          # send new parameters to controller
+          self.send_current_controller_params()
+
+          time.sleep(0.01)
+
+          # start lap again
+          self.start_lap()
 
     def stop_lap(self):
+        self.lap_ongoing = False
         self.get_logger().info("Stopping lap.")
         stop_controller_msg = Empty()
         self.stop_mpc_publisher_.publish(stop_controller_msg)
@@ -214,11 +256,22 @@ class BayesianOptimizerNode(Node):
         # try to load data from .csv file, if it exists. else, start with empty data and print to console
         try:
             data = np.loadtxt(self.results_csv_filepath, delimiter=",")
-            self.bayesian_optimizer.add_data(data[:, 0:3], data[:, 3])
-            self.choose_new_parameters()
-            self.send_current_controller_params
         except:
             self.get_logger().info("No data found in .csv file. Starting with empty data.")
+            return
+        self.bayesian_optimizer.add_data(data[:, 0:3], data[:, 3])
+
+        time.sleep(0.01)
+
+        self.q_hat = self.bayesian_optimizer.aquisition_function(self.Q)[1]
+        
+        time.sleep(0.01)
+
+        self.choose_new_parameters()
+        
+        time.sleep(0.01)
+        
+        self.send_current_controller_params()
 
     def send_current_controller_params(self):
         self.get_logger().info("Callback called for parameter update.")
@@ -241,10 +294,10 @@ class BayesianOptimizerNode(Node):
         msg.r_ddels = r_ddels
 
         self.mpc_cost_parameters_publisher_.publish(msg)
-        self.get_logger().info("Publishing updated parameters.\
-                                q_sd = {0}, q_n = {1}, q_mu = {2},\
-                                q_dels = {3}, q_ax = {4}, r_dax = {5}, \
-                                r_ddels = {6}".format(msg.q_sd, msg.q_n, 
+        self.get_logger().info("""Publishing updated parameters.
+                                q_sd = {0}, q_n = {1}, q_mu = {2},
+                                q_dels = {3}, q_ax = {4}, r_dax = {5}, 
+                                r_ddels = {6}""".format(msg.q_sd, msg.q_n, 
                                                       msg.q_mu, msg.q_dels, 
                                                       msg.q_ax, msg.r_dax, 
                                                       msg.r_ddels))
@@ -255,61 +308,75 @@ class BayesianOptimizerNode(Node):
     def plot_bo_results(self):
         
         plt.ion()
+
+        self.plot_angle += 10 # Seconds since start
+
+        if self.plot_angle >= 360*4:
+            self.plot_angle = 0
+
+        # Normalize the angle to the range [-180, 180] for display
+        angle_norm = (self.plot_angle + 180) % 360 - 180
+
+        # Cycle through a full rotation of elevation, then azimuth, roll, and all
+        azim = angle_norm
         
-        X, y = self.bayesian_optimizer.get_data()
-        laptimes = y + self.gp_mean
+        try:
+          X, y = self.bayesian_optimizer.get_data()
+          laptimes = y + self.gp_mean
 
-        fig = plt.figure(1)
-        plt.clf()
+          self.fig.clf()        
 
-        ax = fig.add_subplot(211, projection='3d')
+          ax = self.fig.add_subplot(211, projection='3d')
+          # Update the axis view and title
+          ax.view_init(azim=azim)
 
-        # Scatter plot
-        sc = ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=laptimes, cmap='rainbow')
+          # Scatter plot
+          sc = ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=laptimes, cmap='rainbow')
 
-        # Set labels and title
-        ax.set_xlabel('q_sd')
-        ax.set_ylabel('q_n')
-        ax.set_zlabel('q_mu')
-        ax.set_title('Cost Function Scatter Plot')
+          # Set labels and title
+          ax.set_xlabel('q_sd')
+          ax.set_ylabel('q_n')
+          ax.set_zlabel('q_mu')
+          ax.set_title('Cost Function Scatter Plot')
 
-        ax.set_xlim(self.lb_q_sd, self.ub_q_sd)
-        ax.set_ylim(self.lb_q_n, self.ub_q_n)
-        ax.set_zlim(self.lb_q_mu, self.ub_q_mu)
+          ax.set_xlim(self.lb_q_sd, self.ub_q_sd)
+          ax.set_ylim(self.lb_q_n, self.ub_q_n)
+          ax.set_zlim(self.lb_q_mu, self.ub_q_mu)
 
-        # Add color bar
-        cbar = fig.colorbar(sc)
-        cbar.set_label('cone-penalized lap time')
+          # Add color bar
+          cbar = self.fig.colorbar(sc)
+          cbar.set_label('cone-penalized lap time')
 
+          ax = self.fig.add_subplot(212, projection='3d')
+          ax.view_init(azim=azim)
 
-        ax = fig.add_subplot(212, projection='3d')
+          # Scatter
+          sc = ax.scatter(self.Q[:, 0], self.Q[:, 1], self.Q[:, 2], c=self.q_hat, cmap='rainbow', vmin=np.min(self.q_hat), vmax=np.max(self.q_hat))
+          sc_star = ax.scatter(self.current_parameters[0],
+                              self.current_parameters[1],
+                              self.current_parameters[2], color='red', marker='*', s=100)  # Red star marker at q_star
 
-        # Scatter 
-        q_star, q_hat = self.bayesian_optimizer.aquisition_function(self.Q)
-        sc = ax.scatter(self.Q[:, 0], self.Q[:, 1], self.Q[:, 2], c=q_hat, cmap='rainbow')
-        sc_star = ax.scatter(q_star[0], q_star[1], q_star[2], color='red', marker='*', s=100)  # Red star marker at q_star
+          # Optionally, you may want to add a legend to distinguish the red star marker
+          ax.legend([sc, sc_star], ['Points', 'q_star'], loc='upper right')
 
-        # Optionally, you may want to add a legend to distinguish the red star marker
-        ax.legend([sc, sc_star], ['Points', 'q_star'], loc='upper right')
+          # Set labels and title
+          ax.set_xlabel('q_sd')
+          ax.set_ylabel('q_n')
+          ax.set_zlabel('q_mu')
+          ax.set_title('Acquisition Function Scatter Plot')
 
-        # Set labels and title
-        ax.set_xlabel('q_sd')
-        ax.set_ylabel('q_n')
-        ax.set_zlabel('q_mu')
-        ax.set_title('Acquisition Function Scatter Plot')
+          ax.set_xlim(self.lb_q_sd, self.ub_q_sd)
+          ax.set_ylim(self.lb_q_n, self.ub_q_n)
+          ax.set_zlim(self.lb_q_mu, self.ub_q_mu)
 
-        ax.set_xlim(self.lb_q_sd, self.ub_q_sd)
-        ax.set_ylim(self.lb_q_n, self.ub_q_n)
-        ax.set_zlim(self.lb_q_mu, self.ub_q_mu)
+          # Add color bar
+          cbar = self.fig.colorbar(sc)
+          cbar.set_label('acquisition function')
 
-        # Add color bar
-        cbar = fig.colorbar(sc)
-        cbar.set_label('acquisition function')
-
-        plt.tight_layout()
-
-        plt.pause(0.01)
-        plt.ioff()
+          plt.draw()
+          plt.pause(0.1)
+        except:
+            pass
         
 
 def main(args=None):
