@@ -451,7 +451,7 @@ private:
       return true;
     }
 
-    return false;  // Doesn't fall in any of the above cases
+    return false; // Doesn't fall in any of the above cases
   }
 
   bool onSegment(std::vector<double> p, std::vector<double> q,
@@ -470,9 +470,9 @@ private:
     double val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]);
 
     if (val == 0) {
-      return 0;  // colinear
+      return 0; // colinear
     }
-    return (val > 0) ? 1 : 2;  // clock or counterclock wise
+    return (val > 0) ? 1 : 2; // clock or counterclock wise
   }
 
   void solve_step() {
@@ -497,7 +497,7 @@ private:
     state_msg.y_c = x_[1];
     state_msg.psi = x_[2];
     state_msg.dx_c =
-        x_[3] * cos(x_[2]) - x_[4] * sin(x_[2]);  // rotated into global frame
+        x_[3] * cos(x_[2]) - x_[4] * sin(x_[2]); // rotated into global frame
     state_msg.dy_c = x_[3] * sin(x_[2]) + x_[4] * cos(x_[2]);
     state_msg.dx_c_v = x_[3];
     state_msg.dy_c_v = x_[4];
@@ -581,7 +581,7 @@ private:
     lap_time_publisher_->publish(lap_time_msg);
 
     /* Get end time of solve step */
-    double t1 = (double_t)(this->now().nanoseconds());  // [ms]
+    double t1 = (double_t)(this->now().nanoseconds()); // [ms]
     RCLCPP_DEBUG_STREAM(this->get_logger(),
                         "Time needed for step: " << t1 - t0
                                                  << " ms. \nSolver did "
