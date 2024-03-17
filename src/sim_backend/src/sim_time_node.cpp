@@ -30,7 +30,7 @@ public:
 
     // calculate the time step in milliseconds, real time factor must be smaller
     // than 1
-    if (this->rtf_ < 1.0) {
+    if (this->rtf_ <= 1.0) {
       this->dt_ms_ = (int)(1.0 / this->rtf_);
     } else {
       RCLCPP_WARN_STREAM(this->get_logger(),

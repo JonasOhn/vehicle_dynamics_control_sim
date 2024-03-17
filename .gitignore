@@ -41,3 +41,5 @@ acados_ocp_qp_init.json
 acados_ocp_sim.json
 acados_ocp.json
 __pycache__/
+
+*.csv

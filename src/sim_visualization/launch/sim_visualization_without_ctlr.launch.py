@@ -71,6 +71,7 @@ def generate_launch_description():
             )
         ],
         output="screen",
+        arguments=["--ros-args", "--log-level", "info"],
     )
 
     sim_visualization = Node(

@@ -287,13 +287,15 @@ private:
     RCLCPP_DEBUG_STREAM(this->get_logger(), "===");
   }
 
-  bool updateAllConeCollisions() {
+  void updateAllConeCollisions() {
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Updating all cone collisions.");
     // create a bounding box around the car
     double x_c = x_[0];
     double y_c = x_[1];
     double psi = x_[2];
 
     // create 4 line segments that represent the car's bounding box
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Creating car bounding box.");
     std::vector<std::vector<double>> car_bbox;
     car_bbox.push_back({x_c + l_to_front_ * cos(psi) + l_to_right_ * sin(psi),
                         y_c + l_to_front_ * sin(psi) - l_to_right_ * cos(psi)});
@@ -309,6 +311,7 @@ private:
     // the car, it is counted as colliding with the car if the current cone is
     // in collision with the car, it is not counted as colliding with the car to
     // avoid double counting
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Iterating through cones left.");
     for (size_t i = 0; i < trackbounds_left_.size(); i++) {
       if (coneWithinBoundingBox(car_bbox, trackbounds_left_[i])) {
         if (!cones_currently_hit_left_[i]) {
@@ -319,6 +322,7 @@ private:
         cones_currently_hit_left_[i] = false;
       }
     }
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Iterating through cones right.");
     for (size_t i = 0; i < trackbounds_right_.size(); i++) {
       if (coneWithinBoundingBox(car_bbox, trackbounds_right_[i])) {
         if (!cones_currently_hit_right_[i]) {
@@ -329,6 +333,7 @@ private:
         cones_currently_hit_right_[i] = false;
       }
     }
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Updated all cone collisions.");
   }
 
   bool coneWithinBoundingBox(std::vector<std::vector<double>> bbox,
@@ -361,6 +366,7 @@ private:
   }
 
   void count_cones_hit() {
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Counting cones hit.");
     num_cones_hit_ = 0;
     // iterate through both left and right cone arrays and check for
     // intersection with car bbox
@@ -370,9 +376,12 @@ private:
     for (size_t i = 0; i < trackbounds_right_.size(); i++) {
       num_cones_hit_ += cones_hit_count_right_[i];
     }
+    RCLCPP_DEBUG_STREAM(this->get_logger(),
+                        "Number of cones hit: " << num_cones_hit_);
   }
 
   bool carCrossesStartFinishLine() {
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Checking if car crosses start/finish line.");
     // check if car has crossed the start/finish line, given as the fourth line
     // segment of ref_points_global_
     double x_c = x_[0];
@@ -409,16 +418,21 @@ private:
     for (size_t i = 0; i < car_bbox.size(); i++) {
       if (doIntersect({x3, y3}, {x4, y4}, car_bbox[i],
                       car_bbox[(i + 1) % car_bbox.size()])) {
-        return true;
-        RCLCPP_INFO_STREAM(this->get_logger(),
+        RCLCPP_DEBUG_STREAM(this->get_logger(),
                            "Car currently crosses start/finish line!");
+
+        return true;
       }
     }
+    RCLCPP_DEBUG_STREAM(this->get_logger(),
+                       "Car currently does not cross start/finish line.");
     return false;
   }
 
   bool doIntersect(std::vector<double> p1, std::vector<double> q1,
                    std::vector<double> p2, std::vector<double> q2) {
+    RCLCPP_DEBUG_STREAM(this->get_logger(),
+                       "Checking intersection between car bbox and start/finish line.");
     // Find the four orientations needed for general and special cases
     int o1 = orientation(p1, q1, p2);
     int o2 = orientation(p1, q1, q2);
@@ -450,28 +464,36 @@ private:
     if (o4 == 0 && onSegment(p2, q1, q2)) {
       return true;
     }
-
+    RCLCPP_DEBUG_STREAM(this->get_logger(),
+                       "No intersection between car bbox and start/finish line.");
     return false; // Doesn't fall in any of the above cases
   }
 
   bool onSegment(std::vector<double> p, std::vector<double> q,
                  std::vector<double> r) {
+    RCLCPP_DEBUG_STREAM(this->get_logger(),
+                       "Checking if point lies on segment.");
     if (q[0] <= std::max(p[0], r[0]) && q[0] >= std::min(p[0], r[0]) &&
         q[1] <= std::max(p[1], r[1]) && q[1] >= std::min(p[1], r[1])) {
+      RCLCPP_DEBUG_STREAM(this->get_logger(), "Point lies on segment.");
       return true;
     }
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Point does not lie on segment.");
     return false;
   }
 
   int orientation(std::vector<double> p, std::vector<double> q,
                   std::vector<double> r) {
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Checking orientation of points.");
     // See https://www.geeksforgeeks.org/orientation-3-ordered-points/
     // for details of below formula.
     double val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]);
 
     if (val == 0) {
+      RCLCPP_DEBUG_STREAM(this->get_logger(), "Points are colinear.");
       return 0; // colinear
     }
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Points are not colinear.");
     return (val > 0) ? 1 : 2; // clock or counterclock wise
   }
 
@@ -522,10 +544,13 @@ private:
     this->ref_path_callback();
 
     // check update all cone collisions
-    updateAllConeCollisions();
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Checking for cone collisions.");
+    this->updateAllConeCollisions();
 
     // check if car is on start/finish line and previously was not
-    if (carCrossesStartFinishLine() && !car_on_start_finish_line_) {
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Checking if car is on start/finish line.");
+
+    if (this->carCrossesStartFinishLine() && !car_on_start_finish_line_) {
       car_on_start_finish_line_ = true;
 
       // check if car crosses start/finish line for the first time
@@ -574,11 +599,22 @@ private:
 
     auto lap_count_msg = std_msgs::msg::Int32();
     lap_count_msg.data = lap_count_;
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Publishing lap count: " << lap_count_);
     lap_count_publisher_->publish(lap_count_msg);
 
     auto lap_time_msg = std_msgs::msg::Float64();
     lap_time_msg.data = lap_time_;
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Publishing lap time: " << lap_time_);
     lap_time_publisher_->publish(lap_time_msg);
+
+    // count cones hit
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Counting cones hit.");
+    count_cones_hit();
+    // publish number of cones hit
+    auto num_cones_hit_msg = std_msgs::msg::Int32();
+    num_cones_hit_msg.data = num_cones_hit_;
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Publishing number of cones hit: " << num_cones_hit_);
+    num_cones_hit_publisher_->publish(num_cones_hit_msg);
 
     /* Get end time of solve step */
     double t1 = (double_t)(this->now().nanoseconds()); // [ms]
@@ -649,13 +685,6 @@ private:
     trackbounds_right_publisher_->publish(right_bound_msg);
 
     RCLCPP_DEBUG_STREAM(this->get_logger(), "Track callback ended.");
-
-    // count cones hit
-    count_cones_hit();
-    // publish number of cones hit
-    auto num_cones_hit_msg = std_msgs::msg::Int32();
-    num_cones_hit_msg.data = num_cones_hit_;
-    num_cones_hit_publisher_->publish(num_cones_hit_msg);
   }
 
   void ref_path_callback() {
@@ -695,6 +724,8 @@ private:
     int marker_id = 1;
     bool first_visited = false;
 
+    int idx_temp = 0;
+
     for (size_t i = this->initial_idx_refloop_;
          i < (ref_points_global_.size() + this->initial_idx_refloop_); i++) {
       auto point2d_i = sim_backend::msg::Point2D();
@@ -731,6 +762,10 @@ private:
               // "minimum perception radius"
               (sqrt(pow(x_pos - x_c, 2) + pow(y_pos - y_c, 2)) >=
                this->r_perception_min_))) {
+        RCLCPP_DEBUG_STREAM(this->get_logger(),
+                            "Ref path callback at track index "
+                                << idx << " with point (" << x_pos << ", "
+                                << y_pos << ") in perception cone.");
         point2d_i.x = x_pos;
         point2d_i.y = y_pos;
         point2d_i.id = uint32_t(marker_id);
@@ -741,12 +776,20 @@ private:
 
         if (!first_visited) {
           first_visited = true;
-          this->initial_idx_refloop_ = idx;
+          RCLCPP_DEBUG_STREAM(this->get_logger(),
+                              "Ref path callback at track index "
+                                  << idx << " with point (" << x_pos << ", "
+                                  << y_pos << ") is the first point in the "
+                                  << "perception cone.");
+          idx_temp = idx;
         }
       }
     }
 
+    this->initial_idx_refloop_ = idx_temp;
+
     ref_path_publisher_->publish(ref_path_msg);
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Ref path callback ended.");
   }
 
   // Timers

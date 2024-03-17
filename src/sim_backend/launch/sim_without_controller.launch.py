@@ -23,15 +23,6 @@ from ament_index_python.packages import get_package_share_directory
 def generate_launch_description():
     ld = LaunchDescription()
 
-    visualization = IncludeLaunchDescription(
-        XMLLaunchDescriptionSource(
-            os.path.join(
-                get_package_share_directory("foxglove_bridge"),
-                "launch/foxglove_bridge_launch.xml",
-            )
-        )
-    )
-
     sim_time_node = Node(
         package="sim_backend",
         executable="sim_time_node",
@@ -42,6 +33,7 @@ def generate_launch_description():
             )
         ],
         output="screen",
+        arguments=["--ros-args", "--log-level", "info"],
     )
 
     sim_backend_node = Node(
@@ -71,9 +63,10 @@ def generate_launch_description():
             )
         ],
         output="screen",
+        arguments=["--ros-args", "--log-level", "info"],
     )
 
-    ld.add_action(visualization)
+
     ld.add_action(sim_time_node)
     ld.add_action(sim_backend_node)
     ld.add_action(tf_pub_node)
