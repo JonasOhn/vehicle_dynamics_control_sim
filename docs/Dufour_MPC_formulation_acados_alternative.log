@@ -96,7 +96,7 @@ Package: float 2001/11/08 v1.3d Float enhancements (AL)
 Package: mhchem 2021/12/31 v4.09 for typesetting chemical formulae
 
 (/usr/share/texlive/texmf-dist/tex/latex/l3kernel/expl3.sty
-Package: expl3 2022-01-21 L3 programming layer (loader) 
+Package: expl3 2022-01-21 L3 programming layer (loader)
 
 (/usr/share/texlive/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
 File: l3backend-pdftex.def 2022-01-12 L3 backend support: PDF output (pdfTeX)
@@ -772,7 +772,7 @@ LaTeX Font Info:    Changing XCharter-TLF sub-encoding to TS1/0 on input line 1
 6.
 LaTeX Font Info:    Setting XCharter-OsF sub-encoding to TS1/0 on input line 16
 .
-LaTeX Font Info:    Changing XCharter-TOsF sub-encoding to TS1/0 on input line 
+LaTeX Font Info:    Changing XCharter-TOsF sub-encoding to TS1/0 on input line
 16.
 
 (/usr/share/texlive/texmf-dist/tex/generic/xstring/xstring.sty
@@ -1039,12 +1039,12 @@ Package biblatex Info: Trying to load configuration file...
 Package biblatex Info: ... file 'biblatex.cfg' found.
 
 (/usr/share/texlive/texmf-dist/tex/latex/biblatex/biblatex.cfg
-File: biblatex.cfg 
+File: biblatex.cfg
 )
 Package biblatex Info: Input encoding 'utf8' detected.
 Package biblatex Info: Document encoding is UTF8 ....
 Package biblatex Info: ... and expl3
-(biblatex)             2022-01-21 L3 programming layer (loader) 
+(biblatex)             2022-01-21 L3 programming layer (loader)
 (biblatex)             is new enough (at least 2020/04/06),
 (biblatex)             setting 'casechanger=expl3'.
 
@@ -1292,7 +1292,7 @@ LaTeX Font Info:    Overwriting symbol font `lettersupright' in version `bold'
 LaTeX Font Info:    Redeclaring math alphabet \mathrm on input line 145.
 LaTeX Font Info:    Overwriting math alphabet `\mathcal' in version `normal'
 (Font)                  OMS/xmdcmsy/m/n --> OMS/xmdcmsy/m/n on input line 165.
-LaTeX Font Info:    Trying to load font information for T1+mdbch on input line 
+LaTeX Font Info:    Trying to load font information for T1+mdbch on input line
 186.
 
 (/usr/share/texlive/texmf-dist/tex/latex/mathdesign/mdbch/t1mdbch.fd
@@ -1426,7 +1426,7 @@ LaTeX Font Info:    Trying to load font information for MDA+cmr on input line 8
 7.
 
 (/usr/share/texlive/texmf-dist/tex/latex/mathdesign/mdacmr.fd
-File: mdacmr.fd 
+File: mdacmr.fd
 )
 LaTeX Font Info:    ... okay on input line 87.
 LaTeX Font Info:    Checking defaults for MDB/cmr/m/n on input line 87.
@@ -1434,7 +1434,7 @@ LaTeX Font Info:    Trying to load font information for MDB+cmr on input line 8
 7.
 
 (/usr/share/texlive/texmf-dist/tex/latex/mathdesign/mdbcmr.fd
-File: mdbcmr.fd 
+File: mdbcmr.fd
 )
 LaTeX Font Info:    ... okay on input line 87.
 \c@lstlisting=\count460
@@ -1510,7 +1510,7 @@ LaTeX Info: Redefining \nameref on input line 87.
 * paper: a4paper
 * layout: <same size as paper>
 * layoutoffset:(h,v)=(0.0pt,0.0pt)
-* modes: 
+* modes:
 * h-part:(L,W,R)=(56.9055pt, 483.69687pt, 56.9055pt)
 * v-part:(T,H,B)=(85.35826pt, 702.78308pt, 56.9055pt)
 * \paperwidth=597.50787pt
@@ -1744,7 +1744,7 @@ LaTeX Font Info:    Font shape `T1/XCharter-TLF/b/n' will be
 (Font)              scaled to size 13.82408pt on input line 98.
 
 
-pdfTeX warning: /usr/bin/pdflatex (file ./Figures//dyn_bicycle_model.pdf): PDF 
+pdfTeX warning: /usr/bin/pdflatex (file ./Figures//dyn_bicycle_model.pdf): PDF
 inclusion: found PDF version <1.6>, but at most version <1.5> allowed
 <Figures//dyn_bicycle_model.pdf, id=180, 1445.4pt x 1445.4pt>
 File: Figures//dyn_bicycle_model.pdf Graphic file (type pdf)
@@ -1814,7 +1814,7 @@ LaTeX Warning: `!h' float specifier changed to `!ht'.
 
 Overfull \hbox (46.30313pt too wide) in paragraph at lines 776--779
 [][]$\T1/zi4/m/n/10 https : / / docs . google . com / spreadsheets / d / 1rVRyc
-LnCyaWJLwnV47u30Vokp7vRu68og3OhlDbSjDU / edit ? usp = sharing$[][] 
+LnCyaWJLwnV47u30Vokp7vRu68og3OhlDbSjDU / edit ? usp = sharing$[][]
  []
 
 [12]
@@ -1880,7 +1880,7 @@ Package logreq Info: Writing requests to 'Dufour_MPC_formulation_acados_alterna
 tive.run.xml'.
 \openout1 = `Dufour_MPC_formulation_acados_alternative.run.xml'.
 
- ) 
+ )
 Here is how much of TeX's memory you used:
  28398 strings out of 478287
  534040 string characters out of 5849288
@@ -1913,4 +1913,3 @@ PDF statistics:
  437 compressed objects within 5 object streams
  121 named destinations out of 1000 (max. 500000)
  270 words of extra memory for PDF output out of 10000 (max. 10000000)
-

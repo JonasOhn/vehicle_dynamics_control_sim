@@ -29,7 +29,7 @@ ament_export_dependencies(rosidl_default_runtime)
 
 include_directories(include)
 
-add_executable(dynamics_simulator 
+add_executable(dynamics_simulator
   src/dynamics_sim_node.cpp
   src/dynamic_system.cpp
 )

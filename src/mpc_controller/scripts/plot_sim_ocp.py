@@ -1,14 +1,36 @@
+"""
+ * Simple Vehicle Dynamics Simulator Project
+ *
+ * Copyright (c) 2023-2024 Authors:
+ *   - Jonas Ohnemus <johnemus@ethz.ch>
+ *
+ * All rights reserved.
+ *
+ * Unauthorized copying of this file, via any medium is strictly prohibited
+ * Proprietary and confidential
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 from acados_template import latexify_plot
 import math
 
 
-def plot_nlp_dynamics(shooting_nodes, 
-                      idx_b_x, lb_x, ub_x, idx_b_u, lb_u, ub_u, 
-                      U, X_sim,
-                      U_predict=None, X_predict=None, t_predict=None,
-                      latexify=False):
+def plot_nlp_dynamics(
+    shooting_nodes,
+    idx_b_x,
+    lb_x,
+    ub_x,
+    idx_b_u,
+    lb_u,
+    ub_u,
+    U,
+    X_sim,
+    U_predict=None,
+    X_predict=None,
+    t_predict=None,
+    latexify=False,
+):
     """
     Params:
         shooting_nodes: time values of the discretization
@@ -36,7 +58,7 @@ def plot_nlp_dynamics(shooting_nodes,
     nu = U.shape[1]
 
     # get final time and time vector
-    Tf = shooting_nodes[N_sim-1]
+    Tf = shooting_nodes[N_sim - 1]
     t = shooting_nodes
     # get time step size
     Ts = t[1] - t[0]
@@ -45,50 +67,50 @@ def plot_nlp_dynamics(shooting_nodes,
     plotting_idx = 1
 
     plt.figure()
-    n_rows_plot = math.ceil((nx+nu)/2)
+    n_rows_plot = math.ceil((nx + nu) / 2)
 
-    inputs_lables = [r'$da_{x,m}$', r'$d\delta_s$']
+    inputs_lables = [r"$da_{x,m}$", r"$d\delta_s$"]
     idx_u = 0
     for i in range(nu):
         plt.subplot(n_rows_plot, 2, plotting_idx)
-        line, = plt.step(t, np.append([U[0, i]], U[:, i]), linewidth=2.0)
-        line.set_color('r')
+        (line,) = plt.step(t, np.append([U[0, i]], U[:, i]), linewidth=2.0)
+        line.set_color("r")
 
         if U_predict is not None:
-            line, = plt.step(t_predict, np.append([U_predict[0, i]], U_predict[:, i]))
-            line.set_color('m')
+            (line,) = plt.step(t_predict, np.append([U_predict[0, i]], U_predict[:, i]))
+            line.set_color("m")
 
         plt.ylabel(inputs_lables[i])
-        plt.xlabel('$t$')
+        plt.xlabel("$t$")
         if i in idx_b_u:
-            plt.hlines(ub_u[idx_u], t[0], t[-1], linestyles='dashed', alpha=0.7)
-            plt.hlines(lb_u[idx_u], t[0], t[-1], linestyles='dashed', alpha=0.7)            
+            plt.hlines(ub_u[idx_u], t[0], t[-1], linestyles="dashed", alpha=0.7)
+            plt.hlines(lb_u[idx_u], t[0], t[-1], linestyles="dashed", alpha=0.7)
             idx_u += 1
 
-        plt.grid('both')
+        plt.grid("both")
 
         plotting_idx += 1
 
-    states_lables = ['$s$', '$n$', r'$\mu$', '$v_x$', '$a_x$', r'$\delta_s$']
+    states_lables = ["$s$", "$n$", r"$\mu$", "$v_x$", "$a_x$", r"$\delta_s$"]
     idx_x = 0
     for i in range(nx):
         plt.subplot(n_rows_plot, 2, plotting_idx)
-        line, = plt.plot(t, X_sim[:, i], linewidth=2.0)
-        line.set_color('b')
+        (line,) = plt.plot(t, X_sim[:, i], linewidth=2.0)
+        line.set_color("b")
 
         if X_predict is not None:
-            line, = plt.plot(t_predict, X_predict[:, i])
-            line.set_color('c')
+            (line,) = plt.plot(t_predict, X_predict[:, i])
+            line.set_color("c")
 
         plt.ylabel(states_lables[i])
-        plt.xlabel('$t$')
+        plt.xlabel("$t$")
         if i in idx_b_x:
-            plt.hlines(ub_x[idx_x], t[0], t[-1], linestyles='dashed', alpha=0.7)
-            plt.hlines(lb_x[idx_x], t[0], t[-1], linestyles='dashed', alpha=0.7)
+            plt.hlines(ub_x[idx_x], t[0], t[-1], linestyles="dashed", alpha=0.7)
+            plt.hlines(lb_x[idx_x], t[0], t[-1], linestyles="dashed", alpha=0.7)
 
             idx_x += 1
 
-        plt.grid('both')
+        plt.grid("both")
 
         plotting_idx += 1
 

@@ -12,12 +12,12 @@ english]{CSUniSchoolLabReport}
 
 \usepackage{sectsty}
 
-\chapternumberfont{\normalsize} 
+\chapternumberfont{\normalsize}
 \chaptertitlefont{\LARGE}
 
 \usepackage{titlesec}
-\titleformat{\chapter}[display]   
-{\normalfont\LARGE\bfseries}{\chaptertitlename\ \thechapter}{1pt}{\LARGE}   
+\titleformat{\chapter}[display]
+{\normalfont\LARGE\bfseries}{\chaptertitlename\ \thechapter}{1pt}{\LARGE}
 \titlespacing*{\chapter}{0pt}{-50pt}{10pt}
 \titlespacing*{\section}
 {0pt}{20pt}{15pt}
@@ -88,7 +88,7 @@ english]{CSUniSchoolLabReport}
 
 \maketitle
 
-{\let\clearpage\relax \vspace{100pt}\tableofcontents} 
+{\let\clearpage\relax \vspace{100pt}\tableofcontents}
 \newpage
 
 \chapter{Introduction}
@@ -121,25 +121,25 @@ Although AMZ has maintained a good relationship to Embotech, which is a company 
 The state vector of the MPC model is given by:
 
 \begin{equation}
-	\mathbf{x}(t) = 
+	\mathbf{x}(t) =
 	\left[\begin{array}{c}
-		
-		s \\ 
-		
-		n \\ 
-		
+
+		s \\
+
+		n \\
+
 		\mu \\
-		
+
 		{}_Vv_x \\
-		
+
 		{}_Vv_y \\
-		
+
 		\dot{\psi}\;\;\; \\
-		
+
 		F_{x,m} \\
-		
+
 		\delta_s
-		
+
 	\end{array}\right]
 \end{equation}
 
@@ -148,40 +148,40 @@ And the ODE then subsequently as:
 \begin{equation}
 	f_{expl,\;dyn}(\mathbf{x}, \mathbf{u}) =
 	\left[\begin{array}{c}
-		
-		\dot{s} \\ 
-		
-		\dot{n} \\ 
-		
+
+		\dot{s} \\
+
+		\dot{n} \\
+
 		\dot{\mu} \\
-		
+
 		{}_V\dot{v}_x \\
-		
+
 		{}_V\dot{v}_y \\
-		
+
 		\ddot{\psi}\;\;\; \\
-		
+
 		\dot{F}_{x,m} \\
-		
+
 		\dot{\delta}_s
-		
+
 	\end{array}\right] =
 	\left[\begin{array}{c}
-		
+
 		\frac{{}_V v_x \cos(\mu) \,-\, {}_V v_y \sin(\mu)}{1 - n \kappa(s)} \\
-		
+
 		{}_V v_x \sin(\mu) + {}_V v_y \cos(\mu) \\
- 
+
 		\dot{\psi} - \kappa(s)\;\frac{{}_V v_x \cos(\mu) \,-\, {}_V v_y \sin(\mu)}{1 - n \kappa(s)} \\
-		
+
 		\frac{1}{m}  \left( \frac{1}{2} \, F_{x, m} \left[1 + \cos(\delta_s)\right] - F_{y, f} \sin(\delta_s) - F_{resist} \right) + \dot{\psi}\;\cdot {}_V v_y \\
-		
+
 		\frac{1}{m}  \left( F_{y, f} \cos(\delta_s) + F_{y, r} + \frac{1}{2} \, F_{x, m} \sin(\delta_s) \right) - \dot{\psi}\;\cdot {}_V v_x \\
-		
+
 		\frac{1}{I_z}  \left( \frac{1}{2} \, F_{x, m} \sin(\delta_s) l_f + F_{y, f} \cos(\delta_s) l_f - F_{y, r} l_r \right) \\
-		
+
 		\dot{F}_{x,m,u} \\
-		
+
 		\dot{\delta}_{s,u}
 	\end{array}\right]
 \end{equation}
@@ -194,12 +194,12 @@ Resistive Force
 	F_{x, drag} &= C_{d} \cdot {}_V v^2_x \\
 	F_{resist} &= F_{x, fric} + F_{x, drag}
 \end{align}
-	
+
 Slip Angles
 \begin{equation}
 	\alpha_f = \arctan2\left(\frac{{}_Vv_y + \dot{\psi} l_f}{{}_Vv_x}\right) - \delta_s
 	\hspace{2cm}
-	\alpha_r = \arctan2\left(\frac{{}_Vv_y - \dot{\psi} l_r}{{}_Vv_x}\right) 
+	\alpha_r = \arctan2\left(\frac{{}_Vv_y - \dot{\psi} l_r}{{}_Vv_x}\right)
 \end{equation}
 
 Lateral Pacejka Magic Formula
@@ -227,40 +227,40 @@ For the kinematic model, we only adjust the right hand sides of the explicit dyn
 \begin{equation}
 	f_{expl,\;kin}(\mathbf{x}, \mathbf{u}) =
 	\left[\begin{array}{c}
-		
-		\dot{s} \\ 
-		
-		\dot{n} \\ 
-		
+
+		\dot{s} \\
+
+		\dot{n} \\
+
 		\dot{\mu} \\
-		
+
 		{}_V\dot{v}_x \\
-		
+
 		{}_V\dot{v}_y \\
-		
+
 		\ddot{\psi}\;\;\; \\
-		
+
 		\dot{F}_{x,m} \\
-		
+
 		\dot{\delta}_s
-		
+
 	\end{array}\right] =
 	\left[\begin{array}{c}
-		
+
 		\frac{{}_V v_x \cos(\mu) \,-\, {}_V v_y \sin(\mu)}{1 - n \kappa(s)} \\
-		
+
 		{}_V v_x \sin(\mu) + {}_V v_y \cos(\mu) \\
-		
+
 		\dot{\psi} - \kappa(s)\;\frac{{}_V v_x \cos(\mu) \,-\, {}_V v_y \sin(\mu)}{1 - n \kappa(s)} \\
-		
+
 		\frac{1}{m}  \left( F_{x, m} - F_{resist} \right)\\
-		
+
 		\left( \dot{\delta}_{s,u} \cdot {}_Vv_x + \delta_s \cdot \frac{1}{m} F_{x, m}  \right) \cdot  \frac{l_r}{l_r+l_f}\\
-		
+
 		\left( \dot{\delta}_{s,u} \cdot {}_Vv_x + \delta_s \cdot \frac{1}{m} F_{x, m} \right) \cdot  \frac{1}{l_r+l_f} \\
-		
+
 		\dot{F}_{x,m,u} \\
-		
+
 		\dot{\delta}_{s,u}
 	\end{array}\right]
 \end{equation}
@@ -296,7 +296,7 @@ The algebraic state vector follows as
 Finally, we concatenate the differential and algebraic state vectors and make use of the implicit dynamics formulation of \acados{}. Here we also make the dependence on the parameters $\mathbf{p}$ explicit.
 
 \begin{equation}
-	0 = f_{impl}(\mathbf{x}(t), \dot{\mathbf{x}}(t), \mathbf{u}(t), \mathbf{z}(t), \mathbf{p}) = 
+	0 = f_{impl}(\mathbf{x}(t), \dot{\mathbf{x}}(t), \mathbf{u}(t), \mathbf{z}(t), \mathbf{p}) =
 	\left[\begin{array}{c}
 		\dot{\mathbf{x}}(t) - f_{expl}(\mathbf{x}, \mathbf{u}, \mathbf{p}) \\
 		\mathbf{z}(t) - f_{expl, \mathbf{z}}(\mathbf{x}, \mathbf{u})
@@ -313,12 +313,12 @@ We define in total 8 nonlinear inequality constraints, of which 7 are slacked.\\
 The first two are tire ellipse constraints for the front and rear wheel respectively:
 
 \begin{align}
-	\left( \frac{F_{y, f}} {F_{z, f} D_{tire} \epsilon_{y, f}} \right)^2 
-	+ \left(\frac{F_{x,m}}{2} \cdot \frac{\epsilon_{x, f}}{F_{z, f} D_{tire} \epsilon_{y, f}} \right) ^2 
-	- 1 
+	\left( \frac{F_{y, f}} {F_{z, f} D_{tire} \epsilon_{y, f}} \right)^2
+	+ \left(\frac{F_{x,m}}{2} \cdot \frac{\epsilon_{x, f}}{F_{z, f} D_{tire} \epsilon_{y, f}} \right) ^2
+	- 1
 	&\leq s_{u,h,TE,f} \\
-	\left( \frac{F_{y, r}} {F_{z, r} D_{tire} \epsilon_{y, r}} \right)^2 
-	+ \left(\frac{F_{x,m}}{2} \cdot \frac{\epsilon_{x, r}}{F_{z, r} D_{tire} \epsilon_{y, r}} \right) ^2 
+	\left( \frac{F_{y, r}} {F_{z, r} D_{tire} \epsilon_{y, r}} \right)^2
+	+ \left(\frac{F_{x,m}}{2} \cdot \frac{\epsilon_{x, r}}{F_{z, r} D_{tire} \epsilon_{y, r}} \right) ^2
 	- 1
 	&\leq s_{u,h,TE,r}
 \end{align}
@@ -338,7 +338,7 @@ From these definitions, we can formulate the following three inequality constrai
 	n + b_f + b_w - n_{\max} &\leq s_{u,h,n,fl} \\
 	n - b_f + b_w - n_{\max} &\leq s_{u,h,n,rl} \\
 	- n - b_f + b_w + n_{\min} &\leq s_{u,h,n,fr} \\
-	- n + b_f + b_w + n_{\min} &\leq s_{u,h,n,rr}	
+	- n + b_f + b_w + n_{\min} &\leq s_{u,h,n,rr}
 \end{align}
 
 The seventh nonlinear inequality constraint is \textbf{not slacked}. It relates the curvature with the lateral deviation from track.
@@ -553,7 +553,7 @@ Table~\ref{tab:cost:auto} shows the available options.
 	\begin{tabular}{cccc}
 		\toprule
 		Term & String identifier & Data type & Required \\ \midrule
-		$ l $ & \code{cost\_expr\_ext\_cost}    & \casadi~expression   & \mandatory  \\ 
+		$ l $ & \code{cost\_expr\_ext\_cost}    & \casadi~expression   & \mandatory  \\
 		%        $ m $ & \code{cost\_expr\_ext\_cost\_e}    & \casadi~expression  & \mandatory \\
 		\bottomrule
 	\end{tabular}
@@ -815,14 +815,14 @@ Some options can only be set before the solver is created, especially options th
 		\code{compile\_model} & string & \str{true} & in (\str{true}, \str{false}) \\
 		\code{output\_dir} & string & \str{build} & codegen output directory\\
 		\midrule
-		
+
 		\multicolumn{4}{l}{\emph{Shooting nodes}} \\
 		\code{param\_scheme\_N} & int $>1$ & $10$ & uniform grid: number of shooting nodes; acts together with end time \code{T} from model. \\
 		% set one of the following for nonuniform grid
 		{\code{shooting\_nodes} or \code{param\_\-scheme\_shooting\_nodes}} & doubles & \code{[]} & nonuniform grid option 1: direct definition of the shooting node times \\
 		\code{time\_steps} & doubles & \code{[]} & {nonuniform grid option 2: definition of deltas between shooting nodes}\\
 		\midrule
-		
+
 		\multicolumn{4}{l}{\emph{Integrator}} \\
 		\code{sim\_method} & string & \str{irk} & \str{erk}, \str{irk}, \str{irk\_gnsf} \\
 		\code{sim\_method\_num\_stages} & int & $4$ & Runge-Kutta int.\ stages: ($1$)~RK1, ($2$)~RK2, ($4$)~RK4\\
@@ -830,7 +830,7 @@ Some options can only be set before the solver is created, especially options th
 		\code{sim\_method\_newton\_iter} & int & $3$\\
 		\code{gnsf\_detect\_struct} & string & \str{true}\\
 		\midrule
-		
+
 		\multicolumn{4}{l}{\emph{NLP solver}} \\
 		\code{nlp\_solver} & string & \str{sqp} & in (\str{sqp}, \str{sqp\_rti})\\
 		\code{nlp\_solver\_max\_iter} & int $>1$ & $100$ & maximum number of NLP iterations\\
@@ -842,10 +842,10 @@ Some options can only be set before the solver is created, especially options th
 		\code{nlp\_solver\_step\_length} & double & $1.0$ & fixed step length in SQP algorithm \\
 		\code{rti\_phase} & int & $0$ & RTI phase: ($1$) preparation, ($2$) feedback, ($0$) both \\
 		\midrule
-		
+
 		\multicolumn{4}{l}{\emph{QP solver}} \\
 		\code{qp\_solver} & string & $\longrightarrow$ & Defines the quadratic programming solver and condensing strategy. See table~\ref{tab:solver_options:qp_solver_option}\\
-		
+
 		\code{qp\_solver\_iter\_max} & int & $50$ & maximum number of iterations per QP solver call\\
 		% \code{qp\_solver\_cond\_N} & 5\\ % New horizon after partial condensing
 		\code{qp\_solver\_cond\_ric\_alg} & int & $0$ & factorize hessian in the condensing: ($0$) no, ($1$) yes \\

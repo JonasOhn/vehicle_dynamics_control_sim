@@ -23,5 +23,3 @@
 
     # number of samples for optimization of acquisition function
     n_samples_acquisition: 100
-
-    

@@ -74,9 +74,9 @@ set(OCP_SRC
 add_library(${OCP_OBJ} OBJECT ${OCP_SRC})
 
 # ================ Link Directories ==================
-link_directories(include 
-  ${acados_lib} 
-  ${acados_include} 
+link_directories(include
+  ${acados_lib}
+  ${acados_include}
   ${full_model_build}
 )
 
@@ -87,7 +87,7 @@ add_executable(mpc_controller_node
   src/mpc_controller_node.cpp
   src/mpc_controller_class.cpp
   src/mpc_geometry.cpp
-  $<TARGET_OBJECTS:${MODEL_OBJ}> 
+  $<TARGET_OBJECTS:${MODEL_OBJ}>
   $<TARGET_OBJECTS:${OCP_OBJ}>
 )
 
@@ -102,7 +102,7 @@ ament_target_dependencies(mpc_controller_node
   std_msgs
 )
 
-install(TARGETS 
+install(TARGETS
   mpc_controller_node
   DESTINATION lib/${PROJECT_NAME}
 )
@@ -115,7 +115,7 @@ install(DIRECTORY
 rosidl_get_typesupport_target(cpp_typesupport_target
   ${PROJECT_NAME} rosidl_typesupport_cpp)
 
-target_link_libraries(mpc_controller_node 
+target_link_libraries(mpc_controller_node
   Eigen3::Eigen
   "${cpp_typesupport_target}"
   "${Boost_SYSTEM_LIBRARY}"

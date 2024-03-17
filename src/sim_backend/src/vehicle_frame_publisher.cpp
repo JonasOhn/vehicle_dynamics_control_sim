@@ -1,3 +1,15 @@
+/*
+ * Simple Vehicle Dynamics Simulator Project
+ *
+ * Copyright (c) 2023-2024 Authors:
+ *   - Jonas Ohnemus <johnemus@ethz.ch>
+ *
+ * All rights reserved.
+ *
+ * Unauthorized copying of this file, via any medium is strictly prohibited
+ * Proprietary and confidential
+ */
+
 #include <functional>
 #include <memory>
 #include <sstream>
@@ -5,20 +17,17 @@
 
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "rclcpp/rclcpp.hpp"
+#include "sim_backend/msg/vehicle_state.hpp"
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2_ros/transform_broadcaster.h"
-#include "sim_backend/msg/vehicle_state.hpp"
 
-
-class VehicleFramePublisher : public rclcpp::Node
-{
+class VehicleFramePublisher : public rclcpp::Node {
 public:
   VehicleFramePublisher()
-  : Node("vehicle_frame_publisher",
-                rclcpp::NodeOptions()
-                    .allow_undeclared_parameters(true)
-                    .automatically_declare_parameters_from_overrides(true))
-  {
+      : Node("vehicle_frame_publisher",
+             rclcpp::NodeOptions()
+                 .allow_undeclared_parameters(true)
+                 .automatically_declare_parameters_from_overrides(true)) {
     // acquire `tf_name` parameter
     frame_name_ = this->get_parameter("frame_name").as_string();
 
@@ -26,15 +35,17 @@ public:
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
     subscription_ = this->create_subscription<sim_backend::msg::VehicleState>(
-      "vehicle_state", 10,
-      std::bind(&VehicleFramePublisher::handle_vehicle_state, this, std::placeholders::_1));
+        "vehicle_state", 10,
+        std::bind(&VehicleFramePublisher::handle_vehicle_state, this,
+                  std::placeholders::_1));
 
-    RCLCPP_INFO_STREAM(this->get_logger(), "Node " << this->get_name() << " initialized.");
+    RCLCPP_INFO_STREAM(this->get_logger(),
+                       "Node " << this->get_name() << " initialized.");
   }
 
 private:
-  void handle_vehicle_state(const std::shared_ptr<sim_backend::msg::VehicleState> msg)
-  {
+  void handle_vehicle_state(
+      const std::shared_ptr<sim_backend::msg::VehicleState> msg) {
     geometry_msgs::msg::TransformStamped t;
 
     // Read message content and assign it to
@@ -63,8 +74,7 @@ private:
   std::string frame_name_;
 };
 
-int main(int argc, char * argv[])
-{
+int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<VehicleFramePublisher>());
   rclcpp::shutdown();

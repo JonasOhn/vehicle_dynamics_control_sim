@@ -16,7 +16,7 @@ include_directories(
   ${sim_backend_INCLUDE_DIRS}
 )
 
-add_executable(pp_controller 
+add_executable(pp_controller
   src/pp_controller_node.cpp
 )
 

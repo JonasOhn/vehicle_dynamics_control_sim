@@ -1,12 +1,19 @@
 """
-    Script to generate the solver C code for the NLP OCP problem
-    written for the ACADOS solver
+ * Simple Vehicle Dynamics Simulator Project
+ *
+ * Copyright (c) 2023-2024 Authors:
+ *   - Jonas Ohnemus <johnemus@ethz.ch>
+ *
+ * All rights reserved.
+ *
+ * Unauthorized copying of this file, via any medium is strictly prohibited
+ * Proprietary and confidential
 """
 
 import numpy as np
 from setup_kinematic_bicycle_curv import setup_nlp_ocp_and_sim
 
-""" 
+"""
 ==== Solver Status Messages ====
 
 ACADOS

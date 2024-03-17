@@ -24,13 +24,13 @@ find_package(visualization_msgs REQUIRED)
 
 ament_export_include_directories(include)
 
-include_directories( 
-  include 
+include_directories(
+  include
   ${PCL_INCLUDE_DIRS}
   ${sim_backend_INCLUDE_DIRS}
 )
 
-add_executable(sim_visualization_node 
+add_executable(sim_visualization_node
   src/sim_visualization_node.cpp
 )
 
@@ -47,7 +47,7 @@ ament_target_dependencies(sim_visualization_node
 )
 
 install(TARGETS
-  sim_visualization_node  
+  sim_visualization_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

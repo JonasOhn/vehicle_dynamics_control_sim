@@ -1,3 +1,15 @@
+"""
+ * Simple Vehicle Dynamics Simulator Project
+ *
+ * Copyright (c) 2023-2024 Authors:
+ *   - Jonas Ohnemus <johnemus@ethz.ch>
+ *
+ * All rights reserved.
+ *
+ * Unauthorized copying of this file, via any medium is strictly prohibited
+ * Proprietary and confidential
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -25,9 +37,9 @@ y3 = y2 - length * dx_norm
 x4 = x2 - length * dy_norm
 y4 = y2 + length * dx_norm
 
-plt.plot([x1, x2], [y1, y2], 'ro-')
-plt.plot([x3, x4], [y3, y4], 'bo-')
+plt.plot([x1, x2], [y1, y2], "ro-")
+plt.plot([x3, x4], [y3, y4], "bo-")
 
-plt.axis('equal')
+plt.axis("equal")
 
 plt.show()
