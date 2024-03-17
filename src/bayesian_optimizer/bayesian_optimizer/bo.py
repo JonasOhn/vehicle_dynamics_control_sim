@@ -28,7 +28,8 @@ class BayesianOptimizer():
         X: sampling points of shape (N, n_x)
 
         Returns:
-        theta: minimum of the acquisition function for the sampled points of shape (n_x,)
+        x_min_acq: minimum of the acquisition function for the sampled points of shape (n_x,)
+        y_min: minimum value of the acquisition function
         y_hat: sampled values of the acquisition function of shape (N,)
         '''
         # --- start inserting code here ---
@@ -40,14 +41,13 @@ class BayesianOptimizer():
         y, std = self.gp.predict(X)
 
         y_hat = y - self.beta * std
-        #print(y_hat.shape)
 
         idx_min = np.argmin(y_hat)
-        theta = X[idx_min, :].reshape(-1, 1)
-        #print(theta.shape)ü
+        x_min_acq = X[idx_min, :].reshape(-1, 1)
+        y_min = y_hat[idx_min]
 
         # --- end inserting code here ---
-        return theta, y_hat
+        return x_min_acq, y_min, y_hat
 
     def get_estimate(self, X):
         '''
@@ -71,8 +71,16 @@ class BayesianOptimizer():
 
         Args:
         X: sampling points of shape (N, n_x)
+
+        Returns:
+        y: sampled values of the GP of shape (N,)
+        y_ucb: sampled values of the GP upper confidence bound of shape (N,)
+        y_lcb: sampled values of the GP lower confidence bound of shape (N,)
         '''
-        return self.gp.predict(X)
+        y, std = self.gp.predict(X)
+        y_ucb = y + 1.96*std
+        y_lcb = y - 1.96*std
+        return y, y_ucb, y_lcb
 
     def add_data(self, x, y):
         '''

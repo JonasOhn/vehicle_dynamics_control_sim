@@ -1,3 +1,27 @@
 /mpc_controller_node:
   ros__parameters:
     use_sim_time: true
+
+    # boundaries for the optimization
+    lb_q_sd: 0.1
+    ub_q_sd: 10.0
+    lb_q_n: 0.1
+    ub_q_n: 10.0
+    lb_q_mu: 0.1
+    ub_q_mu: 10.0
+    lb_q_ax: 0.1
+    ub_q_ax: 10.0
+    lb_q_dels: 0.1
+    ub_q_dels: 10.0
+    lb_r_dax: 0.1
+    ub_r_dax: 10.0
+    lb_r_ddels: 0.1
+    ub_r_ddels: 10.0
+
+    # time after which lap is terminated
+    max_lap_time: 40.0
+
+    # number of samples for optimization of acquisition function
+    n_samples_acquisition: 100
+
+    

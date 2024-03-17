@@ -62,7 +62,7 @@ class BayesianOptimizerNode(Node):
         self.lap_ongoing = False
 
         # period after which simulation and controller are reset
-        self.stop_sim_period = 40.0
+        self.max_lap_time = 40.0
 
         # define bounds on the decision variables
         self.lb_q_sd = 0.01
@@ -74,8 +74,8 @@ class BayesianOptimizerNode(Node):
         self.lb_q_mu = 0.01
         self.ub_q_mu = 2.0
 
-        self.num_acqfct_samples_perdim = 500
-        self.Q = np.zeros((self.num_acqfct_samples_perdim, 3))
+        self.num_acqfct_samples = 500
+        self.Q = np.zeros((self.num_acqfct_samples, 3))
   
         # time penalty per cone in seconds
         self.penalty_per_cone = 2.0
@@ -128,17 +128,15 @@ class BayesianOptimizerNode(Node):
         
         if RANDOM_SAMPLE:
           # q_sd:
-          self.Q[:, 0] = np.random.uniform(low=self.lb_q_sd, high=self.ub_q_sd, size=self.num_acqfct_samples_perdim)
+          self.Q[:, 0] = np.random.uniform(low=self.lb_q_sd, high=self.ub_q_sd, size=self.num_acqfct_samples)
           # q_n:
-          self.Q[:, 1] = np.random.uniform(low=self.lb_q_n, high=self.ub_q_n, size=self.num_acqfct_samples_perdim)
+          self.Q[:, 1] = np.random.uniform(low=self.lb_q_n, high=self.ub_q_n, size=self.num_acqfct_samples)
           # q_mu
-          self.Q[:, 2] = np.random.uniform(low=self.lb_q_mu, high=self.ub_q_mu, size=self.num_acqfct_samples_perdim)
+          self.Q[:, 2] = np.random.uniform(low=self.lb_q_mu, high=self.ub_q_mu, size=self.num_acqfct_samples)
         else:
-          num_acqfct_samples_perdim = 10
-
-          q_sd = np.linspace(start=self.lb_q_sd, stop=self.ub_q_sd, num=num_acqfct_samples_perdim)
-          q_n = np.linspace(start=self.lb_q_n, stop=self.ub_q_n, num=num_acqfct_samples_perdim)
-          q_mu = np.linspace(start=self.lb_q_mu, stop=self.ub_q_mu, num=num_acqfct_samples_perdim)
+          q_sd = np.linspace(start=self.lb_q_sd, stop=self.ub_q_sd, num=int(np.cbrt(self.num_acqfct_samples)))
+          q_n = np.linspace(start=self.lb_q_n, stop=self.ub_q_n, num=int(np.cbrt(self.num_acqfct_samples)))
+          q_mu = np.linspace(start=self.lb_q_mu, stop=self.ub_q_mu, num=int(np.cbrt(self.num_acqfct_samples)))
 
           # Generate meshgrid
           X, Y, Z = np.meshgrid(q_sd, q_n, q_mu, indexing='ij')
@@ -146,33 +144,28 @@ class BayesianOptimizerNode(Node):
           # Reshape meshgrid to form a matrix where each column represents one parameter dimension
           self.Q = np.vstack((X.flatten(), Y.flatten(), Z.flatten())).T
 
-        try:
-          self.q_hat = self.bayesian_optimizer.aquisition_function(self.Q)[1]
-        except:
-          pass
-
     def current_lap_time_callback(self, msg):
-        if msg.data > self.stop_sim_period and self.lap_ongoing:
+        if msg.data > self.max_lap_time and self.lap_ongoing:
             self.get_logger().info("Stopping lap because controller took too long.")
             
             self.stop_lap()
-            time.sleep(0.01)
-            cost = self.stop_sim_period
+            
+            cost = self.max_lap_time
             x_data = np.reshape(self.current_parameters[0:3], (1, 3))
             cost = np.reshape(np.array((cost)), (1,1))
             
             self.bayesian_optimizer.add_data(x_data, cost - self.gp_mean)
             self.get_logger().info("Added data q_sd = {0}, q_n = {1}, q_mu = {2} to Bayesian optimizer with cost = {3}.".format(self.current_parameters[0], self.current_parameters[1], self.current_parameters[2], cost - self.gp_mean))
-            time.sleep(0.01)
+            
             self.get_logger().info("Optimizing acquisition function.")
             self.choose_new_parameters()
-            time.sleep(0.01)
+            
             self.get_logger().info("Sending new parameters to controller.")
             self.send_current_controller_params()
-            time.sleep(0.01)
+            
             self.get_logger().info("Starting new lap.")
             self.start_lap()
-            time.sleep(0.01)
+            
         else:
             pass
 
@@ -226,18 +219,12 @@ class BayesianOptimizerNode(Node):
           self.get_logger().info("Added data q_sd = {0}, q_n = {1}, q_mu = {2} to Bayesian optimizer with cost = {3}.".format(self.current_parameters[0], self.current_parameters[1], self.current_parameters[2], cost - self.gp_mean))
 
           self.write_data_to_csv()
-
-          time.sleep(0.01)
           
           # optimize acquisition function to get new parameters
           self.choose_new_parameters()
 
-          time.sleep(0.01)
-
           # send new parameters to controller
           self.send_current_controller_params()
-
-          time.sleep(0.01)
 
           # start lap again
           self.start_lap()
@@ -261,15 +248,7 @@ class BayesianOptimizerNode(Node):
             return
         self.bayesian_optimizer.add_data(data[:, 0:3], data[:, 3])
 
-        time.sleep(0.01)
-
-        self.q_hat = self.bayesian_optimizer.aquisition_function(self.Q)[1]
-        
-        time.sleep(0.01)
-
         self.choose_new_parameters()
-        
-        time.sleep(0.01)
         
         self.send_current_controller_params()
 
@@ -304,79 +283,6 @@ class BayesianOptimizerNode(Node):
 
     def calculate_cost(self, lap_time, num_cones_hit):
         return lap_time + num_cones_hit * self.penalty_per_cone
-    
-    def plot_bo_results(self):
-        
-        plt.ion()
-
-        self.plot_angle += 10 # Seconds since start
-
-        if self.plot_angle >= 360*4:
-            self.plot_angle = 0
-
-        # Normalize the angle to the range [-180, 180] for display
-        angle_norm = (self.plot_angle + 180) % 360 - 180
-
-        # Cycle through a full rotation of elevation, then azimuth, roll, and all
-        azim = angle_norm
-        
-        try:
-          X, y = self.bayesian_optimizer.get_data()
-          laptimes = y + self.gp_mean
-
-          self.fig.clf()        
-
-          ax = self.fig.add_subplot(211, projection='3d')
-          # Update the axis view and title
-          ax.view_init(azim=azim)
-
-          # Scatter plot
-          sc = ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=laptimes, cmap='rainbow')
-
-          # Set labels and title
-          ax.set_xlabel('q_sd')
-          ax.set_ylabel('q_n')
-          ax.set_zlabel('q_mu')
-          ax.set_title('Cost Function Scatter Plot')
-
-          ax.set_xlim(self.lb_q_sd, self.ub_q_sd)
-          ax.set_ylim(self.lb_q_n, self.ub_q_n)
-          ax.set_zlim(self.lb_q_mu, self.ub_q_mu)
-
-          # Add color bar
-          cbar = self.fig.colorbar(sc)
-          cbar.set_label('cone-penalized lap time')
-
-          ax = self.fig.add_subplot(212, projection='3d')
-          ax.view_init(azim=azim)
-
-          # Scatter
-          sc = ax.scatter(self.Q[:, 0], self.Q[:, 1], self.Q[:, 2], c=self.q_hat, cmap='rainbow', vmin=np.min(self.q_hat), vmax=np.max(self.q_hat))
-          sc_star = ax.scatter(self.current_parameters[0],
-                              self.current_parameters[1],
-                              self.current_parameters[2], color='red', marker='*', s=100)  # Red star marker at q_star
-
-          # Optionally, you may want to add a legend to distinguish the red star marker
-          ax.legend([sc, sc_star], ['Points', 'q_star'], loc='upper right')
-
-          # Set labels and title
-          ax.set_xlabel('q_sd')
-          ax.set_ylabel('q_n')
-          ax.set_zlabel('q_mu')
-          ax.set_title('Acquisition Function Scatter Plot')
-
-          ax.set_xlim(self.lb_q_sd, self.ub_q_sd)
-          ax.set_ylim(self.lb_q_n, self.ub_q_n)
-          ax.set_zlim(self.lb_q_mu, self.ub_q_mu)
-
-          # Add color bar
-          cbar = self.fig.colorbar(sc)
-          cbar.set_label('acquisition function')
-
-          plt.draw()
-          plt.pause(0.1)
-        except:
-            pass
         
 
 def main(args=None):

@@ -4,14 +4,28 @@ from gp import GaussianProcess
 import matplotlib.pyplot as plt
 
 
-def plot_gp(bayesian_optimizer, gp_mean, lb_q_sd, ub_q_sd, lb_q_n, ub_q_n, lb_q_mu, ub_q_mu):
-  X, y = bayesian_optimizer.get_data()
-  s = y + gp_mean
-  fig = plt.figure(1)
-  ax = fig.add_subplot(111, projection='3d')
+def plot_gp_and_acquisition_function(gp_mean, q_bounds):
+  """
+    Plot the GP and the acquistiion function in 2D or 3D
+    Bounds have to be box bounds
+
+    Args:
+      gp_mean (np.array): mean of the GP
+      q_bounds (np.array, shape=[dim, 2]): bounds of the decision variables
+  """
+
+  assert np.shape(q_bounds) == (3, 2) or np.shape(q_bounds) == (2,2), "Bounds have to be box bounds in 3D or 2D"
+  
+  fig = plt.figure()
+  X, y = self.bayesian_optimizer.get_data()
+  laptimes = y + self.gp_mean
+
+  self.fig.clf()        
+
+  ax = self.fig.add_subplot(211, projection='3d')
 
   # Scatter plot
-  sc = ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=s, cmap='rainbow')
+  sc = ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=laptimes, cmap='rainbow')
 
   # Set labels and title
   ax.set_xlabel('q_sd')
@@ -19,29 +33,25 @@ def plot_gp(bayesian_optimizer, gp_mean, lb_q_sd, ub_q_sd, lb_q_n, ub_q_n, lb_q_
   ax.set_zlabel('q_mu')
   ax.set_title('Cost Function Scatter Plot')
 
-  ax.set_xlim(lb_q_sd, ub_q_sd)
-  ax.set_ylim(lb_q_n, ub_q_n)
-  ax.set_zlim(lb_q_mu, ub_q_mu)
+  ax.set_xlim(self.lb_q_sd, self.ub_q_sd)
+  ax.set_ylim(self.lb_q_n, self.ub_q_n)
+  ax.set_zlim(self.lb_q_mu, self.ub_q_mu)
 
   # Add color bar
-  cbar = fig.colorbar(sc)
+  cbar = self.fig.colorbar(sc)
   cbar.set_label('cone-penalized lap time')
 
-  plt.tight_layout()
+  ax = self.fig.add_subplot(212, projection='3d')
+  ax.view_init(azim=azim)
 
-def plot_acquisition_function(bayesian_optimizer, Q, lb_q_sd, ub_q_sd, lb_q_n, ub_q_n, lb_q_mu, ub_q_mu):
-
-  fig = plt.figure(2)
-  ax = fig.add_subplot(111, projection='3d')
-
-  # Scatter plot
-  q_star, q_hat = bayesian_optimizer.aquisition_function(Q)
-  sc = ax.scatter(Q[:, 0], Q[:, 1], Q[:, 2], c=q_hat, cmap='rainbow')
-  sc_star = ax.scatter(q_star[0], q_star[1], q_star[2], color='red', marker='*', s=100)  # Red star marker at q_star
+  # Scatter
+  sc = ax.scatter(self.Q[:, 0], self.Q[:, 1], self.Q[:, 2], c=self.q_hat, cmap='rainbow', vmin=np.min(self.q_hat), vmax=np.max(self.q_hat))
+  sc_star = ax.scatter(self.current_parameters[0],
+                      self.current_parameters[1],
+                      self.current_parameters[2], color='red', marker='*', s=100)  # Red star marker at q_star
 
   # Optionally, you may want to add a legend to distinguish the red star marker
   ax.legend([sc, sc_star], ['Points', 'q_star'], loc='upper right')
-
 
   # Set labels and title
   ax.set_xlabel('q_sd')
@@ -49,15 +59,15 @@ def plot_acquisition_function(bayesian_optimizer, Q, lb_q_sd, ub_q_sd, lb_q_n, u
   ax.set_zlabel('q_mu')
   ax.set_title('Acquisition Function Scatter Plot')
 
-  ax.set_xlim(lb_q_sd, ub_q_sd)
-  ax.set_ylim(lb_q_n, ub_q_n)
-  ax.set_zlim(lb_q_mu, ub_q_mu)
+  ax.set_xlim(self.lb_q_sd, self.ub_q_sd)
+  ax.set_ylim(self.lb_q_n, self.ub_q_n)
+  ax.set_zlim(self.lb_q_mu, self.ub_q_mu)
 
   # Add color bar
-  cbar = fig.colorbar(sc)
+  cbar = self.fig.colorbar(sc)
   cbar.set_label('acquisition function')
 
-  plt.tight_layout()
+  plt.show()
 
 def load_data(bayesian_optimizer, results_csv_filepath):
   # try to load data from .csv file, if it exists. else, start with empty data and print to console
@@ -68,19 +78,8 @@ def load_data(bayesian_optimizer, results_csv_filepath):
     print("No data found in .csv file. Starting with empty data.")
 
 
-
-
 results_csv_filepath = "/home/jonas/AMZ/vehicle_dynamics_control_sim/src/bayesian_optimizer/results/results.csv"
 
-# define bounds on the decision variables
-lb_q_sd = 0.01
-ub_q_sd = 2.0
-
-lb_q_n = 0.01
-ub_q_n = 2.0
-
-lb_q_mu = 0.01
-ub_q_mu = 2.0
 
 num_acqfct_samples_perdim = 10
 
