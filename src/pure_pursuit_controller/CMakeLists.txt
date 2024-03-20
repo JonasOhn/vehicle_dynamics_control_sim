@@ -16,7 +16,9 @@ include_directories(
   ${sim_backend_INCLUDE_DIRS}
 )
 
-add_executable(pp_controller src/pp_controller_node.cpp)
+add_executable(pp_controller
+  src/pp_controller_node.cpp
+)
 
 ament_target_dependencies(pp_controller
   rclcpp

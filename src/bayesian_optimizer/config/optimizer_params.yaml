@@ -1,0 +1,43 @@
+/bayesian_optimizer_node:
+  ros__parameters:
+    use_sim_time: true
+
+    # boundaries for the optimization
+    lb_q_sd: 0.01
+    ub_q_sd: 2.0
+    lb_q_n: 0.01
+    ub_q_n: 2.0
+    lb_q_mu: 0.01
+    ub_q_mu: 2.0
+    # lb_q_ax: 0.1
+    # ub_q_ax: 2.0
+    # lb_q_dels: 0.1
+    # ub_q_dels: 2.0
+    # lb_r_dax: 0.1
+    # ub_r_dax: 2.0
+    # lb_r_ddels: 0.1
+    # ub_r_ddels: 2.0
+
+    # time after which lap is terminated
+    max_lap_time: 35.0
+
+    # penalty per cone
+    penalty_per_cone: 2.0
+
+    # number of samples for optimization of acquisition function
+    n_samples_acquisition: 1000
+
+    # number of samples before optimization starts
+    n_samples_initial: 1000
+
+    # GP parameters
+    gp_noise_covariance: 1.0
+    gp_lengthscale: 1.42
+    gp_output_variance: 2.57
+    gp_mean: 30.0
+
+    # Bayesian optimization parameters
+    bo_beta: 2.0
+
+    # path to results
+    results_csv_filepath: "/home/jonas/AMZ/vehicle_dynamics_control_sim/src/bayesian_optimizer/results/results.csv"

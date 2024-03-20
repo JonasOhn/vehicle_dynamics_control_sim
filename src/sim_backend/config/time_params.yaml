@@ -1,0 +1,4 @@
+/sim_time_node:
+  ros__parameters:
+    real_time_factor: 1.0
+    use_sim_time: false

@@ -9,60 +9,59 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
+find_package(rosgraph_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(visualization_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system)
-find_package(pcl_conversions REQUIRED)
-find_package(PCL COMPONENTS REQUIRED)
-find_package(rcl_interfaces REQUIRED)
-find_package(rcutils REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SysInput.msg"
   "msg/VehicleState.msg"
-  "msg/RefPath.msg"
   "msg/Point2D.msg"
+  "msg/Point2DArray.msg"
 )
 
 ament_export_dependencies(rosidl_default_runtime)
 
-include_directories(include ${PCL_INCLUDE_DIRS})
+include_directories(include)
 
-add_executable(dynamics_simulator 
+add_executable(dynamics_simulator
   src/dynamics_sim_node.cpp
-  src/dynamic_system.cpp)
+  src/dynamic_system.cpp
+)
 
 add_executable(vehicle_frame_publisher
-  src/vehicle_frame_publisher.cpp)
+  src/vehicle_frame_publisher.cpp
+)
+
+add_executable(sim_time_node
+  src/sim_time_node.cpp
+)
+
+ament_target_dependencies(sim_time_node
+  rclcpp
+  rosgraph_msgs
+  builtin_interfaces)
 
 ament_target_dependencies(vehicle_frame_publisher
   rclcpp
-  geometry_msgs
   builtin_interfaces
   tf2
   tf2_ros)
 
 ament_target_dependencies(dynamics_simulator
   rclcpp
-  geometry_msgs
   std_msgs
   builtin_interfaces
-  pcl_conversions
-  rcl_interfaces
-  sensor_msgs
-  visualization_msgs
   rcutils
   tf2
   tf2_ros
-  tf2_geometry_msgs)
+  tf2_geometry_msgs
+)
 
 # install such that ros2 run can find exe
 install(TARGETS
@@ -72,6 +71,11 @@ install(TARGETS
 
 install(TARGETS
   vehicle_frame_publisher
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(TARGETS
+  sim_time_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -90,6 +94,7 @@ rosidl_get_typesupport_target(cpp_typesupport_target
 
 target_link_libraries(dynamics_simulator "${cpp_typesupport_target}" "${Boost_SYSTEM_LIBRARY}")
 target_link_libraries(vehicle_frame_publisher "${cpp_typesupport_target}")
+target_link_libraries(sim_time_node "${cpp_typesupport_target}")
 
 install(
   DIRECTORY include/

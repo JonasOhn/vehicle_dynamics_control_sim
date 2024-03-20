@@ -24,7 +24,7 @@
 \usepackage{mhchem} % Package for chemical equation typesetting
 \usepackage{siunitx} % Provides the \SI{}{} and \si{} commands for typesetting technical/scientific SI units correctly
 
-\usepackage{amsmath} % Required for some math elements 
+\usepackage{amsmath} % Required for some math elements
 \usepackage{hyperref}
 \hypersetup{
 	colorlinks   = true,    % Colours links instead of ugly boxes

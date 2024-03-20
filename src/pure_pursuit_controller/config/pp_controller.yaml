@@ -6,3 +6,4 @@
     l_d: 7.0  # lookahead distance [m]
     L_wb: 1.5 # Wheelbase length
     v_ref: 7.5 # reference velocity [m/s]
+    use_sim_time: true
