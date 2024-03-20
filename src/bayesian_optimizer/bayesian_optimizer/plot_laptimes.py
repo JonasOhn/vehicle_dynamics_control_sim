@@ -12,7 +12,7 @@ with open(config_bo_filepath, "r") as file:
 gp_mean = config_bo["gp_mean"]
 
 # load the data
-results_csv_filepath = "/home/jonas/AMZ/vehicle_dynamics_control_sim/src/bayesian_optimizer/results/results_sd05_max35_mean30.csv"
+results_csv_filepath = "/home/jonas/AMZ/vehicle_dynamics_control_sim/src/bayesian_optimizer/results/results.csv"
 data = np.loadtxt(results_csv_filepath, delimiter=",")
 laptimes_normalized = data[:, 3]
 
@@ -24,6 +24,8 @@ plt.scatter(range(len(laptimes_normalized)), laptimes_normalized + gp_mean, labe
 
 # emphasize the best laptimes
 best_laptime_idx = np.argmin(laptimes_normalized)
+# print best laptime
+print("Best laptime: ", laptimes_normalized[best_laptime_idx] + gp_mean, " s")
 plt.scatter(best_laptime_idx, laptimes_normalized[best_laptime_idx] + gp_mean, label="Best laptime", color="red")
 
 plt.xlabel("Iteration")

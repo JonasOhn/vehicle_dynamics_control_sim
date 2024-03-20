@@ -109,12 +109,13 @@ def plot_gp_3d(bo, gp_mean, q_bounds):
     # plot the raw data only
     ax = fig.add_subplot(111, projection="3d")
 
+    idx_max_before_bo = 392
+
     # plot predictions using filled contours
-    mi = gp_mean + Y_data.min()
-    ma = gp_mean + Y_data.max()
-    norm = matplotlib.colors.Normalize(vmin=mi,vmax=ma)
-    sc = ax.scatter(X_data[:, 0], X_data[:, 1], X_data[:, 2], c=gp_mean + Y_data, norm=norm, cmap="viridis", label="Data", marker="o")
+    sc = ax.scatter(X_data[:idx_max_before_bo, 0], X_data[:idx_max_before_bo, 1], X_data[:idx_max_before_bo, 2], c=gp_mean + Y_data[:idx_max_before_bo], cmap="viridis", label="Data")
+    #sc = ax.scatter(X_data[:, 0], X_data[:, 1], X_data[:, 2], c=gp_mean + Y_data, cmap="viridis", label="Data")
     plt.colorbar(sc)
+    ax.scatter(X_data[idx_max_before_bo:, 0], X_data[idx_max_before_bo:, 1], X_data[idx_max_before_bo:, 2], c='r', label="BO acquired data", marker="x")
 
     plt.xlim(q_bounds[0][0], q_bounds[0][1])
     plt.ylim(q_bounds[1][0], q_bounds[1][1])
@@ -136,13 +137,8 @@ def plot_gp_3d(bo, gp_mean, q_bounds):
     confidence = y_ucb - y_lcb
 
     # plot predictions using filled contours
-    # mi = np.min((Y_data.min(), Y.min()))
-    # ma = np.max((Y_data.max(), Y.max()))
-    mi = y_pred.min()
-    ma = y_pred.max()
-    norm = matplotlib.colors.Normalize(vmin=mi,vmax=ma)
     # plot contour plot of the GP mean
-    sc = ax.scatter(Q[:, 0], Q[:, 1], Q[:, 2], c=y_pred + gp_mean, norm=norm, cmap="viridis", label="Mean Prediction", marker="o")
+    sc = ax.scatter(Q[:, 0], Q[:, 1], Q[:, 2], c=y_pred + gp_mean, cmap="viridis", label="Mean Prediction", alpha=0.5)
     plt.colorbar(sc)
 
     plt.xlim(q_bounds[0][0], q_bounds[0][1])
@@ -160,7 +156,8 @@ def plot_gp_3d(bo, gp_mean, q_bounds):
     # plot the uncertainty in 2d using colormap for y
     ax = fig.add_subplot(111, projection="3d")
 
-    ax.scatter(Q[:, 0], Q[:, 1], Q[:, 2], c=confidence, cmap="viridis", label="Prediction Uncertainty", marker="x")
+    sc = ax.scatter(Q[:, 0], Q[:, 1], Q[:, 2], c=confidence, cmap="viridis", label="Prediction Uncertainty", alpha=0.5)
+    plt.colorbar(sc)
 
     plt.xlim(q_bounds[0][0], q_bounds[0][1])
     plt.ylim(q_bounds[1][0], q_bounds[1][1])
@@ -182,11 +179,9 @@ def plot_gp_3d(bo, gp_mean, q_bounds):
     xmin, _, y_acq = bo.aquisition_function(Q)
 
     # plot predictions using filled contours
-    mi = y_acq.min()
-    ma = y_acq.max()
-    norm = matplotlib.colors.Normalize(vmin=mi,vmax=ma)
-    ax.scatter(Q[:, 0], Q[:, 1], Q[:, 2], c=y_acq, cmap='viridis', label="Data", marker="x")
-    ax.scatter(xmin[0], xmin[1], xmin[2], c='r', label="Minimum", marker="x")
+    cs = ax.scatter(Q[:, 0], Q[:, 1], Q[:, 2], c=y_acq, cmap='viridis', label="Data", alpha=0.5)
+    plt.colorbar(cs)
+    ax.scatter(xmin[0], xmin[1], xmin[2], c='r', label="Minimum", marker="x", s=100)
 
     plt.xlim(q_bounds[0][0], q_bounds[0][1])
     plt.ylim(q_bounds[1][0], q_bounds[1][1])

@@ -31,13 +31,13 @@
     n_samples_initial: 1000
 
     # GP parameters
-    gp_noise_covariance: 1.0
-    gp_lengthscale: 1.42
-    gp_output_variance: 2.57
+    gp_noise_covariance: 0.5
+    gp_lengthscale: 0.7
+    gp_output_variance: 3.0
     gp_mean: 30.0
 
     # Bayesian optimization parameters
-    bo_beta: 2.0
+    bo_beta: 1.0
 
     # path to results
     results_csv_filepath: "/home/jonas/AMZ/vehicle_dynamics_control_sim/src/bayesian_optimizer/results/results.csv"

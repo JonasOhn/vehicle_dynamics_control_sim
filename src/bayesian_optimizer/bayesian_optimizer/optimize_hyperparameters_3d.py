@@ -19,7 +19,7 @@ import yaml
 
 def main():
     # get the data
-    results_csv_filepath = "/home/jonas/AMZ/vehicle_dynamics_control_sim/src/bayesian_optimizer/results/results_sd05_max35_mean30.csv"
+    results_csv_filepath = "/home/jonas/AMZ/vehicle_dynamics_control_sim/src/bayesian_optimizer/results/results.csv"
     config_bo_filepath = "/home/jonas/AMZ/vehicle_dynamics_control_sim/src/bayesian_optimizer/config/optimizer_params.yaml"
 
     with open(config_bo_filepath, "r") as file:
@@ -27,6 +27,8 @@ def main():
         config_bo = config_bo["/bayesian_optimizer_node"]["ros__parameters"]
     
     # --- initialize parameters
+    lb_q_sd = 0.01
+    ub_q_sd = 2.0
     lb_q_n = 0.01
     ub_q_n = 2.0
     lb_q_mu = 0.01
@@ -38,7 +40,7 @@ def main():
     gp_mean = config_bo["gp_mean"]
 
     # get the data
-    X_data = data[:, 1:3]
+    X_data = data[:, 0:3]
     Y_data = data[:, 3]
 
     print(X_data)
@@ -54,7 +56,7 @@ def main():
     
     for kernel in kernels:
         # create the model
-        gpr = GaussianProcessRegressor(kernel=kernel, alpha=1e-10, n_restarts_optimizer=20, normalize_y=False, random_state=42)
+        gpr = GaussianProcessRegressor(kernel=kernel, alpha=1e-10, n_restarts_optimizer=10, normalize_y=False, random_state=42)
 
         # fit the model
         gpr.fit(X_data, Y_data)
@@ -83,82 +85,79 @@ def main():
     print("Score (best is 1.0, the smaller the worse): ", gpr.score(X_data, Y_data))
 
     # get the predictions over bounded parameter space
-    n_samples = 50
+    n_samples = 10
+    q_sd = np.linspace(start=lb_q_sd, stop=ub_q_sd, num=n_samples)
     q_n = np.linspace(start=lb_q_n, stop=ub_q_n, num=n_samples)
     q_mu = np.linspace(start=lb_q_mu, stop=ub_q_mu, num=n_samples)
 
+    q_bounds = np.array([[lb_q_sd, ub_q_sd], [lb_q_n, ub_q_n], [lb_q_mu, ub_q_mu]])
+
     # Generate meshgrid
-    X, Y = np.meshgrid(q_n, q_mu, indexing="ij")
+    X, Y, Z = np.meshgrid(q_sd, q_n, q_mu, indexing="ij")
 
     # Reshape meshgrid to form a matrix where each column represents one parameter dimension
-    Q = np.vstack((X.flatten(), Y.flatten())).T
+    Q = np.vstack((X.flatten(), Y.flatten(), Z.flatten())).T
 
     # get the predictions
     y_pred, sigma = gpr.predict(Q, return_std=True)
 
-    # plot the raw data in 2d using colormap for y
+    # plot the raw data in 3d using colormap for y
     fig = plt.figure(1)
 
-
     # plot the raw data only
-    ax = fig.add_subplot(111)
+    ax = fig.add_subplot(111, projection="3d")
 
     # plot predictions using filled contours
-    mi = gp_mean + Y_data.min()
-    ma = gp_mean + Y_data.max()
-    norm = matplotlib.colors.Normalize(vmin=mi,vmax=ma)
-    sc = ax.scatter(X_data[:, 0], X_data[:, 1], c=gp_mean + Y_data, norm=norm, cmap="viridis", label="Data", marker="o")
+    sc = ax.scatter(X_data[:, 0], X_data[:, 1], X_data[:, 2], c=gp_mean + Y_data, cmap="viridis", label="Data")
     plt.colorbar(sc)
 
-    plt.xlim(lb_q_n, ub_q_n)
-    plt.ylim(lb_q_mu, ub_q_mu)
+    plt.xlim(q_bounds[0][0], q_bounds[0][1])
+    plt.ylim(q_bounds[1][0], q_bounds[1][1])
+    ax.set_zlim(q_bounds[2][0], q_bounds[2][1])
 
-    plt.xlabel("q_n")
-    plt.ylabel("q_mu")
+    plt.xlabel("q_s")
+    plt.ylabel("q_n")
+    ax.set_zlabel("q_mu")
     plt.title("Raw data")
+
 
 
     fig = plt.figure(2)
 
-    # plot the GP mean in 2d
-    ax = fig.add_subplot(111)
+    # plot the GP mean in 3d
+    ax = fig.add_subplot(111, projection="3d")
 
     # plot predictions using filled contours
-    # mi = np.min((Y_data.min(), Y.min()))
-    # ma = np.max((Y_data.max(), Y.max()))
-    mi = Y_data.min()
-    ma = Y_data.max()
-    norm = matplotlib.colors.Normalize(vmin=mi,vmax=ma)
-    ax.contourf(X, Y, y_pred.reshape(n_samples, n_samples), norm=norm, cmap="viridis", alpha=0.5)
-    sc = ax.scatter(X_data[:, 0], X_data[:, 1], c=Y_data, norm=norm, cmap="viridis", label="Data", marker="x")
+    # plot contour plot of the GP mean
+    sc = ax.scatter(Q[:, 0], Q[:, 1], Q[:, 2], c=y_pred + gp_mean, cmap="viridis", label="Mean Prediction", alpha=0.5)
     plt.colorbar(sc)
 
-    plt.xlim(lb_q_n, ub_q_n)
-    plt.ylim(lb_q_mu, ub_q_mu)
+    plt.xlim(q_bounds[0][0], q_bounds[0][1])
+    plt.ylim(q_bounds[1][0], q_bounds[1][1])
+    ax.set_zlim(q_bounds[2][0], q_bounds[2][1])
 
-    plt.xlabel("q_n")
-    plt.ylabel("q_mu")
-    plt.title("Predictions and raw data, mean laptime subtracted")
+    plt.xlabel("q_s")
+    plt.ylabel("q_n")
+    ax.set_zlabel("q_mu")
+    plt.title("Predictions")
 
 
     fig = plt.figure(3)
 
     # plot the uncertainty in 2d using colormap for y
-    ax = fig.add_subplot(111)
+    ax = fig.add_subplot(111, projection="3d")
 
-    mi = sigma.min()
-    ma = sigma.max()
-    norm = matplotlib.colors.Normalize(vmin=mi,vmax=ma)
-    cp = ax.contourf(X, Y, sigma.reshape(n_samples, n_samples), cmap="viridis", alpha=0.5, norm=norm)
-    plt.colorbar(cp)
-    ax.scatter(X_data[:, 0], X_data[:, 1], c='k', label="Data", marker="x")
+    sc = ax.scatter(Q[:, 0], Q[:, 1], Q[:, 2], c=sigma, cmap="viridis", label="Prediction Uncertainty", alpha=0.5)
+    plt.colorbar(sc)
 
-    plt.xlim(lb_q_n, ub_q_n)
-    plt.ylim(lb_q_mu, ub_q_mu)
+    plt.xlim(q_bounds[0][0], q_bounds[0][1])
+    plt.ylim(q_bounds[1][0], q_bounds[1][1])
+    ax.set_zlim(q_bounds[2][0], q_bounds[2][1])
     
-    plt.xlabel("q_n")
-    plt.ylabel("q_mu")
-    plt.title("Uncertainty (std) and raw data")
+    plt.xlabel("q_s")
+    plt.ylabel("q_n")
+    ax.set_zlabel("q_mu")
+    plt.title("Uncertainty (std)")
 
     plt.show()
 
