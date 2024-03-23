@@ -58,26 +58,73 @@ public:
 
     // State of Simulation
 
-    // X_C
+    // X_C_I
     x_[0] = 0.0;
-    // Y_C
+    // Y_C_I
     x_[1] = 0.0;
     // psi
     x_[2] = 0.0;
+
     // dX_cdt in vehicle frame
     x_[3] = 0.0;
     // dY_cdt in vehicle frame
     x_[4] = 0.0;
     // dpsidt
     x_[5] = 0.0;
-    // fx_f
+
+    // del_s_act
     x_[6] = 0.0;
-    // dfx_f/dt
+
+    // omega_wheel_fl
     x_[7] = 0.0;
-    // fx_r
+    // omega_wheel_fr
     x_[8] = 0.0;
-    // dfx_r/dt
+    // omega_wheel_rl
     x_[9] = 0.0;
+    // omega_wheel_rr
+    x_[10] = 0.0;
+
+    // ==============
+    // T_mot_fl_act
+    x_[11] = 0.0;
+    // dT_mot_fl_act
+    x_[12] = 0.0;
+
+    // T_mot_fr_act
+    x_[13] = 0.0;
+    // dT_mot_fr_act
+    x_[14] = 0.0;
+
+    // T_mot_rl_act
+    x_[15] = 0.0;
+    // dT_mot_rl_act
+    x_[16] = 0.0;
+
+    // T_mot_rr_act
+    x_[17] = 0.0;
+    // dT_mot_rr_act
+    x_[18] = 0.0;
+
+    // ===============
+
+    // Fx_fl_act
+    x_[19] = 0.0;
+    // Fx_fr_act
+    x_[20] = 0.0;
+    // Fx_rl_act
+    x_[21] = 0.0;
+    // Fx_rr_act
+    x_[22] = 0.0;
+    
+    // Fy_fl_act
+    x_[23] = 0.0;
+    // Fy_fr_act
+    x_[24] = 0.0;
+    // Fy_rl_act
+    x_[25] = 0.0;
+    // Fy_rr_act
+    x_[26] = 0.0;
+    
 
     // Get perception parameters from parameter server
     this->gamma_ = this->get_parameter("gamma").as_double();
@@ -94,16 +141,41 @@ public:
     parameters param_struct;
     param_struct.l_f = this->get_parameter("l_f").as_double();
     param_struct.l_r = this->get_parameter("l_r").as_double();
+    param_struct.wb_f = this->get_parameter("wb_f").as_double();
+    param_struct.wb_r = this->get_parameter("wb_r").as_double();
+    param_struct.h_cg = this->get_parameter("h_cg").as_double();
+    param_struct.r_wheel = this->get_parameter("r_wheel").as_double();
+
     param_struct.m = this->get_parameter("m").as_double();
     param_struct.Iz = this->get_parameter("Iz").as_double();
     param_struct.g = this->get_parameter("g").as_double();
-    param_struct.D_tire = this->get_parameter("D_tire").as_double();
-    param_struct.C_tire = this->get_parameter("C_tire").as_double();
-    param_struct.B_tire = this->get_parameter("B_tire").as_double();
+    param_struct.Iwheel = this->get_parameter("Iwheel").as_double();
+
+    param_struct.D_tire_lon = this->get_parameter("D_tire_lon").as_double();
+    param_struct.C_tire_lon = this->get_parameter("C_tire_lon").as_double();
+    param_struct.B_tire_lon = this->get_parameter("B_tire_lon").as_double();
+    param_struct.tau_tire_x = this->get_parameter("tau_tire_x").as_double();
+
+    param_struct.D_tire_lat = this->get_parameter("D_tire_lat").as_double();
+    param_struct.C_tire_lat = this->get_parameter("C_tire_lat").as_double();
+    param_struct.B_tire_lat = this->get_parameter("B_tire_lat").as_double();
+    param_struct.tau_tire_y = this->get_parameter("tau_tire_y").as_double();
+
     param_struct.C_d = this->get_parameter("C_d").as_double();
     param_struct.C_r = this->get_parameter("C_r").as_double();
-    param_struct.T_mot = this->get_parameter("T_mot").as_double();
+    param_struct.C_l = this->get_parameter("C_l").as_double();
+
+    param_struct.tau_mot = this->get_parameter("tau_mot").as_double();
     param_struct.D_mot = this->get_parameter("D_mot").as_double();
+
+    param_struct.iG = this->get_parameter("iG").as_double();
+    param_struct.tau_steer = this->get_parameter("tau_steer").as_double();
+
+    param_struct.delta_s_max = this->get_parameter("delta_s_max").as_double();
+    param_struct.delta_s_min = this->get_parameter("delta_s_min").as_double();
+    param_struct.T_mot_max = this->get_parameter("T_mot_max").as_double();
+    param_struct.T_mot_min = this->get_parameter("T_mot_min").as_double();
+
     sys_.update_parameters(param_struct);
 
     // Time step for ODE solver in seconds
@@ -200,7 +272,24 @@ private:
     x_[7] = 0.0;
     x_[8] = 0.0;
     x_[9] = 0.0;
-
+    x_[10] = 0.0;
+    x_[11] = 0.0;
+    x_[12] = 0.0;
+    x_[13] = 0.0;
+    x_[14] = 0.0;
+    x_[15] = 0.0;
+    x_[16] = 0.0;
+    x_[17] = 0.0;
+    x_[18] = 0.0;
+    x_[19] = 0.0;
+    x_[20] = 0.0;
+    x_[21] = 0.0;
+    x_[22] = 0.0;
+    x_[23] = 0.0;
+    x_[24] = 0.0;
+    x_[25] = 0.0;
+    x_[26] = 0.0;
+    
     this->initial_idx_refloop_ = 0;
     num_cones_hit_ = 0;
     for (size_t i = 0; i < cones_hit_count_left_.size(); i++) {
@@ -874,7 +963,7 @@ private:
   size_t initial_idx_refloop_;
 
   // State vector of dynamic system
-  state_type x_{state_type(10)};
+  state_type x_{state_type(27)};
 
   // Init System
   DynamicSystem sys_;

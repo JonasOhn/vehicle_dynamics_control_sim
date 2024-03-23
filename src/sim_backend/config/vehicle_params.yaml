@@ -3,20 +3,45 @@
     use_sim_time: true
     l_f: 0.8 # m
     l_r: 0.7 # m
-    m: 220.0 # kg
+    wb_f: 1.05 # m
+    wb_r: 1.00 # m
+    h_cg: 0.3 # m
+    r_wheel: 0.210 # m
+
+    m: 200.0 # kg
     Iz: 100.0 # kg m m
     g: 9.81 # m s-2
-    D_tire: -3.0
-    C_tire: 1.0
-    B_tire: 9.0
+    Iwheel: 0.2 # kg m m
+
+    D_tire_lon: -1.2
+    C_tire_lon: 1.7
+    B_tire_lon: 9.0
+    tau_tire_x: 0.001
+
+    D_tire_lat: -1.2
+    C_tire_lat: 1.5
+    B_tire_lat: 9.0
+    tau_tire_y: 0.001
+    
     C_d: 1.133 # 0.5 * rho * CdA
     C_l: 3.0
     C_r: 0.5 # -
-    T_mot:  0.001 # s
-    D_mot:  1.0 # -
+
+    tau_mot:  0.005 # s
+    D_mot:  0.9 # -
+    iG: 17.0
+    tau_steer: 0.002
+
+    delta_s_max: 0.7
+    delta_s_min: -0.7
+
+    T_mot_max: 21.5
+    T_mot_min: -21.5
+
     gamma: 0.8 # rad
     r_perception_max: 20.0 # m
     r_perception_min: 3.0 # m
+    
     track_filepath_midline: "src/sim_backend/tracks/FSG_middle_path.csv"
     track_filepath_leftbound: "src/sim_backend/tracks/FSG_blue_cones.csv"
     track_filepath_rightbound: "src/sim_backend/tracks/FSG_yellow_cones.csv"

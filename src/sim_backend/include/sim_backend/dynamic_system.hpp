@@ -20,18 +20,48 @@ using namespace std;
 using namespace boost::numeric::odeint;
 
 typedef struct {
+  // overall geometry
   double l_f; // m
   double l_r; // m
+  double wb_f; // m
+  double wb_r; // m
+  double h_cg; // m
+  double r_wheel; // m
+
+  // mass and inertia
   double m;   // kg
   double Iz;  // kg m m
   double g;   // m s-2
-  double D_tire;
-  double C_tire;
-  double B_tire;
+  double Iwheel; // kg m m
+
+  // Pacejka longitudinal
+  double D_tire_lon;
+  double C_tire_lon;
+  double B_tire_lon;
+  double tau_tire_x;
+
+  // Pacejka lateral
+  double D_tire_lat;
+  double C_tire_lat;
+  double B_tire_lat;
+  double tau_tire_y;
+
+  // resistance
   double C_d; // 0.5 * rho * CdA
   double C_r; // -
-  double T_mot;
+  double C_l;
+
+  // motors
+  double tau_mot;
   double D_mot;
+  double iG;
+  double tau_steer;
+
+  // saturation
+  double delta_s_max;
+  double delta_s_min;
+  double T_mot_max;
+  double T_mot_min;
 } parameters;
 
 typedef std::vector<double> state_type;
@@ -45,16 +75,22 @@ private:
   // dep. params
   double l_;
   // inputs
-  double Fx_f_;
-  double Fx_r_;
-  double delta_s_;
+  double T_mot_fl_set_;
+  double T_mot_fr_set_;
+  double T_mot_rl_set_;
+  double T_mot_rr_set_;
+  double delta_s_set_;
 
 public:
   DynamicSystem();
 
-  void update_inputs(double fx_f, double fx_r, double delta_steer);
+  void update_inputs(double Tm_fl_set, double Tm_fr_set,
+                      double Tm_rl_set, double Tm_rr_set,
+                      double delta_s_set);
 
-  void get_inputs(double *fx_f, double *fx_r, double *delta_steer);
+  void get_inputs(double &Tm_fl_set, double &Tm_fr_set,
+                  double &Tm_rl_set, double &Tm_rr_set,
+                  double &delta_s_set);
 
   void update_parameters(parameters param_struct);
 
