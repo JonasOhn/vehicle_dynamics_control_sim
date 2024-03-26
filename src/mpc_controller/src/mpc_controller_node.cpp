@@ -380,8 +380,10 @@ private:
       this->mpc_controller_obj_.get_input(u_eval);
 
       auto veh_input_msg = sim_backend::msg::SysInput();
-      veh_input_msg.fx_r = u_eval[0] / 2.0;
-      veh_input_msg.fx_f = u_eval[0] / 2.0;
+      veh_input_msg.t_m_fl = u_eval[0] * 0.2 / 4.0;
+      veh_input_msg.t_m_fr = u_eval[0] * 0.2 / 4.0;
+      veh_input_msg.t_m_rl = u_eval[0] * 0.2 / 4.0;
+      veh_input_msg.t_m_rr = u_eval[0] * 0.2 / 4.0;
       veh_input_msg.del_s = u_eval[1];
 
       control_cmd_publisher_->publish(veh_input_msg);
@@ -395,8 +397,10 @@ private:
       RCLCPP_DEBUG_STREAM(this->get_logger(), "Control Callback ended.");
     } else {
       auto veh_input_msg = sim_backend::msg::SysInput();
-      veh_input_msg.fx_r = 0.0;
-      veh_input_msg.fx_f = 0.0;
+      veh_input_msg.t_m_fl = 0.0;
+      veh_input_msg.t_m_fr = 0.0;
+      veh_input_msg.t_m_rl = 0.0;
+      veh_input_msg.t_m_rr = 0.0;
       veh_input_msg.del_s = 0.0;
       control_cmd_publisher_->publish(veh_input_msg);
       RCLCPP_DEBUG_STREAM(this->get_logger(),
@@ -415,9 +419,7 @@ private:
 
     this->mpc_controller_obj_.set_state(
         state_msg.x_c, state_msg.y_c, state_msg.psi, state_msg.dx_c_v,
-        state_msg.del_s_ref,
-        (state_msg.fx_f_act + state_msg.fx_r_act) /
-            this->mpc_controller_obj_.get_mass(),
+        state_msg.del_s_act, state_msg.ax_c_v,
         s, n, mu);
 
     RCLCPP_DEBUG_STREAM(this->get_logger(),

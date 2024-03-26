@@ -127,8 +127,10 @@ private:
          this->K_D_v_ * (this->e_v_ - e_v_prev) / this->dt_seconds_;
 
     // Split force in half for front and rear tire
-    veh_input_msg.fx_r = fx / 2.0;
-    veh_input_msg.fx_f = fx / 2.0;
+    veh_input_msg.t_m_fl = fx * 0.2 / 4.0;
+    veh_input_msg.t_m_fr = fx * 0.2 / 4.0;
+    veh_input_msg.t_m_rl = fx * 0.2 / 4.0;
+    veh_input_msg.t_m_rr = fx * 0.2 / 4.0;
 
     // Publish Control Command message
     control_cmd_publisher_->publish(veh_input_msg);

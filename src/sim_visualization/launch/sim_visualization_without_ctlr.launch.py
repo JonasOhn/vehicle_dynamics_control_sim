@@ -56,7 +56,7 @@ def generate_launch_description():
             )
         ],
         output="log",
-        arguments=["--ros-args", "--log-level", "info"],
+        arguments=["--ros-args", "--log-level", "debug"],
     )
 
     tf_pub_node = Node(

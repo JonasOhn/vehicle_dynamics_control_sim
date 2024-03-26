@@ -138,45 +138,45 @@ public:
 
     // Create Dynamic System and update parameters
     sys_ = DynamicSystem();
-    parameters param_struct;
-    param_struct.l_f = this->get_parameter("l_f").as_double();
-    param_struct.l_r = this->get_parameter("l_r").as_double();
-    param_struct.wb_f = this->get_parameter("wb_f").as_double();
-    param_struct.wb_r = this->get_parameter("wb_r").as_double();
-    param_struct.h_cg = this->get_parameter("h_cg").as_double();
-    param_struct.r_wheel = this->get_parameter("r_wheel").as_double();
 
-    param_struct.m = this->get_parameter("m").as_double();
-    param_struct.Iz = this->get_parameter("Iz").as_double();
-    param_struct.g = this->get_parameter("g").as_double();
-    param_struct.Iwheel = this->get_parameter("Iwheel").as_double();
+    param_struct_.l_f = this->get_parameter("l_f").as_double();
+    param_struct_.l_r = this->get_parameter("l_r").as_double();
+    param_struct_.wb_f = this->get_parameter("wb_f").as_double();
+    param_struct_.wb_r = this->get_parameter("wb_r").as_double();
+    param_struct_.h_cg = this->get_parameter("h_cg").as_double();
+    param_struct_.r_wheel = this->get_parameter("r_wheel").as_double();
 
-    param_struct.D_tire_lon = this->get_parameter("D_tire_lon").as_double();
-    param_struct.C_tire_lon = this->get_parameter("C_tire_lon").as_double();
-    param_struct.B_tire_lon = this->get_parameter("B_tire_lon").as_double();
-    param_struct.tau_tire_x = this->get_parameter("tau_tire_x").as_double();
+    param_struct_.m = this->get_parameter("m").as_double();
+    param_struct_.Iz = this->get_parameter("Iz").as_double();
+    param_struct_.g = this->get_parameter("g").as_double();
+    param_struct_.Iwheel = this->get_parameter("Iwheel").as_double();
 
-    param_struct.D_tire_lat = this->get_parameter("D_tire_lat").as_double();
-    param_struct.C_tire_lat = this->get_parameter("C_tire_lat").as_double();
-    param_struct.B_tire_lat = this->get_parameter("B_tire_lat").as_double();
-    param_struct.tau_tire_y = this->get_parameter("tau_tire_y").as_double();
+    param_struct_.D_tire_lon = this->get_parameter("D_tire_lon").as_double();
+    param_struct_.C_tire_lon = this->get_parameter("C_tire_lon").as_double();
+    param_struct_.B_tire_lon = this->get_parameter("B_tire_lon").as_double();
+    param_struct_.tau_tire_x = this->get_parameter("tau_tire_x").as_double();
 
-    param_struct.C_d = this->get_parameter("C_d").as_double();
-    param_struct.C_r = this->get_parameter("C_r").as_double();
-    param_struct.C_l = this->get_parameter("C_l").as_double();
+    param_struct_.D_tire_lat = this->get_parameter("D_tire_lat").as_double();
+    param_struct_.C_tire_lat = this->get_parameter("C_tire_lat").as_double();
+    param_struct_.B_tire_lat = this->get_parameter("B_tire_lat").as_double();
+    param_struct_.tau_tire_y = this->get_parameter("tau_tire_y").as_double();
 
-    param_struct.tau_mot = this->get_parameter("tau_mot").as_double();
-    param_struct.D_mot = this->get_parameter("D_mot").as_double();
+    param_struct_.C_d = this->get_parameter("C_d").as_double();
+    param_struct_.C_r = this->get_parameter("C_r").as_double();
+    param_struct_.C_l = this->get_parameter("C_l").as_double();
 
-    param_struct.iG = this->get_parameter("iG").as_double();
-    param_struct.tau_steer = this->get_parameter("tau_steer").as_double();
+    param_struct_.tau_mot = this->get_parameter("tau_mot").as_double();
+    param_struct_.D_mot = this->get_parameter("D_mot").as_double();
 
-    param_struct.delta_s_max = this->get_parameter("delta_s_max").as_double();
-    param_struct.delta_s_min = this->get_parameter("delta_s_min").as_double();
-    param_struct.T_mot_max = this->get_parameter("T_mot_max").as_double();
-    param_struct.T_mot_min = this->get_parameter("T_mot_min").as_double();
+    param_struct_.iG = this->get_parameter("iG").as_double();
+    param_struct_.tau_steer = this->get_parameter("tau_steer").as_double();
 
-    sys_.update_parameters(param_struct);
+    param_struct_.delta_s_max = this->get_parameter("delta_s_max").as_double();
+    param_struct_.delta_s_min = this->get_parameter("delta_s_min").as_double();
+    param_struct_.T_mot_max = this->get_parameter("T_mot_max").as_double();
+    param_struct_.T_mot_min = this->get_parameter("T_mot_min").as_double();
+
+    sys_.update_parameters(param_struct_);
 
     // Time step for ODE solver in seconds
     dt_seconds_ = dt_.count() / 1e3;
@@ -311,13 +311,15 @@ private:
 
   void update_input(const sim_backend::msg::SysInput &msg) {
     RCLCPP_DEBUG_STREAM(this->get_logger(),
-                        "Received Input Fx_f: " << msg.fx_f << ""
-                                                << ", Fx_r: " << msg.fx_r
-                                                << ", delta_s: " << msg.del_s);
+                        "Received Input Tm_fl: " << msg.t_m_fl << ""
+                    << ", Tm_fr: " << msg.t_m_fr
+                    << ", Tm_rl: " << msg.t_m_rl
+                    << ", Tm_rr: " << msg.t_m_rr
+                    << ", delta_s: " << msg.del_s);
     if (this->accept_inputs_) {
-      this->sys_.update_inputs(msg.fx_f, msg.fx_r, msg.del_s);
+      this->sys_.update_inputs(msg.t_m_fl, msg.t_m_fr, msg.t_m_rl, msg.t_m_rr, msg.del_s);
     } else {
-      this->sys_.update_inputs(0.0, 0.0, 0.0);
+      this->sys_.update_inputs(0.0, 0.0, 0.0, 0.0, 0.0);
     }
   }
 
@@ -427,6 +429,7 @@ private:
 
   bool coneWithinBoundingBox(std::vector<std::vector<double>> bbox,
                              std::vector<double> cone) {
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Checking if cone is within bounding box.");
     // Check if the cone is within the bounding box defined by the four points
     // in counterclockwise order
     double x = cone[0];
@@ -445,9 +448,11 @@ private:
 
       // If the cross product is negative, the point is outside the bounding box
       if (crossProduct < 0) {
+        RCLCPP_DEBUG_STREAM(this->get_logger(), "Cone is outside bounding box.");
         return false;
       }
     }
+    RCLCPP_DEBUG_STREAM(this->get_logger(), "Cone is within bounding box.");
 
     // If the point is inside all four line segments, it is within the bounding
     // box
@@ -594,6 +599,10 @@ private:
     RCLCPP_DEBUG_STREAM(this->get_logger(),
                         "Step began at time t_ = " << t_ << " s.");
 
+    RCLCPP_DEBUG_STREAM(this->get_logger(),
+                        "State: " << x_[0] << ", " << x_[1] << ", "
+                        << x_[2]);
+
     double adaptive_dt = 1e-4;
     size_t steps = integrate_adaptive(stepper_, sys_, x_, t_, t_ + dt_seconds_,
                                       adaptive_dt);
@@ -613,20 +622,55 @@ private:
     state_msg.dx_c_v = x_[3];
     state_msg.dy_c_v = x_[4];
     state_msg.dpsi = x_[5];
-    state_msg.fx_f_act = x_[6];
-    state_msg.dfx_f_act = x_[7];
-    state_msg.fx_r_act = x_[8];
-    state_msg.dfx_r_act = x_[9];
+    
+    state_msg.del_s_act = x_[6];
+    state_msg.omega_wheel_fl = x_[7];
+    state_msg.omega_wheel_fr = x_[8];
+    state_msg.omega_wheel_rl = x_[9];
+    state_msg.omega_wheel_rr = x_[10];
 
-    double fx_f = 0.0;
-    double fx_r = 0.0;
+    state_msg.t_mot_fl_act = x_[11];
+    state_msg.dt_mot_fl_act = x_[12];
+    state_msg.t_mot_fr_act = x_[13];
+    state_msg.dt_mot_fr_act = x_[14];
+    state_msg.t_mot_rl_act = x_[15];
+    state_msg.dt_mot_rl_act = x_[16];
+    state_msg.t_mot_rr_act = x_[17];
+    state_msg.dt_mot_rr_act = x_[18];
+
+    state_msg.fx_fl = x_[19];
+    state_msg.fx_fr = x_[20];
+    state_msg.fx_rl = x_[21];
+    state_msg.fx_rr = x_[22];
+    state_msg.fy_fl = x_[23];
+    state_msg.fy_fr = x_[24];
+    state_msg.fy_rl = x_[25];
+    state_msg.fy_rr = x_[26];
+
+    state_msg.ax_c_v = ((x_[19] + x_[20]) * cos(x_[6])
+          + (x_[21] + x_[21]) 
+          - (x_[23] + x_[24]) * sin(x_[6]) 
+          - tanh(x_[3] / 1e-6) * (param_struct_.C_d * pow(x_[3], 2))
+          - tanh(x_[3] / 1e-6) * (param_struct_.C_r * param_struct_.m * param_struct_.g)) / param_struct_.m 
+          + x_[3] * x_[5];
+    state_msg.ay_c_v = (x_[25] + x_[26] 
+          + (x_[23] + x_[24]) * cos(x_[6])
+          + (x_[19] + x_[20]) * sin(x_[6])) / param_struct_.m 
+          - x_[3] * x_[5];
+
+    double t_mot_fl = 0.0;
+    double t_mot_fr = 0.0;
+    double t_mot_rl = 0.0;
+    double t_mot_rr = 0.0;
     double del_s = 0.0;
 
-    this->sys_.get_inputs(&fx_f, &fx_r, &del_s);
+    this->sys_.get_inputs(t_mot_fl, t_mot_fr, t_mot_rl, t_mot_rr, del_s);
 
     state_msg.del_s_ref = del_s;
-    state_msg.fx_f_ref = fx_f;
-    state_msg.fx_r_ref = fx_r;
+    state_msg.t_mot_fl_ref = t_mot_fl;
+    state_msg.t_mot_fr_ref = t_mot_fr;
+    state_msg.t_mot_rl_ref = t_mot_rl;
+    state_msg.t_mot_rr_ref = t_mot_rr;
 
     state_publisher_->publish(state_msg);
 
@@ -968,6 +1012,9 @@ private:
   // Init System
   DynamicSystem sys_;
 
+  // parameters struct
+  parameters param_struct_;
+
   // filepaths
   std::string track_fpath_midline_;
   std::string track_fpath_leftbound_;
@@ -999,7 +1046,7 @@ private:
   default_error_checker<double, range_algebra, default_operations>
       error_checker =
           default_error_checker<double, range_algebra, default_operations>(
-              1e-1, 1e-1);
+              1e-6, 1e-6);
   // Create Default Step Adjuster
   default_step_adjuster<double, double> step_adjuster =
       default_step_adjuster<double, double>(static_cast<double>(max_dt_));
