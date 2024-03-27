@@ -14,9 +14,9 @@
       T_final: 1.0
       N_horizon: 40
     cost:
-      q_sd: 0.1
-      q_n: 0.4
-      q_mu: 0.4
+      q_sd: 1.9
+      q_n: 1.5
+      q_mu: 1.5
       q_dels: 0.001
       q_ax: 0.001
       r_ddels: 0.001
@@ -56,11 +56,11 @@
       hessian_approx: 'EXACT' #'GAUSS_NEWTON' #'EXACT' #
       integrator_type: 'ERK'
       sim_method_newton_iter: 20
-      nlp_solver_max_iter: 10
+      nlp_solver_max_iter: 5
       qp_solver_iter_max: 50
       qp_solver_warm_start: 0
       regularize_method: 'PROJECT'
-      reg_epsilon: 0.001
+      reg_epsilon: 0.00001
       alpha_min: 0.000001
       alpha_reduction: 0.7
       hpipm_mode: 'BALANCE' #'BALANCE', 'ROBUST', 'SPEED'

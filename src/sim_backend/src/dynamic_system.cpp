@@ -210,7 +210,7 @@ void DynamicSystem::operator()(const state_type &x, state_type &dxdt,
   double vx_tire_rl = vx_rl;
   double vx_tire_rr = vx_rr;
 
-  double eps = 1e-3;
+  double eps = 1e-6;
   
   double vn_fl = fmax(params_.r_wheel * fabs(omega_wheel_fl), fabs(vx_tire_fl)) + eps;
   double vn_fr = fmax(params_.r_wheel * fabs(omega_wheel_fr), fabs(vx_tire_fr)) + eps;
@@ -227,13 +227,13 @@ void DynamicSystem::operator()(const state_type &x, state_type &dxdt,
   double wb_avg = (params_.wb_f + params_.wb_r) / 2.0;
 
   // Vertical tire loads (static)
-  double Fz_fl_stat = 0.5 * params_.m * params_.g * params_.l_r / l_;
-  double Fz_fr_stat = 0.5 * params_.m * params_.g * params_.l_r / l_;
-  double Fz_rl_stat = 0.5 * params_.m * params_.g * params_.l_f / l_;
-  double Fz_rr_stat = 0.5 * params_.m * params_.g * params_.l_f / l_;
+  double Fz_fl_stat = 0.5 * params_.m * params_.g * params_.l_r / (params_.l_r + params_.l_f);
+  double Fz_fr_stat = 0.5 * params_.m * params_.g * params_.l_r / (params_.l_r + params_.l_f);
+  double Fz_rl_stat = 0.5 * params_.m * params_.g * params_.l_f / (params_.l_r + params_.l_f);
+  double Fz_rr_stat = 0.5 * params_.m * params_.g * params_.l_f / (params_.l_r + params_.l_f);
 
   // vertical tire loads (dynamic)
-  double delta_Fz_lon = 0.5 * params_.m * ax_C_V * params_.h_cg / l_;
+  double delta_Fz_lon = 0.5 * params_.m * ax_C_V * params_.h_cg / (params_.l_r + params_.l_f);
   double delta_Fz_lat = 0.5 * params_.m * ay_C_V * params_.h_cg / wb_avg;
 
   double Fz_aero = 0.25 * params_.C_l * pow(vx_C_V, 2);
@@ -252,10 +252,10 @@ void DynamicSystem::operator()(const state_type &x, state_type &dxdt,
   double Fy_rr = Fz_rr * params_.D_tire_lat * sin(params_.C_tire_lat * atan(params_.B_tire_lat * alpha_rr));
 
   // Longitudinal tire forces
-  double Fx_fl = Fz_fl * params_.D_tire_lon * sin(params_.C_tire_lon * atan(params_.B_tire_lon * sx_fl));
-  double Fx_fr = Fz_fr * params_.D_tire_lon * sin(params_.C_tire_lon * atan(params_.B_tire_lon * sx_fr));
-  double Fx_rl = Fz_rl * params_.D_tire_lon * sin(params_.C_tire_lon * atan(params_.B_tire_lon * sx_rl));
-  double Fx_rr = Fz_rr * params_.D_tire_lon * sin(params_.C_tire_lon * atan(params_.B_tire_lon * sx_rr));
+  double Fx_fl = - Fz_fl * params_.D_tire_lon * sin(params_.C_tire_lon * atan(params_.B_tire_lon * sx_fl));
+  double Fx_fr = - Fz_fr * params_.D_tire_lon * sin(params_.C_tire_lon * atan(params_.B_tire_lon * sx_fr));
+  double Fx_rl = - Fz_rl * params_.D_tire_lon * sin(params_.C_tire_lon * atan(params_.B_tire_lon * sx_rl));
+  double Fx_rr = - Fz_rr * params_.D_tire_lon * sin(params_.C_tire_lon * atan(params_.B_tire_lon * sx_rr));
 
   // ======== Tire Force transients as linear first order system ======
 
