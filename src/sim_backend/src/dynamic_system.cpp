@@ -210,10 +210,12 @@ void DynamicSystem::operator()(const state_type &x, state_type &dxdt,
   double vx_tire_rl = vx_rl;
   double vx_tire_rr = vx_rr;
 
-  double vn_fl = fmax(params_.r_wheel * fabs(omega_wheel_fl), fabs(vx_tire_fl));
-  double vn_fr = fmax(params_.r_wheel * fabs(omega_wheel_fr), fabs(vx_tire_fr));
-  double vn_rl = fmax(params_.r_wheel * fabs(omega_wheel_rl), fabs(vx_tire_rl));
-  double vn_rr = fmax(params_.r_wheel * fabs(omega_wheel_rr), fabs(vx_tire_rr));
+  double eps = 1e-3;
+  
+  double vn_fl = fmax(params_.r_wheel * fabs(omega_wheel_fl), fabs(vx_tire_fl)) + eps;
+  double vn_fr = fmax(params_.r_wheel * fabs(omega_wheel_fr), fabs(vx_tire_fr)) + eps;
+  double vn_rl = fmax(params_.r_wheel * fabs(omega_wheel_rl), fabs(vx_tire_rl)) + eps;
+  double vn_rr = fmax(params_.r_wheel * fabs(omega_wheel_rr), fabs(vx_tire_rr)) + eps;
 
   double sx_fl = (params_.r_wheel * omega_wheel_fl - vx_tire_fl) / vn_fl;
   double sx_fr = (params_.r_wheel * omega_wheel_fr - vx_tire_fr) / vn_fr;
